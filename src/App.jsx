@@ -497,7 +497,7 @@ export default function App() {
     ? current
         .filter(h => {
           const wht = h.current * (h.divYield || 0) / 100 * 0.15;
-          return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) > 0 && wht >= 20;
+          return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) >= 3 && wht > 0;
         })
         .map(h => ({
           ...h,
@@ -556,272 +556,352 @@ export default function App() {
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight:"100vh", background:"#07090f", color:"#e2e8f0",
+    <div style={{ minHeight:"100vh", background:"#080c16", color:"#f1f5f9",
       fontFamily:"'DM Sans', system-ui, sans-serif" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        body{background:#07090f;margin:0}
-        ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-track{background:#0f1420}
-        ::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px}
+        body{background:#080c16;margin:0}
+        ::-webkit-scrollbar{width:5px;height:5px}
+        ::-webkit-scrollbar-track{background:transparent}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:10px}
+        ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.2)}
         input,button,select,textarea{font-family:inherit}
         input[type=number],input[type=text],textarea{
-          background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.1);
-          color:#e2e8f0; padding:6px 10px; border-radius:6px; font-size:13px;
-          font-family:'JetBrains Mono',monospace; width:100%; transition:border 0.15s;
+          background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);
+          color:#f1f5f9;padding:8px 12px;border-radius:8px;font-size:13px;
+          font-family:'JetBrains Mono',monospace;width:100%;transition:all 0.2s;
         }
         input[type=number]:focus,input[type=text]:focus,textarea:focus{
-          outline:none; border-color:${accentColor}; background:rgba(255,255,255,0.06);
+          outline:none;border-color:${accentColor};background:rgba(255,255,255,0.07);
+          box-shadow:0 0 0 3px ${accentColor}18;
         }
         input[type=range]{accent-color:${accentColor};width:100%}
-        .tab-btn{padding:7px 16px;border-radius:6px;font-size:12px;font-weight:500;
-          border:1px solid rgba(255,255,255,0.08); background:transparent;
-          color:rgba(255,255,255,0.4); cursor:pointer; transition:all 0.15s;
-          font-family:inherit; letter-spacing:0.02em}
-        .tab-btn.on{background:rgba(${accentRGB},0.12);
-          border-color:${accentColor}60; color:${accentColor}}
-        .tab-btn:hover:not(.on){color:rgba(255,255,255,0.7)}
-        .card{background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06);
-          border-radius:12px; padding:16px 18px}
-        .th{text-align:left; font-size:10px; font-weight:500; letter-spacing:0.1em;
-          color:rgba(255,255,255,0.35); text-transform:uppercase; padding:8px 10px;
-          border-bottom:1px solid rgba(255,255,255,0.05)}
-        .td{padding:9px 10px; border-bottom:1px solid rgba(255,255,255,0.03);
-          font-size:12px; color:rgba(255,255,255,0.75); vertical-align:middle;
-          font-family:'JetBrains Mono',monospace}
-        .td-main{color:#e2e8f0; font-weight:500}
-        .bar{height:4px; background:rgba(255,255,255,0.07); border-radius:2px;
-          overflow:hidden; position:relative; margin-top:4px}
-        .bar-fill{height:100%; border-radius:2px; transition:width 0.4s ease}
-        .pill{display:inline-block; padding:2px 8px; border-radius:4px;
-          font-size:10px; font-weight:500; letter-spacing:0.03em}
-        .hold{background:rgba(148,163,184,0.1); color:#94a3b8; border:1px solid rgba(148,163,184,0.2)}
-        .new-tag{background:rgba(52,211,153,0.12); color:#34d399; border:1px solid rgba(52,211,153,0.3);
-          padding:1px 6px; border-radius:4px; font-size:9px; font-weight:500}
-        .sec{font-size:10px; letter-spacing:0.15em; text-transform:uppercase;
-          color:rgba(255,255,255,0.3); margin-bottom:10px; font-weight:500}
-        .btn{background:transparent; border:1px solid rgba(255,255,255,0.15);
-          color:rgba(255,255,255,0.7); padding:7px 14px; border-radius:6px;
-          cursor:pointer; font-size:12px; transition:all 0.15s; white-space:nowrap}
-        .btn:hover{border-color:${accentColor}; color:${accentColor}}
-        .btn-danger{border-color:rgba(239,68,68,0.3); color:rgba(239,68,68,0.6)}
-        .btn-danger:hover{border-color:#ef4444; color:#ef4444; background:rgba(239,68,68,0.06)}
-        .btn-primary{background:rgba(${accentRGB},0.12); border-color:${accentColor}60; color:${accentColor}}
-        .btn-primary:hover{background:rgba(${accentRGB},0.2); border-color:${accentColor}}
-        .dca-week{background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);
-          border-radius:8px; padding:12px 14px; margin-bottom:8px}
-        .rec-card{background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.06);
-          border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:10px;
-          transition:border-color 0.2s}
-        .rec-card:hover{border-color:rgba(255,255,255,0.12)}
+        .tab-btn{
+          padding:7px 16px;border-radius:8px;font-size:12px;font-weight:500;
+          border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.02);
+          color:rgba(255,255,255,0.38);cursor:pointer;transition:all 0.2s;
+          font-family:inherit;letter-spacing:0.03em;
+        }
+        .tab-btn.on{
+          background:rgba(${accentRGB},0.15);border-color:${accentColor}55;
+          color:${accentColor};box-shadow:0 0 20px ${accentColor}22;
+        }
+        .tab-btn:hover:not(.on){color:rgba(255,255,255,0.72);border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.04)}
+        .card{
+          background:rgba(255,255,255,0.028);border:1px solid rgba(255,255,255,0.07);
+          border-radius:14px;padding:18px 20px;transition:border-color 0.2s;
+        }
+        .card:hover{border-color:rgba(255,255,255,0.11)}
+        .stat-card{
+          position:relative;overflow:hidden;
+          background:rgba(255,255,255,0.028);border:1px solid rgba(255,255,255,0.07);
+          border-radius:14px;padding:14px 16px;transition:all 0.22s;
+        }
+        .stat-card::before{
+          content:'';position:absolute;top:0;left:0;right:0;height:2px;
+          background:var(--accent);border-radius:14px 14px 0 0;opacity:0.7;
+        }
+        .stat-card:hover{border-color:rgba(255,255,255,0.12);transform:translateY(-1px)}
+        .th{
+          text-align:left;font-size:10px;font-weight:600;letter-spacing:0.12em;
+          color:rgba(255,255,255,0.28);text-transform:uppercase;padding:10px 14px;
+          border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.025);
+        }
+        .td{
+          padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);
+          font-size:12px;color:rgba(255,255,255,0.68);vertical-align:middle;
+          font-family:'JetBrains Mono',monospace;
+        }
+        .td-main{color:#f1f5f9;font-weight:500}
+        .bar{height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-top:5px}
+        .bar-fill{height:100%;border-radius:2px;transition:width 0.5s cubic-bezier(.4,0,.2,1)}
+        .pill{display:inline-block;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:500;letter-spacing:0.03em}
+        .hold{background:rgba(148,163,184,0.07);color:#94a3b8;border:1px solid rgba(148,163,184,0.14)}
+        .new-tag{background:rgba(52,211,153,0.1);color:#34d399;border:1px solid rgba(52,211,153,0.22);
+          padding:1px 7px;border-radius:4px;font-size:9px;font-weight:600;letter-spacing:0.06em}
+        .sec{font-size:9.5px;letter-spacing:0.15em;text-transform:uppercase;
+          color:rgba(255,255,255,0.27);margin-bottom:10px;font-weight:600}
+        .btn{
+          background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+          color:rgba(255,255,255,0.58);padding:7px 14px;border-radius:8px;
+          cursor:pointer;font-size:12px;transition:all 0.2s;white-space:nowrap;
+        }
+        .btn:hover{border-color:${accentColor}55;color:${accentColor};background:rgba(${accentRGB},0.07)}
+        .btn-danger{border-color:rgba(244,63,94,0.22);color:rgba(244,63,94,0.65);background:rgba(244,63,94,0.04)}
+        .btn-danger:hover{border-color:#f43f5e;color:#f43f5e;background:rgba(244,63,94,0.09)}
+        .btn-primary{background:rgba(${accentRGB},0.1);border-color:${accentColor}50;color:${accentColor}}
+        .btn-primary:hover{background:rgba(${accentRGB},0.18);border-color:${accentColor}}
+        .dca-week{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);
+          border-radius:10px;padding:14px 16px;margin-bottom:8px}
+        .rec-card{
+          background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.07);
+          border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px;transition:all 0.22s;
+        }
+        .rec-card:hover{border-color:rgba(255,255,255,0.13);transform:translateY(-1px);box-shadow:0 8px 32px rgba(0,0,0,0.35)}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+        @keyframes slideUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         .pulse{animation:pulse 1.5s ease infinite}
+        .slide-up{animation:slideUp 0.25s ease forwards}
         .gap-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
           border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.05em;
-          background:rgba(251,146,60,0.1);color:#fb923c;border:1px solid rgba(251,146,60,0.25);
-          text-transform:capitalize}
-        .add-form{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);
-          border-radius:10px;padding:16px;margin-top:12px}
-        .warn{background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.2);
-          border-radius:8px;padding:10px 14px;font-size:11px;color:#fb923c;line-height:1.5;margin-bottom:12px}
-        .action-card{transition:filter 0.15s}
-        .action-card:hover{filter:brightness(1.2)}
-        tbody tr{transition:background 0.1s}
-        tbody tr:hover td{background:rgba(255,255,255,0.018)}
-        .buy-row{background:rgba(34,211,238,0.018)}
-        .sell-row{background:rgba(239,68,68,0.018)}
-        .action-divider{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+          background:rgba(249,115,22,0.1);color:#f97316;border:1px solid rgba(249,115,22,0.2);text-transform:capitalize}
+        .add-form{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);
+          border-radius:12px;padding:18px;margin-top:14px}
+        .warn{background:rgba(249,115,22,0.05);border:1px solid rgba(249,115,22,0.16);
+          border-left:3px solid #f97316;border-radius:10px;padding:11px 16px;
+          font-size:11px;color:#f97316;line-height:1.65;margin-bottom:14px}
+        .action-card{transition:filter 0.15s,border-color 0.2s}
+        .action-card:hover{filter:brightness(1.12)}
+        tbody tr:hover .td{background:rgba(255,255,255,0.02)}
+        .buy-row .td{background:rgba(34,211,238,0.014)}
+        .sell-row .td{background:rgba(244,63,94,0.014)}
+        .action-divider{display:flex;align-items:center;gap:10px;margin-bottom:14px}
         .action-divider-bar{width:3px;border-radius:2px;flex-shrink:0}
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ padding:"18px 24px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)",
-        display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <AppLogo/>
-          <div>
-            <p style={{ fontSize:9, letterSpacing:"0.2em", color:`${accentColor}99`, marginBottom:3,
-              textTransform:"uppercase", fontWeight:500 }}>PRB · DCA Planner</p>
-            <h1 style={{ fontFamily:"'Instrument Serif', serif", fontSize:21, fontWeight:400, lineHeight:1.15,
-              background:`linear-gradient(135deg, #e2e8f0 0%, ${accentColor} 55%, #a78bfa 100%)`,
-              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-              Portfolio ReBalancer &amp; DCA Planner
-            </h1>
+      <div style={{ position:"sticky", top:0, zIndex:100 }}>
+        <div style={{
+          background:"rgba(8,12,22,0.88)", backdropFilter:"blur(24px) saturate(180%)",
+          WebkitBackdropFilter:"blur(24px) saturate(180%)",
+          padding:"13px 28px",
+          display:"flex", justifyContent:"space-between", alignItems:"center",
+          flexWrap:"wrap", gap:10
+        }}>
+          {/* Brand */}
+          <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+            <AppLogo/>
+            <div>
+              <p style={{ fontSize:9, letterSpacing:"0.25em", color:`${accentColor}88`,
+                textTransform:"uppercase", fontWeight:600, marginBottom:4 }}>
+                PRB · DCA Planner
+              </p>
+              <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                <h1 style={{ fontFamily:"'Instrument Serif', serif", fontSize:20, fontWeight:400,
+                  background:`linear-gradient(125deg, #f1f5f9 0%, ${accentColor} 48%, #a78bfa 100%)`,
+                  WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", lineHeight:1.1 }}>
+                  Portfolio ReBalancer &amp; DCA Planner
+                </h1>
+              </div>
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+            {saveStatus && (
+              <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:4 }}>
+                {saveStatus}
+              </span>
+            )}
+
+            {/* Utility */}
+            <label className="btn" style={{ cursor:"pointer", fontSize:11, padding:"6px 12px" }}>
+              ⬇ Import
+              <input type="file" accept=".json" style={{ display:"none" }} onChange={importData}/>
+            </label>
+            <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}>
+              ⬆ Export
+            </button>
+            {showReset ? (
+              <>
+                <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11, padding:"6px 12px" }}>
+                  Confirm Reset
+                </button>
+                <button className="btn" onClick={() => setShowReset(false)}
+                  style={{ fontSize:11, padding:"6px 10px" }}>✕</button>
+              </>
+            ) : (
+              <button className="btn" onClick={() => setShowReset(true)}
+                style={{ fontSize:11, padding:"6px 10px" }}>↻</button>
+            )}
+
+            <div style={{ width:1, height:22, background:"rgba(255,255,255,0.08)", margin:"0 4px" }}/>
+
+            {/* Portfolio tabs */}
+            {portfolios.map(p => (
+              <button key={p} className={`tab-btn ${account===p?"on":""}`}
+                style={{ padding:"5px 12px", fontSize:11 }}
+                onClick={() => { setAccount(p); setShowReset(false); setPendingRemove(null); }}>
+                {p === "TFSA" ? "💰 TFSA" : p === "RRSP" ? "🏦 RRSP" : `📁 ${p}`}
+              </button>
+            ))}
+
+            {addPortfolioForm !== null ? (
+              <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                <input type="text" value={addPortfolioForm}
+                  onChange={e => setAddPortfolioForm(e.target.value.toUpperCase())}
+                  onKeyDown={e => {
+                    if (e.key === "Enter") addPortfolio(addPortfolioForm);
+                    if (e.key === "Escape") setAddPortfolioForm(null);
+                  }}
+                  placeholder="NAME" autoFocus style={{ width:88, fontSize:11, padding:"5px 8px" }}/>
+                <button className="btn btn-primary" onClick={() => addPortfolio(addPortfolioForm)}
+                  style={{ fontSize:11, padding:"5px 10px" }}>Add</button>
+                <button className="btn" onClick={() => setAddPortfolioForm(null)}
+                  style={{ fontSize:11, padding:"5px 8px" }}>✕</button>
+              </div>
+            ) : (
+              <button className="btn" onClick={() => setAddPortfolioForm("")}
+                style={{ fontSize:11, padding:"5px 10px" }}>+ Portfolio</button>
+            )}
+            {!["TFSA","RRSP"].includes(account) && (
+              <button className="btn btn-danger" onClick={() => removePortfolio(account)}
+                style={{ fontSize:11, padding:"5px 10px" }}>✕ Delete</button>
+            )}
           </div>
         </div>
-        <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
-          {saveStatus && <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:4 }}>{saveStatus}</span>}
-          <label className="btn" style={{ cursor:"pointer", fontSize:11 }}>
-            ⬇ Import
-            <input type="file" accept=".json" style={{ display:"none" }} onChange={importData}/>
-          </label>
-          <button className="btn" style={{ fontSize:11 }} onClick={exportData}>⬆ Export</button>
-          {showReset ? (
-            <>
-              <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11 }}>Confirm Reset</button>
-              <button className="btn" onClick={() => setShowReset(false)} style={{ fontSize:11 }}>✕</button>
-            </>
-          ) : (
-            <button className="btn" style={{ fontSize:11 }} onClick={() => setShowReset(true)}>↻ Reset</button>
-          )}
-          <div style={{ width:1, height:20, background:"rgba(255,255,255,0.08)", margin:"0 2px" }}/>
-          {portfolios.map(p => (
-            <button key={p} className={`tab-btn ${account===p?"on":""}`}
-              onClick={() => { setAccount(p); setShowReset(false); setPendingRemove(null); }}>
-              {p === "TFSA" ? "💰 TFSA" : p === "RRSP" ? "🏦 RRSP" : `📁 ${p}`}
-            </button>
-          ))}
-          {addPortfolioForm !== null ? (
-            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
-              <input type="text" value={addPortfolioForm}
-                onChange={e => setAddPortfolioForm(e.target.value.toUpperCase())}
-                onKeyDown={e => {
-                  if (e.key === "Enter") addPortfolio(addPortfolioForm);
-                  if (e.key === "Escape") setAddPortfolioForm(null);
-                }}
-                placeholder="NAME" autoFocus
-                style={{ width:90, fontSize:11, padding:"5px 8px" }}/>
-              <button className="btn btn-primary" onClick={() => addPortfolio(addPortfolioForm)}
-                style={{ fontSize:11, padding:"5px 10px" }}>Add</button>
-              <button className="btn" onClick={() => setAddPortfolioForm(null)}
-                style={{ fontSize:11, padding:"5px 8px" }}>✕</button>
-            </div>
-          ) : (
-            <button className="btn" onClick={() => setAddPortfolioForm("")}
-              style={{ fontSize:11, padding:"5px 10px" }}>+ Portfolio</button>
-          )}
-          {!["TFSA","RRSP"].includes(account) && (
-            <button className="btn btn-danger" onClick={() => removePortfolio(account)}
-              style={{ fontSize:11, padding:"5px 10px" }}>✕ Delete</button>
-          )}
-        </div>
+        {/* Dynamic gradient accent line under header */}
+        <div style={{
+          height:1,
+          background:`linear-gradient(90deg, transparent 0%, ${accentColor}55 25%, ${accentColor}55 75%, transparent 100%)`
+        }}/>
       </div>
 
       {/* ── Concentration warning ── */}
       {concentrationWarnings.length > 0 && (
-        <div style={{ padding:"10px 24px 0" }}>
-          <div className="warn" style={{ marginBottom:0 }}>
-            ⚠ Concentration risk: {concentrationWarnings.map(h =>
-              `${h.ticker} (${((h.current/currentTotal)*100).toFixed(1)}%)`
-            ).join(", ")} exceed 20% of {account}
+        <div style={{ padding:"12px 28px 0" }}>
+          <div className="warn" style={{ marginBottom:0, display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:16 }}>⚠</span>
+            <span>
+              Concentration risk in {account}: {concentrationWarnings.map(h =>
+                <strong key={h.ticker} style={{ color:"#f97316" }}>
+                  {h.ticker} ({((h.current/currentTotal)*100).toFixed(1)}%)
+                </strong>
+              ).reduce((a, b) => [a, ", ", b])} {concentrationWarnings.length > 1 ? "exceed" : "exceeds"} 20% — consider spreading risk.
+            </span>
           </div>
         </div>
       )}
 
       {/* ── Summary cards ── */}
-      <div style={{ padding:"16px 24px 0", display:"grid",
-        gridTemplateColumns:"repeat(auto-fit, minmax(145px, 1fr))", gap:10 }}>
+      <div style={{ padding:"18px 28px 0", display:"grid",
+        gridTemplateColumns:"repeat(auto-fit, minmax(152px, 1fr))", gap:10 }}>
 
-        {/* Cash — editable */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:4, textTransform:"uppercase" }}>
-            Cash ({account})
-          </p>
-          <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)" }}>$</span>
+        {/* Cash */}
+        <div className="stat-card" style={{ "--accent":"#34d399" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Cash ({account})</p>
+          <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:4 }}>
+            <span style={{ fontSize:13, color:"rgba(255,255,255,0.22)", fontFamily:"'JetBrains Mono',monospace" }}>$</span>
             <input type="number" value={cash || ""} onChange={e => handleCash(e.target.value)}
               placeholder="0"
-              style={{ fontSize:15, fontWeight:500, color:"#34d399", border:"none",
-                background:"transparent", padding:0, width:"100%" }}/>
+              style={{ fontSize:21, fontWeight:600, color:"#34d399", border:"none",
+                background:"transparent", padding:0, width:"100%",
+                fontFamily:"'JetBrains Mono',monospace" }}/>
           </div>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>available to invest</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>available to invest</p>
         </div>
 
-        {/* Total invested / cost basis */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-            Total invested
-          </p>
-          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
-            color: totalCostBasis > 0 ? "#94a3b8" : "rgba(255,255,255,0.2)" }}>
+        {/* Total invested */}
+        <div className="stat-card" style={{ "--accent":"#64748b" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Total invested</p>
+          <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+            color: totalCostBasis > 0 ? "#94a3b8" : "rgba(255,255,255,0.18)", marginBottom:4 }}>
             {totalCostBasis > 0 ? `$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>cost basis</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>cost basis</p>
         </div>
 
         {/* Portfolio value */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-            Portfolio value
-          </p>
-          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:accentColor }}>
+        <div className="stat-card" style={{ "--accent":accentColor }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Portfolio value</p>
+          <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+            color:accentColor, marginBottom:4 }}>
             ${Math.round(currentTotal).toLocaleString()}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>market value</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>market value</p>
         </div>
 
         {/* Unrealized P&L */}
         {totalPnL !== null && (
-          <div className="card" style={{ padding:"11px 14px" }}>
-            <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-              Unrealized P&amp;L
-            </p>
-            <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
-              color: totalPnL >= 0 ? "#34d399" : "#ef4444" }}>
+          <div className="stat-card"
+            style={{ "--accent": totalPnL >= 0 ? "#34d399" : "#f43f5e" }}>
+            <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+              marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Unrealized P&amp;L</p>
+            <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+              color: totalPnL >= 0 ? "#34d399" : "#f43f5e", marginBottom:4 }}>
               {totalPnL >= 0 ? "+" : ""}${Math.round(totalPnL).toLocaleString()}
             </p>
-            <p style={{ fontSize:9, color: totalPnL >= 0 ? "#34d399" : "#ef4444", marginTop:2 }}>
-              {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(1)}% return
+            <p style={{ fontSize:9, color: totalPnL >= 0 ? "#34d399" : "#f43f5e", opacity:0.8 }}>
+              {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(1)}% total return
             </p>
           </div>
         )}
 
-        {/* Annual div income */}
+        {/* Annual dividends */}
         {annualDivIncome > 1 && (
-          <div className="card" style={{ padding:"11px 14px" }}>
-            <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-              Annual dividends
-            </p>
-            <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#a78bfa" }}>
+          <div className="stat-card" style={{ "--accent":"#a78bfa" }}>
+            <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+              marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Annual dividends</p>
+            <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+              color:"#a78bfa", marginBottom:4 }}>
               ${Math.round(annualDivIncome).toLocaleString()}
             </p>
-            {account === "TFSA" && whtEstimate > 1 && (
-              <p style={{ fontSize:9, color:"#fb923c", marginTop:2 }}>~${Math.round(whtEstimate)} lost to WHT/yr</p>
+            {account === "TFSA" && whtEstimate > 1 ? (
+              <p style={{ fontSize:9, color:"#f97316" }}>−${Math.round(whtEstimate)} WHT/yr</p>
+            ) : (
+              <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>estimated/yr</p>
             )}
           </div>
         )}
 
         {/* After deploy */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-            After deploy
-          </p>
-          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#a78bfa" }}>
+        <div className="stat-card" style={{ "--accent":"#7c3aed" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>After deploy</p>
+          <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+            color:"#c4b5fd", marginBottom:4 }}>
             ${Math.round(newTotal).toLocaleString()}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>value + cash</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>portfolio + cash</p>
         </div>
 
         {/* To buy */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
-            To buy
-          </p>
-          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#22d3ee" }}>
+        <div className="stat-card" style={{ "--accent":"#22d3ee" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>To buy</p>
+          <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+            color:"#22d3ee", marginBottom:4 }}>
             ${Math.round(totalBuys).toLocaleString()}
           </p>
-          {isCashConstrained && (
-            <p style={{ fontSize:9, color:"#fb923c", marginTop:2 }}>scaled to cash</p>
-          )}
+          <p style={{ fontSize:9, color: isCashConstrained ? "#f97316" : "rgba(255,255,255,0.22)" }}>
+            {isCashConstrained ? "scaled to cash" : "at target weights"}
+          </p>
         </div>
 
-        {/* Cash remaining / to sell */}
-        <div className="card" style={{ padding:"11px 14px" }}>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+        {/* Cash remaining / To sell */}
+        <div className="stat-card" style={{
+          "--accent": rebalMode==="full" ? "#f43f5e" : cashRemaining > 0 ? "#34d399" : "#475569"
+        }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>
             {rebalMode === "full" ? "To sell" : "Cash remaining"}
           </p>
-          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
-            color: rebalMode === "full" ? "#ef4444" : cashRemaining > 0 ? "#34d399" : "#94a3b8" }}>
+          <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+            color: rebalMode==="full" ? "#f43f5e" : cashRemaining > 0 ? "#34d399" : "#475569",
+            marginBottom:4 }}>
             ${Math.round(rebalMode === "full" ? totalSells : cashRemaining).toLocaleString()}
+          </p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
+            {rebalMode === "full" ? "overweight positions" : "after all buys"}
           </p>
         </div>
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ padding:"16px 24px 0", display:"flex", gap:8, flexWrap:"wrap" }}>
-        {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],["recommend","💡 Ideas"],["search","🔍 Ticker Search"]].map(([v,l]) => (
-          <button key={v} className={`tab-btn ${tab===v?"on":""}`} onClick={() => setTab(v)}>{l}</button>
+      <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
+        borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
+        {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
+          ["recommend","💡 Ideas"],["search","🔍 Search"]].map(([v,l]) => (
+          <button key={v} className={`tab-btn ${tab===v?"on":""}`}
+            onClick={() => setTab(v)}
+            style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
+              paddingBottom:10 }}>
+            {l}
+          </button>
         ))}
       </div>
 
@@ -829,7 +909,7 @@ export default function App() {
           TAB: REBALANCE
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "rebalance" && (
-        <div style={{ padding:"20px 24px" }}>
+        <div style={{ padding:"22px 28px" }}>
           <div className="card" style={{ marginBottom:16, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
             <div style={{ flex:"1 1 220px" }}>
               <p className="sec">Cash available to deploy ({account})</p>
@@ -1118,7 +1198,7 @@ export default function App() {
           TAB: DCA PLAN
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "dca" && (
-        <div style={{ padding:"20px 24px" }}>
+        <div style={{ padding:"22px 28px" }}>
           <div className="card" style={{ marginBottom:16 }}>
             <div style={{ display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
               <div style={{ flex:"1 1 280px" }}>
@@ -1224,7 +1304,7 @@ export default function App() {
           TAB: EDIT TARGETS
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "targets" && (
-        <div style={{ padding:"20px 24px" }}>
+        <div style={{ padding:"22px 28px" }}>
           <p className="sec">Edit holdings, cost basis &amp; targets — {account}</p>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1280 }}>
@@ -1397,7 +1477,7 @@ export default function App() {
           TAB: RECOMMENDATIONS
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "recommend" && (
-        <div style={{ padding:"20px 24px" }}>
+        <div style={{ padding:"22px 28px" }}>
 
           {/* Gap analysis banner */}
           {gaps.length > 0 && (
@@ -1553,7 +1633,7 @@ export default function App() {
           TAB: TICKER SEARCH
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "search" && (
-        <div style={{ padding:"20px 24px" }}>
+        <div style={{ padding:"22px 28px" }}>
 
           {/* Search bar */}
           <div className="card" style={{ marginBottom:20 }}>
