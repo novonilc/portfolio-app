@@ -492,6 +492,50 @@ export default function App() {
     currentTotal > 0 && (h.current / currentTotal) * 100 > 20
   );
 
+  // WHT sell recommendations — TFSA positions losing ≥$20/yr to IRS withholding
+  const whtSellRecs = account === "TFSA"
+    ? current
+        .filter(h => {
+          const wht = h.current * (h.divYield || 0) / 100 * 0.15;
+          return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) > 0 && wht >= 20;
+        })
+        .map(h => ({
+          ...h,
+          annualDiv: h.current * h.divYield / 100,
+          annualWHT: h.current * h.divYield / 100 * 0.15,
+          priority:  h.current * h.divYield / 100 * 0.15 >= 80,
+        }))
+        .sort((a, b) => b.annualWHT - a.annualWHT)
+    : [];
+
+  // Buy recommendations with contextual tax + allocation reasons
+  const enrichedBuys = rebalance
+    .filter(r => r.delta > 5)
+    .sort((a, b) => b.delta - a.delta)
+    .map(r => {
+      const gap = (r.target - r.currentPct).toFixed(1);
+      const reasons = [];
+      if (r.current === 0) {
+        reasons.push(`New position — ${r.target}% target, currently unowned`);
+      } else {
+        reasons.push(`${gap}% underweight — ${r.currentPct.toFixed(1)}% held vs ${r.target}% target`);
+      }
+      if (account === "TFSA") {
+        if (!(r.divYield) || r.divYield === 0)
+          reasons.push("No dividend drag — 100% of appreciation compounds tax-free in TFSA");
+        else if (CAD_EXEMPT.has(r.ticker))
+          reasons.push(`WHT-exempt (CAD-listed) — full ${r.divYield}% yield retained in TFSA`);
+        else
+          reasons.push(`⚠ US dividend attracts 15% IRS withholding in TFSA (~$${Math.round(r.current*(r.divYield||0)/100*0.15)}/yr drag) — consider RRSP`);
+      } else if (account === "RRSP") {
+        if ((r.divYield || 0) > 0.4)
+          reasons.push(`${r.divYield}% yield — 0% withholding under Canada-US tax treaty in RRSP`);
+        else if (!(r.divYield) || r.divYield === 0)
+          reasons.push("Growth stock — tax-deferred compounding in RRSP until withdrawal");
+      }
+      return { ...r, reasons };
+    });
+
   const gaps      = detectGaps(holdings.TFSA, holdings.RRSP);
   const targetSum = current.reduce((s, h) => s + h.target, 0);
 
@@ -581,6 +625,14 @@ export default function App() {
           border-radius:10px;padding:16px;margin-top:12px}
         .warn{background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.2);
           border-radius:8px;padding:10px 14px;font-size:11px;color:#fb923c;line-height:1.5;margin-bottom:12px}
+        .action-card{transition:filter 0.15s}
+        .action-card:hover{filter:brightness(1.2)}
+        tbody tr{transition:background 0.1s}
+        tbody tr:hover td{background:rgba(255,255,255,0.018)}
+        .buy-row{background:rgba(34,211,238,0.018)}
+        .sell-row{background:rgba(239,68,68,0.018)}
+        .action-divider{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+        .action-divider-bar{width:3px;border-radius:2px;flex-shrink:0}
       `}</style>
 
       {/* ── Header ── */}
@@ -823,7 +875,169 @@ export default function App() {
             </div>
           )}
 
-          <p className="sec" style={{ marginBottom:8 }}>Rebalance actions — {account}</p>
+          {/* ── WHT sell recommendations ───────────────────────────────── */}
+          {whtSellRecs.length > 0 && (
+            <div style={{ marginBottom:22 }}>
+              <div className="action-divider">
+                <div className="action-divider-bar" style={{ height:20, background:"#fb923c" }}/>
+                <p className="sec" style={{ marginBottom:0, color:"#fb923c" }}>
+                  WHT Alert — {whtSellRecs.length} position{whtSellRecs.length>1?"s":""} bleeding
+                  ~${Math.round(whtSellRecs.reduce((s,h)=>s+h.annualWHT,0)).toLocaleString()}/yr to IRS withholding in {account}
+                </p>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {whtSellRecs.map(h => (
+                  <div key={h.ticker} className="action-card" style={{
+                    background:"rgba(251,146,60,0.04)",
+                    border:"1px solid rgba(251,146,60,0.18)",
+                    borderLeft:"3px solid #fb923c",
+                    borderRadius:10, padding:"14px 18px",
+                    display:"flex", gap:20, flexWrap:"wrap", alignItems:"center"
+                  }}>
+                    {/* Ticker */}
+                    <div style={{ minWidth:90 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                        <span style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace",
+                          fontWeight:700, color:"#fb923c" }}>{h.ticker}</span>
+                        {h.priority && (
+                          <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3,
+                            background:"rgba(239,68,68,0.15)", color:"#ef4444",
+                            border:"1px solid rgba(239,68,68,0.3)", fontWeight:700,
+                            letterSpacing:"0.05em" }}>PRIORITY</span>
+                        )}
+                      </div>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>{h.name}</p>
+                    </div>
+
+                    {/* Reason */}
+                    <div style={{ flex:"1 1 260px" }}>
+                      <div style={{ marginBottom:7 }}>
+                        <span style={{ fontSize:11, padding:"3px 10px", borderRadius:4,
+                          background:"rgba(239,68,68,0.1)", color:"#ef4444",
+                          border:"1px solid rgba(239,68,68,0.22)",
+                          fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>
+                          ▼ SELL · MOVE TO RRSP
+                        </span>
+                      </div>
+                      <p style={{ fontSize:12, color:"rgba(255,255,255,0.65)", lineHeight:1.65 }}>
+                        <span style={{ color:"#ef4444", fontWeight:700 }}>
+                          ~${Math.round(h.annualWHT).toLocaleString()}/yr
+                        </span>{" "}
+                        lost to IRS — 15% withholding × {h.divYield}% yield × ${Math.round(h.current).toLocaleString()} position value
+                      </p>
+                      <p style={{ fontSize:11, color:"rgba(255,255,255,0.38)", marginTop:5 }}>
+                        Moving to RRSP recovers this permanently under Canada-US Tax Treaty (Article XXI).
+                        RRSP exempts US dividends from the 15% withholding that TFSA does not.
+                      </p>
+                    </div>
+
+                    {/* Math breakdown */}
+                    <div style={{ textAlign:"right", minWidth:120,
+                      borderLeft:"1px solid rgba(255,255,255,0.06)", paddingLeft:16 }}>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:4 }}>Annual dividend</p>
+                      <p style={{ fontSize:17, fontFamily:"'JetBrains Mono',monospace",
+                        fontWeight:700, color:"#a78bfa" }}>
+                        ${Math.round(h.annualDiv).toLocaleString()}
+                      </p>
+                      <div style={{ marginTop:6, borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:6 }}>
+                        <p style={{ fontSize:10, color:"#ef4444" }}>
+                          − ${Math.round(h.annualWHT).toLocaleString()} kept by IRS
+                        </p>
+                        <p style={{ fontSize:10, color:"#34d399", marginTop:3 }}>
+                          = ${Math.round(h.annualDiv - h.annualWHT).toLocaleString()} you receive
+                        </p>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginTop:4 }}>
+                          {h.divYield}% yield → effective {(h.divYield * 0.85).toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <p style={{ fontSize:10, color:"rgba(255,255,255,0.22)", paddingLeft:4 }}>
+                  Total WHT drag: ~${Math.round(whtSellRecs.reduce((s,h)=>s+h.annualWHT,0)).toLocaleString()}/yr ·
+                  This compounds against you every year the positions stay in {account}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Buy recommendations ────────────────────────────────────── */}
+          {enrichedBuys.length > 0 && (
+            <div style={{ marginBottom:22 }}>
+              <div className="action-divider">
+                <div className="action-divider-bar" style={{ height:20, background:"#22d3ee" }}/>
+                <p className="sec" style={{ marginBottom:0, color:"#22d3ee" }}>
+                  Buy plan — ${Math.round(totalBuys).toLocaleString()} across {enrichedBuys.length} position{enrichedBuys.length>1?"s":""}
+                  {isCashConstrained ? ` · scaled to $${Math.round(cash).toLocaleString()} cash` : ""}
+                </p>
+              </div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {enrichedBuys.map((h, rank) => (
+                  <div key={h.ticker} className="action-card" style={{
+                    background:"rgba(34,211,238,0.025)",
+                    border:"1px solid rgba(34,211,238,0.1)",
+                    borderLeft:"3px solid #22d3ee",
+                    borderRadius:10, padding:"14px 18px",
+                    display:"flex", gap:20, flexWrap:"wrap", alignItems:"center"
+                  }}>
+                    {/* Rank + Ticker */}
+                    <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:115 }}>
+                      <span style={{ fontSize:17, fontFamily:"'JetBrains Mono',monospace",
+                        color:"rgba(255,255,255,0.1)", fontWeight:700, minWidth:22, textAlign:"right" }}>
+                        {rank + 1}
+                      </span>
+                      <div>
+                        <p style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace",
+                          fontWeight:700, color:"#22d3ee" }}>{h.ticker}</p>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:2 }}>{h.name}</p>
+                      </div>
+                    </div>
+
+                    {/* Reasons */}
+                    <div style={{ flex:"1 1 260px" }}>
+                      {h.reasons.map((r, i) => (
+                        <p key={i} style={{
+                          fontSize: i===0 ? 12 : 11,
+                          color: i===0 ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.4)",
+                          fontWeight: i===0 ? 500 : 400,
+                          lineHeight:1.65, marginTop: i===0 ? 0 : 4
+                        }}>
+                          {i > 0 && <span style={{ opacity:0.4, marginRight:5 }}>↳</span>}{r}
+                        </p>
+                      ))}
+                    </div>
+
+                    {/* Amount */}
+                    <div style={{ textAlign:"right", minWidth:120,
+                      borderLeft:"1px solid rgba(255,255,255,0.06)", paddingLeft:16 }}>
+                      <span style={{ fontSize:10, padding:"2px 10px", borderRadius:4,
+                        background:"rgba(34,211,238,0.1)", color:"#22d3ee",
+                        border:"1px solid rgba(34,211,238,0.22)",
+                        fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                        display:"block", marginBottom:7, textAlign:"center" }}>
+                        ▲ BUY
+                      </span>
+                      <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace",
+                        fontWeight:700, color:"#22d3ee" }}>
+                        ${Math.round(h.delta).toLocaleString()}
+                      </p>
+                      {isCashConstrained && Math.round(h.rawDelta) !== Math.round(h.delta) && (
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginTop:3 }}>
+                          full: ${Math.round(h.rawDelta).toLocaleString()}
+                        </p>
+                      )}
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>
+                        {h.currentPct.toFixed(1)}% → {h.target}%
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── Full breakdown table ───────────────────────────────────── */}
+          <p className="sec" style={{ marginBottom:8 }}>Full breakdown — {account}</p>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:980 }}>
               <thead>
@@ -846,7 +1060,8 @@ export default function App() {
                   const posPnl    = cb > 0 ? h.current - cb : null;
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
                   return (
-                    <tr key={h.ticker}>
+                    <tr key={h.ticker}
+                      className={action==="buy" ? "buy-row" : action==="sell" ? "sell-row" : ""}>
                       <td className="td td-main">
                         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                           <strong style={{ color:accentColor }}>{h.ticker}</strong>
