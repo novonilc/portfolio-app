@@ -203,9 +203,21 @@ function detectGaps(tfsa, rrsp) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DEFAULT CAGR ESTIMATES — used when a holding has no custom cagr set
+// ═══════════════════════════════════════════════════════════════════════════
+const DEFAULT_CAGR = {
+  NVDA:18, AMZN:15, NOW:16, GOOG:12, PLTR:18, MU:15, CNQ:8, XIU:9, BTCC:20,
+  GOLD:6, "VFV.TO":10, MSFT:13, AAPL:11, META:14, TSM:14, ADI:12, THE:8,
+  QQQM:12, SPDR:10, VXUS:7, VTI:10, LLY:14, AVGO:16,
+  "BRK.B":10, V:14, ISRG:15, NVO:13, ARM:18, AXON:20, COST:12, RTX:10,
+  ENB:8, MELI:18, INDA:12, VGK:9, EWJ:8, TLT:5, "ZAG.TO":4, "XRE.TO":9,
+  WMT:10, SHOP:15, ACN:12, VIG:11,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════
-const BLANK_FORM = { ticker:"", name:"", current:"", target:"", divYield:"", notes:"" };
+const BLANK_FORM = { ticker:"", name:"", current:"", target:"", divYield:"", cagr:"", notes:"" };
 
 export default function App() {
   const [account,      setAccount]      = useState("TFSA");
@@ -217,6 +229,7 @@ export default function App() {
   const [tab,          setTab]          = useState("rebalance");
   const [addForm,      setAddForm]      = useState(null);   // null = hidden
   const [recFilter,    setRecFilter]    = useState("all");  // all | tfsa | rrsp | gaps
+  const [pendingRemove,setPendingRemove]= useState(null);   // idx awaiting confirmation
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -278,12 +291,11 @@ export default function App() {
   }
 
   function removeTicker(idx) {
-    const t = holdings[account][idx].ticker;
-    if (!confirm(`Remove ${t} from ${account}?`)) return;
     const next = { ...holdings };
     next[account] = next[account].filter((_, i) => i !== idx);
     setHoldings(next);
     persist(account, next[account]);
+    setPendingRemove(null);
   }
 
   function addRecommendedTicker(rec, targetAccount) {
@@ -747,52 +759,88 @@ export default function App() {
         <div style={{ padding:"20px 24px" }}>
           <p className="sec">Edit holdings &amp; targets — {account} (auto-saves to your browser)</p>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:700 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1100 }}>
               <thead>
                 <tr>
                   <th className="th">Ticker / Name</th>
-                  <th className="th" style={{ width:130 }}>Current $</th>
-                  <th className="th" style={{ width:90 }}>Target %</th>
+                  <th className="th" style={{ width:120 }}>Current $</th>
+                  <th className="th" style={{ width:80 }}>Target %</th>
+                  <th className="th" style={{ width:90 }}>Est. CAGR %</th>
+                  <th className="th" style={{ textAlign:"right", width:110 }}>10yr value</th>
+                  <th className="th" style={{ textAlign:"right", width:110 }}>15yr value</th>
+                  <th className="th" style={{ textAlign:"right", width:110 }}>20yr value</th>
                   <th className="th">Notes</th>
-                  <th className="th" style={{ width:50 }}></th>
+                  <th className="th" style={{ width:110 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {current.map((h, idx) => (
-                  <tr key={h.ticker}>
-                    <td className="td td-main">
-                      <strong style={{ color:accentColor }}>{h.ticker}</strong>
-                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
-                    </td>
-                    <td className="td">
-                      <input type="number" value={h.current}
-                        onChange={e => updateHolding(idx, "current", e.target.value)}/>
-                    </td>
-                    <td className="td">
-                      <input type="number" value={h.target} max="100" min="0"
-                        onChange={e => updateHolding(idx, "target", e.target.value)}/>
-                    </td>
-                    <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontFamily:"inherit", lineHeight:1.5 }}>
-                      {h.notes}
-                    </td>
-                    <td className="td" style={{ textAlign:"center" }}>
-                      <button className="btn btn-danger" onClick={() => removeTicker(idx)}
-                        style={{ padding:"3px 8px", fontSize:11 }} title={`Remove ${h.ticker}`}>
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {current.map((h, idx) => {
+                  const cagr = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
+                  const proj = (yrs) => h.current > 0
+                    ? `$${Math.round(h.current * Math.pow(1 + cagr / 100, yrs)).toLocaleString()}`
+                    : "—";
+                  return (
+                    <tr key={h.ticker}>
+                      <td className="td td-main">
+                        <strong style={{ color:accentColor }}>{h.ticker}</strong>
+                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
+                      </td>
+                      <td className="td">
+                        <input type="number" value={h.current}
+                          onChange={e => updateHolding(idx, "current", e.target.value)}/>
+                      </td>
+                      <td className="td">
+                        <input type="number" value={h.target} max="100" min="0"
+                          onChange={e => updateHolding(idx, "target", e.target.value)}/>
+                      </td>
+                      <td className="td">
+                        <input type="number" value={cagr} min="0" max="100" step="0.5"
+                          onChange={e => updateHolding(idx, "cagr", e.target.value)}
+                          style={{ color:"#a78bfa" }}/>
+                      </td>
+                      <td className="td" style={{ textAlign:"right", color:"#34d399", fontFamily:"'JetBrains Mono',monospace" }}>{proj(10)}</td>
+                      <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>{proj(15)}</td>
+                      <td className="td" style={{ textAlign:"right", color:accentColor,  fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>{proj(20)}</td>
+                      <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontFamily:"inherit", lineHeight:1.5 }}>
+                        {h.notes}
+                      </td>
+                      <td className="td" style={{ textAlign:"center" }}>
+                        {pendingRemove === idx ? (
+                          <div style={{ display:"flex", gap:4 }}>
+                            <button className="btn btn-danger" onClick={() => removeTicker(idx)}
+                              style={{ padding:"3px 7px", fontSize:10 }}>Yes</button>
+                            <button className="btn" onClick={() => setPendingRemove(null)}
+                              style={{ padding:"3px 7px", fontSize:10 }}>No</button>
+                          </div>
+                        ) : (
+                          <button className="btn btn-danger" onClick={() => setPendingRemove(idx)}
+                            style={{ padding:"3px 8px", fontSize:11 }} title={`Remove ${h.ticker}`}>
+                            ✕
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
                 <tr style={{ background:"rgba(255,255,255,0.03)" }}>
                   <td className="td td-main"><strong>TOTAL</strong></td>
                   <td className="td" style={{ color:accentColor, fontWeight:500 }}>${Math.round(currentTotal).toLocaleString()}</td>
                   <td className="td" style={{ color: Math.abs(targetSum - 100) > 0.5 ? "#ef4444" : "#34d399", fontWeight:500 }}>
                     {targetSum}%
                   </td>
-                  <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>
+                  <td className="td"></td>
+                  <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
+                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,10),0)).toLocaleString()}
+                  </td>
+                  <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>
+                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,15),0)).toLocaleString()}
+                  </td>
+                  <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
+                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,20),0)).toLocaleString()}
+                  </td>
+                  <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }} colSpan={2}>
                     {Math.abs(targetSum - 100) > 0.5 ? `⚠ Off by ${Math.abs(targetSum - 100).toFixed(1)}% — targets should sum to 100%` : "✓ Targets balanced"}
                   </td>
-                  <td className="td"></td>
                 </tr>
               </tbody>
             </table>
