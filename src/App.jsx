@@ -217,31 +217,35 @@ const DEFAULT_CAGR = {
 // ═══════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════
-const BLANK_FORM = { ticker:"", name:"", current:"", target:"", divYield:"", cagr:"", notes:"" };
+const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", divYield:"", cagr:"", notes:"" };
+
+// Canadian-listed tickers exempt from US withholding tax
+const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
 export default function App() {
-  const [account,      setAccount]      = useState("TFSA");
-  const [contribution, setContribution] = useState(0);
-  const [dcaWeeks,     setDcaWeeks]     = useState(20);
-  const [holdings,     setHoldings]     = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
-  const [baseCapital,  setBaseCapital]  = useState({ TFSA: 0, RRSP: 0 });
-  const [saveStatus,   setSaveStatus]   = useState("");
-  const [tab,          setTab]          = useState("rebalance");
-  const [addForm,      setAddForm]      = useState(null);   // null = hidden
-  const [recFilter,    setRecFilter]    = useState("all");  // all | tfsa | rrsp | gaps
-  const [pendingRemove,setPendingRemove]= useState(null);   // idx awaiting confirmation
+  const [account,       setAccount]      = useState("TFSA");
+  const [cashHolding,   setCashHolding]  = useState({ TFSA: 0, RRSP: 0 });
+  const [dcaWeeks,      setDcaWeeks]     = useState(20);
+  const [holdings,      setHoldings]     = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
+  const [saveStatus,    setSaveStatus]   = useState("");
+  const [tab,           setTab]          = useState("rebalance");
+  const [addForm,       setAddForm]      = useState(null);
+  const [recFilter,     setRecFilter]    = useState("all");
+  const [pendingRemove, setPendingRemove]= useState(null);
+  const [rebalMode,     setRebalMode]    = useState("cash");  // "cash" | "full"
+  const [showReset,     setShowReset]    = useState(false);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
     try {
       const tfsaData = localStorage.getItem("portfolio:TFSA");
       const rrspData = localStorage.getItem("portfolio:RRSP");
-      const bcData   = localStorage.getItem("portfolio:baseCapital");
+      const cashData = localStorage.getItem("portfolio:cash");
       const next = { TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP };
       if (tfsaData) next.TFSA = JSON.parse(tfsaData);
       if (rrspData) next.RRSP = JSON.parse(rrspData);
       setHoldings(next);
-      if (bcData) setBaseCapital(JSON.parse(bcData));
+      if (cashData) setCashHolding(JSON.parse(cashData));
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
 
@@ -255,8 +259,8 @@ export default function App() {
     } catch { setSaveStatus("⚠ Save failed"); }
   }
 
-  function persistBaseCapital(next) {
-    localStorage.setItem("portfolio:baseCapital", JSON.stringify(next));
+  function persistCash(next) {
+    localStorage.setItem("portfolio:cash", JSON.stringify(next));
   }
 
   // ── Holdings mutations ─────────────────────────────────────────────────
@@ -278,12 +282,14 @@ export default function App() {
     const next = { ...holdings };
     next[account] = [...next[account], {
       ticker,
-      name:     addForm.name.trim() || ticker,
-      current:  Number(addForm.current) || 0,
-      target:   Number(addForm.target)  || 0,
-      divYield: Number(addForm.divYield)|| 0,
-      locked:   "✅ Keep",
-      notes:    addForm.notes.trim(),
+      name:      addForm.name.trim() || ticker,
+      current:   Number(addForm.current)   || 0,
+      costBasis: Number(addForm.costBasis) || 0,
+      target:    Number(addForm.target)    || 0,
+      divYield:  Number(addForm.divYield)  || 0,
+      cagr:      Number(addForm.cagr)      || DEFAULT_CAGR[ticker] || 10,
+      locked:    "✅ Keep",
+      notes:     addForm.notes.trim(),
     }];
     setHoldings(next);
     persist(account, next[account]);
@@ -305,13 +311,15 @@ export default function App() {
     }
     const next = { ...holdings };
     next[targetAccount] = [...next[targetAccount], {
-      ticker:   rec.ticker,
-      name:     rec.name,
-      current:  0,
-      target:   0,
-      divYield: rec.divYield,
-      locked:   "✅ Keep",
-      notes:    rec.thesis.slice(0, 120) + "…",
+      ticker:    rec.ticker,
+      name:      rec.name,
+      current:   0,
+      costBasis: 0,
+      target:    0,
+      divYield:  rec.divYield,
+      cagr:      DEFAULT_CAGR[rec.ticker] || 10,
+      locked:    "✅ Keep",
+      notes:     rec.thesis.slice(0, 120) + "…",
     }];
     setHoldings(next);
     persist(targetAccount, next[targetAccount]);
@@ -319,25 +327,25 @@ export default function App() {
     setTab("targets");
   }
 
-  // ── Base capital ───────────────────────────────────────────────────────
-  function handleBaseCapital(val) {
-    const next = { ...baseCapital, [account]: Number(val) || 0 };
-    setBaseCapital(next);
-    persistBaseCapital(next);
+  // ── Cash holding ───────────────────────────────────────────────────────
+  function handleCash(val) {
+    const next = { ...cashHolding, [account]: Number(val) || 0 };
+    setCashHolding(next);
+    persistCash(next);
   }
 
-  // ── Portfolio reset / import / export ─────────────────────────────────
-  function resetDefaults() {
-    if (!confirm("Reset to default portfolio values?")) return;
+  // ── Reset / Export / Import ────────────────────────────────────────────
+  function doReset() {
     const next = account === "TFSA"
       ? { ...holdings, TFSA: INITIAL_TFSA }
       : { ...holdings, RRSP: INITIAL_RRSP };
     setHoldings(next);
     persist(account, next[account]);
+    setShowReset(false);
   }
 
   function exportData() {
-    const data = JSON.stringify({ holdings, baseCapital }, null, 2);
+    const data = JSON.stringify({ holdings, cashHolding }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -354,16 +362,12 @@ export default function App() {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        // Support both old format {TFSA,RRSP} and new format {holdings,baseCapital}
         const h = data.holdings || data;
         if (h.TFSA && h.RRSP) {
           setHoldings(h);
           persist("TFSA", h.TFSA);
           persist("RRSP", h.RRSP);
-          if (data.baseCapital) {
-            setBaseCapital(data.baseCapital);
-            persistBaseCapital(data.baseCapital);
-          }
+          if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
           alert("✅ Portfolio imported successfully!");
         } else { alert("⚠ Invalid file format"); }
       } catch { alert("⚠ Could not read file"); }
@@ -372,28 +376,55 @@ export default function App() {
   }
 
   // ── Derived values ─────────────────────────────────────────────────────
-  const current     = holdings[account];
-  const currentTotal = current.reduce((s, h) => s + h.current, 0);
-  const newTotal     = currentTotal + Number(contribution);
-  const bc           = baseCapital[account] || 0;
-  const pnl          = bc > 0 ? currentTotal - bc : null;
-  const pnlPct       = bc > 0 ? ((currentTotal - bc) / bc) * 100 : null;
+  const current       = holdings[account];
+  const currentTotal  = current.reduce((s, h) => s + h.current, 0);
+  const cash          = cashHolding[account] || 0;
+  const newTotal      = currentTotal + cash;
 
-  const rebalance = current.map(h => {
+  // P&L (uses costBasis per position, summed)
+  const totalCostBasis = current.reduce((s, h) => s + (h.costBasis || 0), 0);
+  const totalPnL       = totalCostBasis > 0 ? currentTotal - totalCostBasis : null;
+  const totalPnLPct    = totalCostBasis > 0 ? ((currentTotal - totalCostBasis) / totalCostBasis) * 100 : null;
+
+  // Annual dividend income + TFSA withholding tax estimate
+  const annualDivIncome = current.reduce((s, h) => s + h.current * (h.divYield || 0) / 100, 0);
+  const whtEstimate     = account === "TFSA"
+    ? current.filter(h => !CAD_EXEMPT.has(h.ticker))
+              .reduce((s, h) => s + h.current * (h.divYield || 0) / 100 * 0.15, 0)
+    : 0;
+
+  // Cash-constrained rebalance
+  const rawItems = current.map(h => {
     const targetDollar = newTotal * h.target / 100;
-    const delta        = targetDollar - h.current;
-    return { ...h, currentDollar: h.current, targetDollar, delta,
+    const rawDelta     = targetDollar - h.current;
+    return { ...h, currentDollar: h.current, targetDollar, rawDelta,
              currentPct: currentTotal > 0 ? (h.current / currentTotal) * 100 : 0 };
   });
+  const rawBuyTotal    = rawItems.filter(r => r.rawDelta > 0).reduce((s, r) => s + r.rawDelta, 0);
+  const scaleFactor    = rebalMode === "cash" && cash > 0 && rawBuyTotal > cash ? cash / rawBuyTotal : 1;
+  const isCashConstrained = scaleFactor < 1;
 
-  const totalBuys     = rebalance.filter(r => r.delta > 0).reduce((s, r) => s + r.delta, 0);
-  const totalSells    = rebalance.filter(r => r.delta < 0).reduce((s, r) => s + Math.abs(r.delta), 0);
-  const buyList       = rebalance.filter(r => r.delta > 0);
+  const rebalance = rawItems.map(r => ({
+    ...r,
+    delta: rebalMode === "cash"
+      ? (r.rawDelta > 0 ? r.rawDelta * scaleFactor : 0)
+      : r.rawDelta,
+  }));
+
+  const totalBuys      = rebalance.filter(r => r.delta > 0).reduce((s, r) => s + r.delta, 0);
+  const totalSells     = rebalance.filter(r => r.delta < 0).reduce((s, r) => s + Math.abs(r.delta), 0);
+  const cashRemaining  = Math.max(cash - totalBuys, 0);
+  const buyList        = rebalance.filter(r => r.delta > 0);
   const weeklyTotalBuy = totalBuys / dcaWeeks;
-  const maxAlloc      = Math.max(...current.map(h => Math.max(h.target, (h.current / Math.max(currentTotal, 1)) * 100)), 1);
+  const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (h.current / Math.max(currentTotal, 1)) * 100)), 1);
 
-  const gaps          = detectGaps(holdings.TFSA, holdings.RRSP);
-  const targetSum     = current.reduce((s, h) => s + h.target, 0);
+  // Concentration warnings (>20% of current portfolio)
+  const concentrationWarnings = current.filter(h =>
+    currentTotal > 0 && (h.current / currentTotal) * 100 > 20
+  );
+
+  const gaps      = detectGaps(holdings.TFSA, holdings.RRSP);
+  const targetSum = current.reduce((s, h) => s + h.target, 0);
 
   const filteredRecs = RECOMMENDATIONS.filter(r => {
     if (recFilter === "tfsa") return r.bestFor === "TFSA" || r.bestFor === "both";
@@ -471,12 +502,14 @@ export default function App() {
         .rec-card:hover{border-color:rgba(255,255,255,0.12)}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
         .pulse{animation:pulse 1.5s ease infinite}
-        .gap-badge{display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
-          border-radius:20px; font-size:10px; font-weight:500; letter-spacing:0.05em;
-          background:rgba(251,146,60,0.1); color:#fb923c; border:1px solid rgba(251,146,60,0.25);
+        .gap-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;
+          border-radius:20px;font-size:10px;font-weight:500;letter-spacing:0.05em;
+          background:rgba(251,146,60,0.1);color:#fb923c;border:1px solid rgba(251,146,60,0.25);
           text-transform:capitalize}
-        .add-form{background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.08);
-          border-radius:10px; padding:16px; margin-top:12px}
+        .add-form{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);
+          border-radius:10px;padding:16px;margin-top:12px}
+        .warn{background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.2);
+          border-radius:8px;padding:10px 14px;font-size:11px;color:#fb923c;line-height:1.5;margin-bottom:12px}
       `}</style>
 
       {/* ── Header ── */}
@@ -493,72 +526,151 @@ export default function App() {
           </h1>
         </div>
         <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          {saveStatus && (
-            <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:6 }}>{saveStatus}</span>
-          )}
+          {saveStatus && <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:6 }}>{saveStatus}</span>}
           <label className="btn" style={{ cursor:"pointer" }}>
             ⬇ Import
             <input type="file" accept=".json" style={{ display:"none" }} onChange={importData}/>
           </label>
           <button className="btn" onClick={exportData}>⬆ Export</button>
-          <button className="btn" onClick={resetDefaults}>↻ Reset</button>
+          {showReset ? (
+            <>
+              <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11 }}>Confirm Reset</button>
+              <button className="btn" onClick={() => setShowReset(false)} style={{ fontSize:11 }}>Cancel</button>
+            </>
+          ) : (
+            <button className="btn" onClick={() => setShowReset(true)}>↻ Reset</button>
+          )}
           {["TFSA","RRSP"].map(acc => (
-            <button key={acc} className={`tab-btn ${account===acc?"on":""}`} onClick={() => setAccount(acc)}>
+            <button key={acc} className={`tab-btn ${account===acc?"on":""}`}
+              onClick={() => { setAccount(acc); setShowReset(false); setPendingRemove(null); }}>
               {acc === "TFSA" ? "💰 TFSA" : "🏦 RRSP"}
             </button>
           ))}
         </div>
       </div>
 
+      {/* ── Concentration warning ── */}
+      {concentrationWarnings.length > 0 && (
+        <div style={{ padding:"10px 24px 0" }}>
+          <div className="warn" style={{ marginBottom:0 }}>
+            ⚠ Concentration risk: {concentrationWarnings.map(h =>
+              `${h.ticker} (${((h.current/currentTotal)*100).toFixed(1)}%)`
+            ).join(", ")} exceed 20% of {account}
+          </div>
+        </div>
+      )}
+
       {/* ── Summary cards ── */}
-      <div style={{ padding:"20px 24px 0", display:"grid",
-        gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:10 }}>
-        {/* Base Capital card — editable */}
+      <div style={{ padding:"16px 24px 0", display:"grid",
+        gridTemplateColumns:"repeat(auto-fit, minmax(145px, 1fr))", gap:10 }}>
+
+        {/* Cash — editable */}
         <div className="card" style={{ padding:"11px 14px" }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:4, textTransform:"uppercase" }}>
-            Base Capital ({account})
+            Cash ({account})
           </p>
           <div style={{ display:"flex", alignItems:"center", gap:4 }}>
             <span style={{ fontSize:12, color:"rgba(255,255,255,0.3)" }}>$</span>
-            <input type="number" value={bc || ""} onChange={e => handleBaseCapital(e.target.value)}
-              placeholder="Enter cost basis"
-              style={{ fontSize:14, fontWeight:500, color:"#a78bfa", border:"none",
+            <input type="number" value={cash || ""} onChange={e => handleCash(e.target.value)}
+              placeholder="0"
+              style={{ fontSize:15, fontWeight:500, color:"#34d399", border:"none",
                 background:"transparent", padding:0, width:"100%" }}/>
           </div>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>available to invest</p>
         </div>
 
-        {/* P&L card */}
-        {pnl !== null && (
+        {/* Total invested / cost basis */}
+        <div className="card" style={{ padding:"11px 14px" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+            Total invested
+          </p>
+          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
+            color: totalCostBasis > 0 ? "#94a3b8" : "rgba(255,255,255,0.2)" }}>
+            {totalCostBasis > 0 ? `$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
+          </p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>cost basis</p>
+        </div>
+
+        {/* Portfolio value */}
+        <div className="card" style={{ padding:"11px 14px" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+            Portfolio value
+          </p>
+          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:accentColor }}>
+            ${Math.round(currentTotal).toLocaleString()}
+          </p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>market value</p>
+        </div>
+
+        {/* Unrealized P&L */}
+        {totalPnL !== null && (
           <div className="card" style={{ padding:"11px 14px" }}>
             <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
               Unrealized P&amp;L
             </p>
-            <p style={{ fontSize:17, fontFamily:"'JetBrains Mono', monospace", fontWeight:500,
-              color: pnl >= 0 ? "#34d399" : "#ef4444" }}>
-              {pnl >= 0 ? "+" : ""}{Math.round(pnl).toLocaleString()}
+            <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
+              color: totalPnL >= 0 ? "#34d399" : "#ef4444" }}>
+              {totalPnL >= 0 ? "+" : ""}${Math.round(totalPnL).toLocaleString()}
             </p>
-            <p style={{ fontSize:10, color: pnl >= 0 ? "#34d399" : "#ef4444", marginTop:2 }}>
-              {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(1)}%
+            <p style={{ fontSize:9, color: totalPnL >= 0 ? "#34d399" : "#ef4444", marginTop:2 }}>
+              {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(1)}% return
             </p>
           </div>
         )}
 
-        {[
-          { l:"Current value",  v:`$${Math.round(currentTotal).toLocaleString()}`, c:accentColor },
-          { l:"+ Contribution", v:`$${Number(contribution).toLocaleString()}`,     c:"#34d399" },
-          { l:"New total",      v:`$${Math.round(newTotal).toLocaleString()}`,      c:"#a78bfa" },
-          { l:"To buy",         v:`$${Math.round(totalBuys).toLocaleString()}`,     c:"#22d3ee" },
-          { l:"To sell",        v:`$${Math.round(totalSells).toLocaleString()}`,    c:"#ef4444" },
-        ].map(s => (
-          <div key={s.l} className="card" style={{ padding:"11px 14px" }}>
-            <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>{s.l}</p>
-            <p style={{ fontSize:17, fontFamily:"'JetBrains Mono', monospace", fontWeight:500, color:s.c }}>{s.v}</p>
+        {/* Annual div income */}
+        {annualDivIncome > 1 && (
+          <div className="card" style={{ padding:"11px 14px" }}>
+            <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+              Annual dividends
+            </p>
+            <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#a78bfa" }}>
+              ${Math.round(annualDivIncome).toLocaleString()}
+            </p>
+            {account === "TFSA" && whtEstimate > 1 && (
+              <p style={{ fontSize:9, color:"#fb923c", marginTop:2 }}>~${Math.round(whtEstimate)} lost to WHT/yr</p>
+            )}
           </div>
-        ))}
+        )}
+
+        {/* After deploy */}
+        <div className="card" style={{ padding:"11px 14px" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+            After deploy
+          </p>
+          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#a78bfa" }}>
+            ${Math.round(newTotal).toLocaleString()}
+          </p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>value + cash</p>
+        </div>
+
+        {/* To buy */}
+        <div className="card" style={{ padding:"11px 14px" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+            To buy
+          </p>
+          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500, color:"#22d3ee" }}>
+            ${Math.round(totalBuys).toLocaleString()}
+          </p>
+          {isCashConstrained && (
+            <p style={{ fontSize:9, color:"#fb923c", marginTop:2 }}>scaled to cash</p>
+          )}
+        </div>
+
+        {/* Cash remaining / to sell */}
+        <div className="card" style={{ padding:"11px 14px" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.12em", marginBottom:3, textTransform:"uppercase" }}>
+            {rebalMode === "full" ? "To sell" : "Cash remaining"}
+          </p>
+          <p style={{ fontSize:15, fontFamily:"'JetBrains Mono',monospace", fontWeight:500,
+            color: rebalMode === "full" ? "#ef4444" : cashRemaining > 0 ? "#34d399" : "#94a3b8" }}>
+            ${Math.round(rebalMode === "full" ? totalSells : cashRemaining).toLocaleString()}
+          </p>
+        </div>
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ padding:"18px 24px 0", display:"flex", gap:8, flexWrap:"wrap" }}>
+      <div style={{ padding:"16px 24px 0", display:"flex", gap:8, flexWrap:"wrap" }}>
         {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],["recommend","💡 Ideas"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`} onClick={() => setTab(v)}>{l}</button>
         ))}
@@ -570,38 +682,59 @@ export default function App() {
       {tab === "rebalance" && (
         <div style={{ padding:"20px 24px" }}>
           <div className="card" style={{ marginBottom:16, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
-            <div style={{ flex:"1 1 200px" }}>
-              <p className="sec">Adding new contribution ({account})</p>
+            <div style={{ flex:"1 1 220px" }}>
+              <p className="sec">Cash available to deploy ({account})</p>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 <span style={{ fontSize:20, color:"rgba(255,255,255,0.4)" }}>$</span>
-                <input type="number" value={contribution} onChange={e => setContribution(e.target.value)}
-                  placeholder="0" style={{ fontSize:22, fontWeight:500, color:accentColor, maxWidth:200 }}/>
+                <input type="number" value={cash || ""} onChange={e => handleCash(e.target.value)}
+                  placeholder="0" style={{ fontSize:22, fontWeight:500, color:"#34d399", maxWidth:200 }}/>
                 <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>CAD</span>
               </div>
             </div>
-            <div style={{ flex:"1 1 250px" }}>
+            <div style={{ flex:"1 1 240px" }}>
               <p className="sec">Quick add</p>
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                 {[500,1000,2500,5000,7000,10000].map(v => (
-                  <button key={v} className="btn" onClick={() => setContribution(v)}>+${v.toLocaleString()}</button>
+                  <button key={v} className="btn" onClick={() => handleCash(cash + v)}>+${v.toLocaleString()}</button>
                 ))}
               </div>
             </div>
-            <div style={{ flex:"0 0 200px" }}>
+            <div style={{ flex:"0 0 auto" }}>
+              <p className="sec">Mode</p>
+              <div style={{ display:"flex", gap:6 }}>
+                <button className={`tab-btn ${rebalMode==="cash"?"on":""}`}
+                  onClick={() => setRebalMode("cash")} style={{ fontSize:11, padding:"5px 12px" }}>
+                  Cash-only
+                </button>
+                <button className={`tab-btn ${rebalMode==="full"?"on":""}`}
+                  onClick={() => setRebalMode("full")} style={{ fontSize:11, padding:"5px 12px" }}>
+                  Full rebalance
+                </button>
+              </div>
+            </div>
+            <div style={{ flex:"0 0 170px" }}>
               <p className="sec">Contribution limits (2026)</p>
               <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>TFSA: $7,000/yr</p>
               <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>RRSP: $32,490/yr</p>
             </div>
           </div>
 
+          {isCashConstrained && (
+            <div className="warn">
+              ⚠ Buys scaled to cash: optimal deploy is ${Math.round(rawBuyTotal).toLocaleString()} but
+              only ${Math.round(cash).toLocaleString()} available — each position scaled to {(scaleFactor*100).toFixed(0)}% of optimal.
+            </div>
+          )}
+
           <p className="sec" style={{ marginBottom:8 }}>Rebalance actions — {account}</p>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:900 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:980 }}>
               <thead>
                 <tr>
                   <th className="th">Ticker</th>
                   <th className="th">Status</th>
                   <th className="th" style={{ textAlign:"right" }}>Current $</th>
+                  <th className="th" style={{ textAlign:"right" }}>P&amp;L</th>
                   <th className="th" style={{ textAlign:"right" }}>Current %</th>
                   <th className="th" style={{ textAlign:"right" }}>Target %</th>
                   <th className="th" style={{ textAlign:"right" }}>Target $</th>
@@ -611,7 +744,10 @@ export default function App() {
               </thead>
               <tbody>
                 {rebalance.map(h => {
-                  const action = Math.abs(h.delta) < 5 ? "hold" : h.delta > 0 ? "buy" : "sell";
+                  const action    = Math.abs(h.delta) < 5 ? "hold" : h.delta > 0 ? "buy" : "sell";
+                  const cb        = h.costBasis || 0;
+                  const posPnl    = cb > 0 ? h.current - cb : null;
+                  const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
                   return (
                     <tr key={h.ticker}>
                       <td className="td td-main">
@@ -624,6 +760,18 @@ export default function App() {
                       </td>
                       <td className="td"><span className="pill hold">{h.locked}</span></td>
                       <td className="td" style={{ textAlign:"right" }}>${Math.round(h.currentDollar).toLocaleString()}</td>
+                      <td className="td" style={{ textAlign:"right" }}>
+                        {posPnl !== null ? (
+                          <div>
+                            <span style={{ color: posPnl >= 0 ? "#34d399" : "#ef4444" }}>
+                              {posPnl >= 0 ? "+" : ""}${Math.round(posPnl).toLocaleString()}
+                            </span>
+                            <div style={{ fontSize:10, color: posPnl >= 0 ? "#34d399" : "#ef4444", opacity:0.75 }}>
+                              {posPnlPct >= 0 ? "+" : ""}{posPnlPct.toFixed(1)}%
+                            </div>
+                          </div>
+                        ) : <span style={{ color:"rgba(255,255,255,0.2)", fontSize:11 }}>—</span>}
+                      </td>
                       <td className="td" style={{ textAlign:"right", color:"rgba(255,255,255,0.5)" }}>{h.currentPct.toFixed(1)}%</td>
                       <td className="td" style={{ textAlign:"right", color:accentColor }}>{h.target}%</td>
                       <td className="td" style={{ textAlign:"right" }}>${Math.round(h.targetDollar).toLocaleString()}</td>
@@ -631,6 +779,9 @@ export default function App() {
                         {action==="buy"  && <span style={{ color:"#22d3ee" }}>▲ BUY ${Math.round(h.delta).toLocaleString()}</span>}
                         {action==="sell" && <span style={{ color:"#ef4444" }}>▼ SELL ${Math.round(Math.abs(h.delta)).toLocaleString()}</span>}
                         {action==="hold" && <span style={{ color:"#94a3b8" }}>● HOLD</span>}
+                        {rebalMode === "cash" && h.rawDelta < 0 && (
+                          <div style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>overweight</div>
+                        )}
                       </td>
                       <td className="td" style={{ minWidth:140 }}>
                         <div style={{ position:"relative", height:14 }}>
@@ -661,24 +812,26 @@ export default function App() {
               <div style={{ flex:"1 1 280px" }}>
                 <p className="sec">Spread buying over weeks (DCA)</p>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                  <input type="range" min={4} max={26} value={dcaWeeks} onChange={e => setDcaWeeks(Number(e.target.value))}/>
-                  <span style={{ fontSize:18, fontWeight:500, color:accentColor, fontFamily:"'JetBrains Mono', monospace", minWidth:100 }}>
+                  <input type="range" min={4} max={26} value={dcaWeeks}
+                    onChange={e => setDcaWeeks(Number(e.target.value))}/>
+                  <span style={{ fontSize:18, fontWeight:500, color:accentColor,
+                    fontFamily:"'JetBrains Mono',monospace", minWidth:100 }}>
                     {dcaWeeks} weeks
                   </span>
                 </div>
                 <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:6 }}>
-                  Spreading over {dcaWeeks} weeks ≈ {(dcaWeeks/4).toFixed(1)} months
+                  ≈ {(dcaWeeks/4).toFixed(1)} months · ${Math.round(weeklyTotalBuy).toLocaleString()}/wk
                 </p>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
                 <p className="sec">Weekly spend</p>
-                <p style={{ fontSize:24, fontWeight:500, color:"#22d3ee", fontFamily:"'JetBrains Mono', monospace" }}>
+                <p style={{ fontSize:24, fontWeight:500, color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>
                   ${Math.round(weeklyTotalBuy).toLocaleString()}
                 </p>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
                 <p className="sec">Total to deploy</p>
-                <p style={{ fontSize:24, fontWeight:500, color:accentColor, fontFamily:"'JetBrains Mono', monospace" }}>
+                <p style={{ fontSize:24, fontWeight:500, color:accentColor, fontFamily:"'JetBrains Mono',monospace" }}>
                   ${Math.round(totalBuys).toLocaleString()}
                 </p>
               </div>
@@ -687,7 +840,9 @@ export default function App() {
 
           {totalBuys === 0 ? (
             <div className="card" style={{ textAlign:"center", padding:"40px 20px" }}>
-              <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)" }}>No buys needed — enter a contribution above</p>
+              <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)" }}>
+                No buys needed — enter cash to deploy in the Rebalance tab
+              </p>
             </div>
           ) : (
             <>
@@ -706,14 +861,13 @@ export default function App() {
                   <tbody>
                     {buyList.sort((a,b) => b.delta - a.delta).map(h => {
                       const weekly = h.delta / dcaWeeks;
-                      const pctOfWeekly = (weekly / weeklyTotalBuy) * 100;
                       return (
                         <tr key={h.ticker}>
                           <td className="td td-main"><strong style={{ color:accentColor }}>{h.ticker}</strong></td>
                           <td className="td" style={{ color:"rgba(255,255,255,0.5)" }}>{h.name}</td>
                           <td className="td" style={{ textAlign:"right" }}>${Math.round(h.delta).toLocaleString()}</td>
                           <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>${Math.round(weekly).toLocaleString()}</td>
-                          <td className="td" style={{ textAlign:"right" }}>{pctOfWeekly.toFixed(1)}%</td>
+                          <td className="td" style={{ textAlign:"right" }}>{((weekly/weeklyTotalBuy)*100).toFixed(1)}%</td>
                         </tr>
                       );
                     })}
@@ -734,12 +888,14 @@ export default function App() {
                         </span>
                       </div>
                       {buyList.sort((a,b) => b.delta - a.delta).slice(0, 5).map(h => (
-                        <div key={h.ticker} style={{ display:"flex", justifyContent:"space-between", fontSize:10, padding:"2px 0", fontFamily:"'JetBrains Mono', monospace" }}>
+                        <div key={h.ticker} style={{ display:"flex", justifyContent:"space-between",
+                          fontSize:10, padding:"2px 0", fontFamily:"'JetBrains Mono',monospace" }}>
                           <span style={{ color:"rgba(255,255,255,0.5)" }}>{h.ticker}</span>
-                          <span style={{ color:"rgba(255,255,255,0.75)" }}>${Math.round(h.delta / dcaWeeks).toLocaleString()}</span>
+                          <span style={{ color:"rgba(255,255,255,0.75)" }}>${Math.round(h.delta/dcaWeeks).toLocaleString()}</span>
                         </div>
                       ))}
-                      <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6, display:"flex", justifyContent:"space-between" }}>
+                      <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6,
+                        display:"flex", justifyContent:"space-between" }}>
                         <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Total</span>
                         <span style={{ fontSize:11, color:accentColor, fontWeight:500 }}>${Math.round(weeklyTotalBuy).toLocaleString()}</span>
                       </div>
@@ -757,27 +913,32 @@ export default function App() {
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "targets" && (
         <div style={{ padding:"20px 24px" }}>
-          <p className="sec">Edit holdings &amp; targets — {account} (auto-saves to your browser)</p>
+          <p className="sec">Edit holdings, cost basis &amp; targets — {account}</p>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1100 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1280 }}>
               <thead>
                 <tr>
                   <th className="th">Ticker / Name</th>
-                  <th className="th" style={{ width:120 }}>Current $</th>
-                  <th className="th" style={{ width:80 }}>Target %</th>
-                  <th className="th" style={{ width:90 }}>Est. CAGR %</th>
-                  <th className="th" style={{ textAlign:"right", width:110 }}>10yr value</th>
-                  <th className="th" style={{ textAlign:"right", width:110 }}>15yr value</th>
-                  <th className="th" style={{ textAlign:"right", width:110 }}>20yr value</th>
-                  <th className="th">Notes</th>
+                  <th className="th" style={{ width:115 }}>Current $</th>
+                  <th className="th" style={{ width:115 }}>Cost Basis $</th>
+                  <th className="th" style={{ textAlign:"right", width:120 }}>P&amp;L $</th>
+                  <th className="th" style={{ textAlign:"right", width:75 }}>P&amp;L %</th>
+                  <th className="th" style={{ width:75 }}>Target %</th>
+                  <th className="th" style={{ width:85 }}>CAGR %</th>
+                  <th className="th" style={{ textAlign:"right", width:105 }}>10yr</th>
+                  <th className="th" style={{ textAlign:"right", width:105 }}>15yr</th>
+                  <th className="th" style={{ textAlign:"right", width:105 }}>20yr</th>
                   <th className="th" style={{ width:110 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {current.map((h, idx) => {
-                  const cagr = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
-                  const proj = (yrs) => h.current > 0
-                    ? `$${Math.round(h.current * Math.pow(1 + cagr / 100, yrs)).toLocaleString()}`
+                  const cagr      = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
+                  const cb        = h.costBasis || 0;
+                  const posPnl    = cb > 0 ? h.current - cb : null;
+                  const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
+                  const proj = yrs => h.current > 0
+                    ? `$${Math.round(h.current * Math.pow(1 + cagr/100, yrs)).toLocaleString()}`
                     : "—";
                   return (
                     <tr key={h.ticker}>
@@ -790,6 +951,26 @@ export default function App() {
                           onChange={e => updateHolding(idx, "current", e.target.value)}/>
                       </td>
                       <td className="td">
+                        <input type="number" value={cb || ""}
+                          placeholder="0"
+                          onChange={e => updateHolding(idx, "costBasis", e.target.value)}
+                          style={{ color:"#94a3b8" }}/>
+                      </td>
+                      <td className="td" style={{ textAlign:"right" }}>
+                        {posPnl !== null ? (
+                          <span style={{ color: posPnl >= 0 ? "#34d399" : "#ef4444", fontWeight:500 }}>
+                            {posPnl >= 0 ? "+" : ""}${Math.round(posPnl).toLocaleString()}
+                          </span>
+                        ) : <span style={{ color:"rgba(255,255,255,0.2)" }}>—</span>}
+                      </td>
+                      <td className="td" style={{ textAlign:"right" }}>
+                        {posPnlPct !== null ? (
+                          <span style={{ color: posPnlPct >= 0 ? "#34d399" : "#ef4444", fontSize:11 }}>
+                            {posPnlPct >= 0 ? "+" : ""}{posPnlPct.toFixed(1)}%
+                          </span>
+                        ) : <span style={{ color:"rgba(255,255,255,0.2)" }}>—</span>}
+                      </td>
+                      <td className="td">
                         <input type="number" value={h.target} max="100" min="0"
                           onChange={e => updateHolding(idx, "target", e.target.value)}/>
                       </td>
@@ -798,12 +979,9 @@ export default function App() {
                           onChange={e => updateHolding(idx, "cagr", e.target.value)}
                           style={{ color:"#a78bfa" }}/>
                       </td>
-                      <td className="td" style={{ textAlign:"right", color:"#34d399", fontFamily:"'JetBrains Mono',monospace" }}>{proj(10)}</td>
-                      <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>{proj(15)}</td>
-                      <td className="td" style={{ textAlign:"right", color:accentColor,  fontFamily:"'JetBrains Mono',monospace", fontWeight:600 }}>{proj(20)}</td>
-                      <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)", fontFamily:"inherit", lineHeight:1.5 }}>
-                        {h.notes}
-                      </td>
+                      <td className="td" style={{ textAlign:"right", color:"#34d399" }}>{proj(10)}</td>
+                      <td className="td" style={{ textAlign:"right", color:"#22d3ee" }}>{proj(15)}</td>
+                      <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>{proj(20)}</td>
                       <td className="td" style={{ textAlign:"center" }}>
                         {pendingRemove === idx ? (
                           <div style={{ display:"flex", gap:4 }}>
@@ -814,18 +992,28 @@ export default function App() {
                           </div>
                         ) : (
                           <button className="btn btn-danger" onClick={() => setPendingRemove(idx)}
-                            style={{ padding:"3px 8px", fontSize:11 }} title={`Remove ${h.ticker}`}>
-                            ✕
-                          </button>
+                            style={{ padding:"3px 8px", fontSize:11 }}>✕</button>
                         )}
                       </td>
                     </tr>
                   );
                 })}
+                {/* Totals row */}
                 <tr style={{ background:"rgba(255,255,255,0.03)" }}>
                   <td className="td td-main"><strong>TOTAL</strong></td>
                   <td className="td" style={{ color:accentColor, fontWeight:500 }}>${Math.round(currentTotal).toLocaleString()}</td>
-                  <td className="td" style={{ color: Math.abs(targetSum - 100) > 0.5 ? "#ef4444" : "#34d399", fontWeight:500 }}>
+                  <td className="td" style={{ color:"#94a3b8", fontWeight:500 }}>
+                    {totalCostBasis > 0 ? `$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
+                  </td>
+                  <td className="td" style={{ textAlign:"right", fontWeight:500,
+                    color: totalPnL !== null ? (totalPnL >= 0 ? "#34d399" : "#ef4444") : "rgba(255,255,255,0.2)" }}>
+                    {totalPnL !== null ? `${totalPnL >= 0 ? "+" : ""}$${Math.round(totalPnL).toLocaleString()}` : "—"}
+                  </td>
+                  <td className="td" style={{ textAlign:"right", fontWeight:500,
+                    color: totalPnLPct !== null ? (totalPnLPct >= 0 ? "#34d399" : "#ef4444") : "rgba(255,255,255,0.2)" }}>
+                    {totalPnLPct !== null ? `${totalPnLPct >= 0 ? "+" : ""}${totalPnLPct.toFixed(1)}%` : "—"}
+                  </td>
+                  <td className="td" style={{ color: Math.abs(targetSum-100) > 0.5 ? "#ef4444" : "#34d399", fontWeight:500 }}>
                     {targetSum}%
                   </td>
                   <td className="td"></td>
@@ -838,15 +1026,15 @@ export default function App() {
                   <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
                     ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,20),0)).toLocaleString()}
                   </td>
-                  <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }} colSpan={2}>
-                    {Math.abs(targetSum - 100) > 0.5 ? `⚠ Off by ${Math.abs(targetSum - 100).toFixed(1)}% — targets should sum to 100%` : "✓ Targets balanced"}
+                  <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
+                    {Math.abs(targetSum-100) > 0.5 ? `⚠ off by ${Math.abs(targetSum-100).toFixed(1)}%` : "✓ balanced"}
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Add ticker toggle */}
+          {/* Add ticker */}
           <div style={{ marginTop:12, display:"flex", gap:8 }}>
             <button className={`btn ${addForm ? "btn-primary" : ""}`}
               onClick={() => setAddForm(addForm ? null : { ...BLANK_FORM })}>
@@ -854,52 +1042,41 @@ export default function App() {
             </button>
           </div>
 
-          {/* Add ticker form */}
           {addForm && (
             <div className="add-form">
               <p className="sec" style={{ marginBottom:14 }}>New position — {account}</p>
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:10, marginBottom:12 }}>
-                <div>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Ticker *</p>
-                  <input type="text" value={addForm.ticker} placeholder="e.g. AAPL"
-                    onChange={e => setAddForm({ ...addForm, ticker: e.target.value.toUpperCase() })}/>
-                </div>
-                <div>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Name</p>
-                  <input type="text" value={addForm.name} placeholder="e.g. Apple"
-                    onChange={e => setAddForm({ ...addForm, name: e.target.value })}/>
-                </div>
-                <div>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Current $ value</p>
-                  <input type="number" value={addForm.current} placeholder="0"
-                    onChange={e => setAddForm({ ...addForm, current: e.target.value })}/>
-                </div>
-                <div>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Target %</p>
-                  <input type="number" value={addForm.target} placeholder="0" min="0" max="100"
-                    onChange={e => setAddForm({ ...addForm, target: e.target.value })}/>
-                </div>
-                <div>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Div yield %</p>
-                  <input type="number" value={addForm.divYield} placeholder="0.0" step="0.1"
-                    onChange={e => setAddForm({ ...addForm, divYield: e.target.value })}/>
-                </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(155px, 1fr))", gap:10, marginBottom:12 }}>
+                {[
+                  ["Ticker *",      "text",   "ticker",    "e.g. AAPL"],
+                  ["Name",          "text",   "name",      "e.g. Apple"],
+                  ["Current $",     "number", "current",   "0"],
+                  ["Cost Basis $",  "number", "costBasis", "0"],
+                  ["Target %",      "number", "target",    "0"],
+                  ["Div yield %",   "number", "divYield",  "0.0"],
+                  ["Est. CAGR %",   "number", "cagr",      "10"],
+                ].map(([label, type, field, ph]) => (
+                  <div key={field}>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>{label}</p>
+                    <input type={type} value={addForm[field]} placeholder={ph}
+                      onChange={e => setAddForm({ ...addForm,
+                        [field]: type==="text" ? (field==="ticker" ? e.target.value.toUpperCase() : e.target.value) : e.target.value
+                      })}/>
+                  </div>
+                ))}
               </div>
               <div style={{ marginBottom:12 }}>
                 <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Notes (optional)</p>
                 <input type="text" value={addForm.notes} placeholder="Investment thesis or notes…"
                   onChange={e => setAddForm({ ...addForm, notes: e.target.value })}/>
               </div>
-              <button className="btn btn-primary" onClick={addTicker}>
-                + Add to {account}
-              </button>
+              <button className="btn btn-primary" onClick={addTicker}>+ Add to {account}</button>
             </div>
           )}
 
           <div style={{ marginTop:14, padding:"12px 14px", background:"rgba(251,191,36,0.05)",
             border:"1px solid rgba(251,191,36,0.15)", borderRadius:8, fontSize:11,
             color:"rgba(251,191,36,0.8)", lineHeight:1.6 }}>
-            ⚠ Not financial advice. Data is stored in your browser (localStorage). Use Export/Import to back up your data. Consult a licensed CFP before trading.
+            ⚠ Not financial advice. Data stored in your browser only. Export regularly to back up. Consult a licensed CFP before trading.
           </div>
         </div>
       )}
