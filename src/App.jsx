@@ -222,29 +222,66 @@ const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", di
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
+// Per-portfolio accent colors — TFSA/RRSP fixed, extras cycle
+const PORTFOLIO_COLORS = {
+  TFSA: { accent:"#fbbf24", rgb:"251,191,36" },
+  RRSP: { accent:"#22d3ee", rgb:"34,211,238" },
+};
+const EXTRA_COLORS = [
+  { accent:"#a78bfa", rgb:"167,139,250" },
+  { accent:"#34d399", rgb:"52,211,153"  },
+  { accent:"#fb923c", rgb:"251,146,60"  },
+  { accent:"#f472b6", rgb:"244,114,182" },
+  { accent:"#60a5fa", rgb:"96,165,250"  },
+];
+
+// Quick ticker lookup for search tab
+const TICKER_DB = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
+
+function AppLogo() {
+  return (
+    <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="38" height="38" rx="10" fill="rgba(251,191,36,0.07)" stroke="rgba(251,191,36,0.22)" strokeWidth="1"/>
+      <rect x="6"  y="23" width="5.5" height="9"  rx="1.5" fill="#fbbf24" opacity="0.45"/>
+      <rect x="15" y="14" width="5.5" height="18" rx="1.5" fill="#fbbf24" opacity="0.9"/>
+      <rect x="24" y="19" width="5.5" height="13" rx="1.5" fill="#fbbf24" opacity="0.6"/>
+      <path d="M8.5 21.5 L17.5 12.5 L26.5 17" stroke="#22d3ee" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <circle cx="26.5" cy="17" r="2.2" fill="#22d3ee"/>
+    </svg>
+  );
+}
+
 export default function App() {
-  const [account,       setAccount]      = useState("TFSA");
-  const [cashHolding,   setCashHolding]  = useState({ TFSA: 0, RRSP: 0 });
-  const [dcaWeeks,      setDcaWeeks]     = useState(20);
-  const [holdings,      setHoldings]     = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
-  const [saveStatus,    setSaveStatus]   = useState("");
-  const [tab,           setTab]          = useState("rebalance");
-  const [addForm,       setAddForm]      = useState(null);
-  const [recFilter,     setRecFilter]    = useState("all");
-  const [pendingRemove, setPendingRemove]= useState(null);
-  const [rebalMode,     setRebalMode]    = useState("cash");  // "cash" | "full"
-  const [showReset,     setShowReset]    = useState(false);
+  const [portfolios,       setPortfolios]      = useState(["TFSA","RRSP"]);
+  const [account,          setAccount]         = useState("TFSA");
+  const [cashHolding,      setCashHolding]     = useState({ TFSA: 0, RRSP: 0 });
+  const [dcaWeeks,         setDcaWeeks]        = useState(20);
+  const [holdings,         setHoldings]        = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
+  const [saveStatus,       setSaveStatus]      = useState("");
+  const [tab,              setTab]             = useState("rebalance");
+  const [addForm,          setAddForm]         = useState(null);
+  const [recFilter,        setRecFilter]       = useState("all");
+  const [pendingRemove,    setPendingRemove]   = useState(null);
+  const [rebalMode,        setRebalMode]       = useState("cash");
+  const [showReset,        setShowReset]       = useState(false);
+  const [addPortfolioForm, setAddPortfolioForm]= useState(null);
+  const [searchQuery,      setSearchQuery]     = useState("");
+  const [searchResult,     setSearchResult]    = useState(null);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
     try {
-      const tfsaData = localStorage.getItem("portfolio:TFSA");
-      const rrspData = localStorage.getItem("portfolio:RRSP");
+      const listData = localStorage.getItem("portfolio:list");
+      const pList = listData ? JSON.parse(listData) : ["TFSA","RRSP"];
+      setPortfolios(pList);
+      const nextH = { TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP };
+      for (const p of pList) {
+        const hData = localStorage.getItem(`portfolio:${p}`);
+        if (hData) nextH[p] = JSON.parse(hData);
+        else if (!nextH[p]) nextH[p] = [];
+      }
+      setHoldings(nextH);
       const cashData = localStorage.getItem("portfolio:cash");
-      const next = { TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP };
-      if (tfsaData) next.TFSA = JSON.parse(tfsaData);
-      if (rrspData) next.RRSP = JSON.parse(rrspData);
-      setHoldings(next);
       if (cashData) setCashHolding(JSON.parse(cashData));
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
@@ -335,17 +372,47 @@ export default function App() {
   }
 
   // ── Reset / Export / Import ────────────────────────────────────────────
+  function addPortfolio(name) {
+    const clean = name.trim().replace(/\s+/g,"_").toUpperCase().slice(0,20);
+    if (!clean || portfolios.includes(clean)) return;
+    const next = [...portfolios, clean];
+    setPortfolios(next);
+    localStorage.setItem("portfolio:list", JSON.stringify(next));
+    const nextH = { ...holdings, [clean]: [] };
+    setHoldings(nextH);
+    const nextC = { ...cashHolding, [clean]: 0 };
+    setCashHolding(nextC);
+    persistCash(nextC);
+    setAccount(clean);
+    setAddPortfolioForm(null);
+  }
+
+  function removePortfolio(pName) {
+    if (["TFSA","RRSP"].includes(pName)) return;
+    const next = portfolios.filter(p => p !== pName);
+    setPortfolios(next);
+    localStorage.setItem("portfolio:list", JSON.stringify(next));
+    localStorage.removeItem(`portfolio:${pName}`);
+    const nextH = { ...holdings };
+    delete nextH[pName];
+    setHoldings(nextH);
+    const nextC = { ...cashHolding };
+    delete nextC[pName];
+    setCashHolding(nextC);
+    persistCash(nextC);
+    if (account === pName) setAccount(next[0] || "TFSA");
+  }
+
   function doReset() {
-    const next = account === "TFSA"
-      ? { ...holdings, TFSA: INITIAL_TFSA }
-      : { ...holdings, RRSP: INITIAL_RRSP };
+    const defaultData = account === "TFSA" ? INITIAL_TFSA : account === "RRSP" ? INITIAL_RRSP : [];
+    const next = { ...holdings, [account]: defaultData };
     setHoldings(next);
     persist(account, next[account]);
     setShowReset(false);
   }
 
   function exportData() {
-    const data = JSON.stringify({ holdings, cashHolding }, null, 2);
+    const data = JSON.stringify({ holdings, cashHolding, portfolios }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -364,9 +431,11 @@ export default function App() {
         const data = JSON.parse(e.target.result);
         const h = data.holdings || data;
         if (h.TFSA && h.RRSP) {
+          const pList = data.portfolios || ["TFSA","RRSP"];
+          setPortfolios(pList);
+          localStorage.setItem("portfolio:list", JSON.stringify(pList));
           setHoldings(h);
-          persist("TFSA", h.TFSA);
-          persist("RRSP", h.RRSP);
+          for (const p of pList) { if (h[p]) persist(p, h[p]); }
           if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
           alert("✅ Portfolio imported successfully!");
         } else { alert("⚠ Invalid file format"); }
@@ -436,8 +505,10 @@ export default function App() {
     return !allTickers.has(r.ticker);
   });
 
-  const accentColor = account === "TFSA" ? "#fbbf24" : "#22d3ee";
-  const accentRGB   = account === "TFSA" ? "251,191,36" : "34,211,238";
+  const accountIdx  = portfolios.indexOf(account);
+  const colorInfo   = PORTFOLIO_COLORS[account] ?? EXTRA_COLORS[Math.max(0, accountIdx - 2) % EXTRA_COLORS.length];
+  const accentColor = colorInfo.accent;
+  const accentRGB   = colorInfo.rgb;
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -513,39 +584,65 @@ export default function App() {
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ padding:"24px 24px 16px", borderBottom:"1px solid rgba(255,255,255,0.05)",
+      <div style={{ padding:"18px 24px 14px", borderBottom:"1px solid rgba(255,255,255,0.05)",
         display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-        <div>
-          <p style={{ fontSize:10, letterSpacing:"0.2em", color:`${accentColor}aa`, marginBottom:4, textTransform:"uppercase" }}>
-            ◈ Portfolio Rebalancer · DCA Planner
-          </p>
-          <h1 style={{ fontFamily:"'Instrument Serif', serif", fontSize:26, fontWeight:400,
-            background:`linear-gradient(135deg, #e2e8f0 0%, ${accentColor} 60%, #a78bfa 100%)`,
-            WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-            Your Living Portfolio Plan
-          </h1>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <AppLogo/>
+          <div>
+            <p style={{ fontSize:9, letterSpacing:"0.2em", color:`${accentColor}99`, marginBottom:3,
+              textTransform:"uppercase", fontWeight:500 }}>PRB · DCA Planner</p>
+            <h1 style={{ fontFamily:"'Instrument Serif', serif", fontSize:21, fontWeight:400, lineHeight:1.15,
+              background:`linear-gradient(135deg, #e2e8f0 0%, ${accentColor} 55%, #a78bfa 100%)`,
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Portfolio ReBalancer &amp; DCA Planner
+            </h1>
+          </div>
         </div>
-        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-          {saveStatus && <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:6 }}>{saveStatus}</span>}
-          <label className="btn" style={{ cursor:"pointer" }}>
+        <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+          {saveStatus && <span className="pulse" style={{ fontSize:11, color:accentColor, marginRight:4 }}>{saveStatus}</span>}
+          <label className="btn" style={{ cursor:"pointer", fontSize:11 }}>
             ⬇ Import
             <input type="file" accept=".json" style={{ display:"none" }} onChange={importData}/>
           </label>
-          <button className="btn" onClick={exportData}>⬆ Export</button>
+          <button className="btn" style={{ fontSize:11 }} onClick={exportData}>⬆ Export</button>
           {showReset ? (
             <>
               <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11 }}>Confirm Reset</button>
-              <button className="btn" onClick={() => setShowReset(false)} style={{ fontSize:11 }}>Cancel</button>
+              <button className="btn" onClick={() => setShowReset(false)} style={{ fontSize:11 }}>✕</button>
             </>
           ) : (
-            <button className="btn" onClick={() => setShowReset(true)}>↻ Reset</button>
+            <button className="btn" style={{ fontSize:11 }} onClick={() => setShowReset(true)}>↻ Reset</button>
           )}
-          {["TFSA","RRSP"].map(acc => (
-            <button key={acc} className={`tab-btn ${account===acc?"on":""}`}
-              onClick={() => { setAccount(acc); setShowReset(false); setPendingRemove(null); }}>
-              {acc === "TFSA" ? "💰 TFSA" : "🏦 RRSP"}
+          <div style={{ width:1, height:20, background:"rgba(255,255,255,0.08)", margin:"0 2px" }}/>
+          {portfolios.map(p => (
+            <button key={p} className={`tab-btn ${account===p?"on":""}`}
+              onClick={() => { setAccount(p); setShowReset(false); setPendingRemove(null); }}>
+              {p === "TFSA" ? "💰 TFSA" : p === "RRSP" ? "🏦 RRSP" : `📁 ${p}`}
             </button>
           ))}
+          {addPortfolioForm !== null ? (
+            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+              <input type="text" value={addPortfolioForm}
+                onChange={e => setAddPortfolioForm(e.target.value.toUpperCase())}
+                onKeyDown={e => {
+                  if (e.key === "Enter") addPortfolio(addPortfolioForm);
+                  if (e.key === "Escape") setAddPortfolioForm(null);
+                }}
+                placeholder="NAME" autoFocus
+                style={{ width:90, fontSize:11, padding:"5px 8px" }}/>
+              <button className="btn btn-primary" onClick={() => addPortfolio(addPortfolioForm)}
+                style={{ fontSize:11, padding:"5px 10px" }}>Add</button>
+              <button className="btn" onClick={() => setAddPortfolioForm(null)}
+                style={{ fontSize:11, padding:"5px 8px" }}>✕</button>
+            </div>
+          ) : (
+            <button className="btn" onClick={() => setAddPortfolioForm("")}
+              style={{ fontSize:11, padding:"5px 10px" }}>+ Portfolio</button>
+          )}
+          {!["TFSA","RRSP"].includes(account) && (
+            <button className="btn btn-danger" onClick={() => removePortfolio(account)}
+              style={{ fontSize:11, padding:"5px 10px" }}>✕ Delete</button>
+          )}
         </div>
       </div>
 
@@ -671,7 +768,7 @@ export default function App() {
 
       {/* ── Tab bar ── */}
       <div style={{ padding:"16px 24px 0", display:"flex", gap:8, flexWrap:"wrap" }}>
-        {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],["recommend","💡 Ideas"]].map(([v,l]) => (
+        {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],["recommend","💡 Ideas"],["search","🔍 Ticker Search"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`} onClick={() => setTab(v)}>{l}</button>
         ))}
       </div>
@@ -1233,6 +1330,241 @@ export default function App() {
 
           <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:20, lineHeight:1.5 }}>
             ⚠ Not financial advice. Recommendations are for educational purposes only. Market conditions change rapidly. Consult a licensed financial advisor before making investment decisions.
+          </p>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: TICKER SEARCH
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "search" && (
+        <div style={{ padding:"20px 24px" }}>
+
+          {/* Search bar */}
+          <div className="card" style={{ marginBottom:20 }}>
+            <p className="sec" style={{ marginBottom:10 }}>Ticker Lookup &amp; Analysis</p>
+            <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value.toUpperCase())}
+                onKeyDown={e => {
+                  if (e.key === "Enter") {
+                    const q = searchQuery.trim();
+                    setSearchResult(q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null);
+                  }
+                }}
+                placeholder="Type ticker and press Enter — e.g. NVDA, COST, BRK.B…"
+                style={{ fontSize:14, flex:"1 1 280px", maxWidth:420 }}
+              />
+              <button className="btn btn-primary" onClick={() => {
+                const q = searchQuery.trim();
+                setSearchResult(q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null);
+              }}>Search</button>
+              {searchResult && (
+                <button className="btn" onClick={() => { setSearchResult(null); setSearchQuery(""); }}>✕ Clear</button>
+              )}
+            </div>
+            <div>
+              <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:7 }}>Quick access — curated picks:</p>
+              <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                {RECOMMENDATIONS.slice(0, 16).map(r => (
+                  <button key={r.ticker} className="btn"
+                    onClick={() => { setSearchQuery(r.ticker); setSearchResult(r); }}
+                    style={{ padding:"3px 10px", fontSize:11,
+                      borderColor: r.bestFor==="TFSA" ? "rgba(251,191,36,0.25)" : "rgba(34,211,238,0.25)",
+                      color: r.bestFor==="TFSA" ? "rgba(251,191,36,0.75)" : "rgba(34,211,238,0.75)" }}>
+                    {r.ticker}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Result: found in curated DB */}
+          {searchResult && !searchResult.notFound && (() => {
+            const rec = searchResult;
+            const cagr = DEFAULT_CAGR[rec.ticker];
+            return (
+              <div style={{ maxWidth:640 }}>
+                <div className="rec-card" style={{ borderColor:`${accentColor}30` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10 }}>
+                    <div>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:5 }}>
+                        <span style={{ fontSize:24, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                          color: rec.bestFor==="TFSA" ? "#fbbf24" : rec.bestFor==="RRSP" ? "#22d3ee" : "#a78bfa" }}>
+                          {rec.ticker}
+                        </span>
+                        <span style={{ fontSize:10, fontWeight:500, padding:"2px 8px", borderRadius:4,
+                          background: rec.conviction==="High" ? "rgba(52,211,153,0.12)" : "rgba(148,163,184,0.1)",
+                          color: rec.conviction==="High" ? "#34d399" : "#94a3b8",
+                          border: `1px solid ${rec.conviction==="High" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.2)"}` }}>
+                          {rec.conviction} conviction
+                        </span>
+                      </div>
+                      <p style={{ fontSize:13, color:"rgba(255,255,255,0.6)", marginBottom:3 }}>{rec.name}</p>
+                      <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>{rec.sector}</p>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <span style={{ fontSize:11, padding:"3px 10px", borderRadius:4,
+                        background: rec.bestFor==="TFSA" ? "rgba(251,191,36,0.1)" : rec.bestFor==="RRSP" ? "rgba(34,211,238,0.1)" : "rgba(167,139,250,0.1)",
+                        color: rec.bestFor==="TFSA" ? "#fbbf24" : rec.bestFor==="RRSP" ? "#22d3ee" : "#a78bfa",
+                        border: `1px solid ${rec.bestFor==="TFSA" ? "rgba(251,191,36,0.25)" : rec.bestFor==="RRSP" ? "rgba(34,211,238,0.25)" : "rgba(167,139,250,0.25)"}` }}>
+                        Best for {rec.bestFor==="both" ? "TFSA / RRSP" : rec.bestFor}
+                      </span>
+                      <p style={{ fontSize:11, color: rec.divYield > 0 ? "#a78bfa" : "#34d399", marginTop:6 }}>
+                        {rec.divYield > 0 ? `${rec.divYield}% dividend yield` : "No dividend — growth only"}
+                      </p>
+                      {cagr && <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:3 }}>Est. CAGR: {cagr}%/yr</p>}
+                    </div>
+                  </div>
+
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10, padding:"2px 8px", borderRadius:4,
+                      background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.4)",
+                      border:"1px solid rgba(255,255,255,0.08)" }}>{rec.sector}</span>
+                    {rec.tags.map(tag => (
+                      <span key={tag} style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
+                        background:"rgba(167,139,250,0.06)", color:"rgba(167,139,250,0.6)",
+                        border:"1px solid rgba(167,139,250,0.15)" }}>{tag}</span>
+                    ))}
+                  </div>
+
+                  <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:8, padding:"12px 14px",
+                    border:"1px solid rgba(255,255,255,0.05)" }}>
+                    <p style={{ fontSize:10, color:`${accentColor}88`, letterSpacing:"0.1em",
+                      textTransform:"uppercase", marginBottom:6, fontWeight:500 }}>Investment thesis</p>
+                    <p style={{ fontSize:12, color:"rgba(255,255,255,0.65)", lineHeight:1.7 }}>{rec.thesis}</p>
+                  </div>
+
+                  {cagr && (
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8 }}>
+                      {[10,15,20].map(yrs => (
+                        <div key={yrs} style={{ background:"rgba(255,255,255,0.02)", borderRadius:8,
+                          padding:"9px 12px", border:"1px solid rgba(255,255,255,0.05)", textAlign:"center" }}>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.1em",
+                            textTransform:"uppercase", marginBottom:5 }}>{yrs}yr @ {cagr}%</p>
+                          <p style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                            color: yrs===10 ? "#34d399" : yrs===15 ? "#22d3ee" : accentColor }}>
+                            {Math.pow(1+cagr/100,yrs).toFixed(1)}×
+                          </p>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginTop:3 }}>
+                            $10K → ${Math.round(10000*Math.pow(1+cagr/100,yrs)/1000)}K
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {portfolios.map(p => {
+                      const already = (holdings[p]||[]).some(h => h.ticker === rec.ticker);
+                      const col = PORTFOLIO_COLORS[p] ?? EXTRA_COLORS[(portfolios.indexOf(p)-2+EXTRA_COLORS.length)%EXTRA_COLORS.length];
+                      return (
+                        <button key={p} className="btn"
+                          onClick={() => already ? null : addRecommendedTicker(rec, p)}
+                          style={{ flex:1, fontSize:11, padding:"7px 10px", opacity: already ? 0.4 : 1,
+                            borderColor:`rgba(${col.rgb},0.3)`, color:`rgba(${col.rgb},0.85)`,
+                            cursor: already ? "default" : "pointer" }}>
+                          {already ? `✓ In ${p}` : `+ Add to ${p}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Result: not in DB */}
+          {searchResult && searchResult.notFound && searchResult.ticker && (
+            <div className="card" style={{ maxWidth:640 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                <span style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color:accentColor }}>
+                  {searchResult.ticker}
+                </span>
+                <span style={{ fontSize:11, padding:"3px 10px", borderRadius:4,
+                  background:"rgba(148,163,184,0.07)", color:"#64748b",
+                  border:"1px solid rgba(148,163,184,0.15)" }}>Not in database</span>
+              </div>
+              <p style={{ fontSize:12, color:"rgba(255,255,255,0.5)", lineHeight:1.65, marginBottom:14 }}>
+                This ticker isn't in our curated database. You can add it manually or get a deep AI analysis
+                using the prompt below at <span style={{ color:accentColor }}>claude.ai</span>.
+              </p>
+              <div style={{ marginBottom:16 }}>
+                <p style={{ fontSize:10, color:`${accentColor}88`, letterSpacing:"0.1em", textTransform:"uppercase",
+                  marginBottom:8, fontWeight:500 }}>Copy this prompt for Claude AI:</p>
+                <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                  borderRadius:8, padding:"12px 14px", fontFamily:"'JetBrains Mono',monospace",
+                  fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.75, userSelect:"all" }}>
+                  Analyze {searchResult.ticker} as a long-term investment for a Canadian investor using
+                  registered accounts (TFSA/RRSP). Cover: business model, growth catalysts, key risks,
+                  fair value estimate, dividend info, and whether it is better suited for TFSA or RRSP.
+                  Include an estimated 5-year CAGR and a conviction rating (High / Medium / Low).
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                {portfolios.map(p => {
+                  const col = PORTFOLIO_COLORS[p] ?? EXTRA_COLORS[(portfolios.indexOf(p)-2+EXTRA_COLORS.length)%EXTRA_COLORS.length];
+                  return (
+                    <button key={p} className="btn"
+                      onClick={() => addRecommendedTicker({
+                        ticker:searchResult.ticker, name:searchResult.ticker,
+                        divYield:0, thesis:"Added via ticker search",
+                      }, p)}
+                      style={{ fontSize:11, padding:"7px 14px",
+                        borderColor:`rgba(${col.rgb},0.3)`, color:`rgba(${col.rgb},0.85)` }}>
+                      + Add to {p}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Default: browse all curated tickers */}
+          {!searchResult && (
+            <>
+              <p className="sec" style={{ marginBottom:10 }}>
+                Curated database — {RECOMMENDATIONS.length} tickers analyzed
+              </p>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:8 }}>
+                {RECOMMENDATIONS.map(rec => (
+                  <button key={rec.ticker}
+                    onClick={() => { setSearchQuery(rec.ticker); setSearchResult(rec); }}
+                    style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)",
+                      borderRadius:10, padding:"12px 14px", cursor:"pointer", textAlign:"left",
+                      display:"flex", alignItems:"center", gap:10, fontFamily:"inherit",
+                      transition:"border-color 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor="rgba(255,255,255,0.12)"}
+                    onMouseLeave={e => e.currentTarget.style.borderColor="rgba(255,255,255,0.06)"}>
+                    <div style={{ minWidth:54 }}>
+                      <p style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+                        color: rec.bestFor==="TFSA" ? "#fbbf24" : "#22d3ee" }}>{rec.ticker}</p>
+                      <p style={{ fontSize:9, color: rec.conviction==="High" ? "#34d399" : "#64748b", marginTop:2 }}>
+                        {rec.conviction}
+                      </p>
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", whiteSpace:"nowrap",
+                        overflow:"hidden", textOverflow:"ellipsis" }}>{rec.name}</p>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{rec.sector}</p>
+                    </div>
+                    <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, whiteSpace:"nowrap",
+                      background: rec.bestFor==="TFSA" ? "rgba(251,191,36,0.08)" : "rgba(34,211,238,0.08)",
+                      color: rec.bestFor==="TFSA" ? "rgba(251,191,36,0.6)" : "rgba(34,211,238,0.6)",
+                      border: `1px solid ${rec.bestFor==="TFSA" ? "rgba(251,191,36,0.15)" : "rgba(34,211,238,0.15)"}` }}>
+                      {rec.bestFor}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:20, lineHeight:1.5 }}>
+            ⚠ Not financial advice. Analysis is for educational purposes only.
+            Consult a licensed financial advisor before investing.
           </p>
         </div>
       )}
