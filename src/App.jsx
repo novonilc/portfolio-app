@@ -267,6 +267,7 @@ export default function App() {
   const [addPortfolioForm, setAddPortfolioForm]= useState(null);
   const [searchQuery,      setSearchQuery]     = useState("");
   const [searchResult,     setSearchResult]    = useState(null);
+  const [monthlyContrib,   setMonthlyContrib]  = useState({ TFSA: 0, RRSP: 0 });
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -283,6 +284,8 @@ export default function App() {
       setHoldings(nextH);
       const cashData = localStorage.getItem("portfolio:cash");
       if (cashData) setCashHolding(JSON.parse(cashData));
+      const contribData = localStorage.getItem("portfolio:contrib");
+      if (contribData) setMonthlyContrib(JSON.parse(contribData));
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
 
@@ -298,6 +301,16 @@ export default function App() {
 
   function persistCash(next) {
     localStorage.setItem("portfolio:cash", JSON.stringify(next));
+  }
+
+  function persistContrib(next) {
+    localStorage.setItem("portfolio:contrib", JSON.stringify(next));
+  }
+
+  function handleContrib(val) {
+    const next = { ...monthlyContrib, [account]: Number(val) || 0 };
+    setMonthlyContrib(next);
+    persistContrib(next);
   }
 
   // ── Holdings mutations ─────────────────────────────────────────────────
@@ -412,7 +425,7 @@ export default function App() {
   }
 
   function exportData() {
-    const data = JSON.stringify({ holdings, cashHolding, portfolios }, null, 2);
+    const data = JSON.stringify({ holdings, cashHolding, monthlyContrib, portfolios }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -437,6 +450,7 @@ export default function App() {
           setHoldings(h);
           for (const p of pList) { if (h[p]) persist(p, h[p]); }
           if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
+          if (data.monthlyContrib) { setMonthlyContrib(data.monthlyContrib); persistContrib(data.monthlyContrib); }
           alert("✅ Portfolio imported successfully!");
         } else { alert("⚠ Invalid file format"); }
       } catch { alert("⚠ Could not read file"); }
@@ -1305,7 +1319,21 @@ export default function App() {
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "targets" && (
         <div style={{ padding:"22px 28px" }}>
-          <p className="sec">Edit holdings, cost basis &amp; targets — {account}</p>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
+            <p className="sec" style={{ margin:0 }}>Edit holdings, cost basis &amp; targets — {account}</p>
+            <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"8px 14px" }}>
+              <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Monthly contribution</span>
+              <div style={{ position:"relative" }}>
+                <span style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", fontSize:12, color:"rgba(255,255,255,0.4)" }}>$</span>
+                <input type="number" min="0" step="100"
+                  value={monthlyContrib[account] || ""}
+                  placeholder="0"
+                  onChange={e => handleContrib(e.target.value)}
+                  style={{ paddingLeft:18, width:100 }}/>
+              </div>
+              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>/mo</span>
+            </div>
+          </div>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1280 }}>
               <thead>
@@ -1329,9 +1357,17 @@ export default function App() {
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
-                  const proj = yrs => h.current > 0
-                    ? `$${Math.round(h.current * Math.pow(1 + cagr/100, yrs)).toLocaleString()}`
-                    : "—";
+                  const contrib     = monthlyContrib[account] || 0;
+                  const holdingPMT  = contrib > 0 ? (h.target / 100) * contrib : 0;
+                  const proj = yrs => {
+                    const r = cagr / 100 / 12;
+                    const n = yrs * 12;
+                    if (h.current === 0 && holdingPMT === 0) return "—";
+                    const fv = r === 0
+                      ? h.current + holdingPMT * n
+                      : h.current * Math.pow(1+r, n) + holdingPMT * (Math.pow(1+r,n)-1) / r;
+                    return `$${Math.round(fv).toLocaleString()}`;
+                  };
                   return (
                     <tr key={h.ticker}>
                       <td className="td td-main">
@@ -1410,13 +1446,25 @@ export default function App() {
                   </td>
                   <td className="td"></td>
                   <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
-                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,10),0)).toLocaleString()}
+                    ${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100);
+                      if(h.current===0&&pmt===0)return s;
+                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>
-                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,15),0)).toLocaleString()}
+                    ${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100);
+                      if(h.current===0&&pmt===0)return s;
+                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
-                    ${Math.round(current.filter(h=>h.current>0).reduce((s,h)=>s+h.current*Math.pow(1+(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100,20),0)).toLocaleString()}
+                    ${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100);
+                      if(h.current===0&&pmt===0)return s;
+                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
                     {Math.abs(targetSum-100) > 0.5 ? `⚠ off by ${Math.abs(targetSum-100).toFixed(1)}%` : "✓ balanced"}
@@ -1425,6 +1473,62 @@ export default function App() {
               </tbody>
             </table>
           </div>
+
+          {/* Growth Milestones */}
+          {(() => {
+            const contrib = monthlyContrib[account] || 0;
+            const fv = (yrs) => current.reduce((s,h) => {
+              const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
+              const pmt = contrib * (h.target/100);
+              if (h.current===0 && pmt===0) return s;
+              return s + (r===0 ? h.current+pmt*n : h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+            }, 0);
+            const lump = (yrs) => current.reduce((s,h) => {
+              const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
+              if (h.current===0) return s;
+              return s + h.current*Math.pow(1+r,n);
+            }, 0);
+            const totalContrib = contrib * 12;
+            return (
+              <div style={{ marginTop:20, padding:"18px 20px", background:"rgba(255,255,255,0.03)", border:`1px solid ${accentColor}33`, borderRadius:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+                  <p className="sec" style={{ margin:0 }}>Growth Milestones</p>
+                  {contrib > 0 && (
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>
+                      ${contrib.toLocaleString()}/mo · ${totalContrib.toLocaleString()}/yr in contributions
+                    </span>
+                  )}
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+                  {[10,15,20].map(yrs => {
+                    const withC = fv(yrs);
+                    const noC   = lump(yrs);
+                    const boost = withC - noC;
+                    return (
+                      <div key={yrs} className="stat-card" style={{ "--accent": accentColor }}>
+                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>{yrs}-Year Projection</div>
+                        <div style={{ fontSize:22, fontWeight:700, color: accentColor, marginBottom:4 }}>
+                          ${Math.round(withC).toLocaleString()}
+                        </div>
+                        {contrib > 0 ? (
+                          <>
+                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>
+                              Without contributions: <span style={{ color:"rgba(255,255,255,0.6)" }}>${Math.round(noC).toLocaleString()}</span>
+                            </div>
+                            <div style={{ fontSize:11, color:"#34d399", marginTop:3 }}>
+                              +${Math.round(boost).toLocaleString()} from ${(contrib*yrs*12).toLocaleString()} invested
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Add monthly contribution above to see boost</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Add ticker */}
           <div style={{ marginTop:12, display:"flex", gap:8 }}>
