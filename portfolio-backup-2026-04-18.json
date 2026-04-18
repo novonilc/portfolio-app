@@ -5,7 +5,7 @@
         "ticker": "NVDA",
         "name": "Nvidia",
         "current": 4947,
-        "target": 14,
+        "target": 10,
         "divYield": 0,
         "locked": "✅ Keep",
         "notes": "No dividend — pure growth compounder. Perfect in TFSA."
@@ -14,7 +14,7 @@
         "ticker": "AMZN",
         "name": "Amazon",
         "current": 1388,
-        "target": 10,
+        "target": 6,
         "divYield": 0,
         "locked": "✅ Keep",
         "notes": "No dividend — 100% tax-free growth in TFSA."
@@ -23,7 +23,7 @@
         "ticker": "NOW",
         "name": "ServiceNow",
         "current": 3971,
-        "target": 15,
+        "target": 10,
         "divYield": 0,
         "locked": "✅ Keep",
         "notes": "No dividend — AI enterprise software leader."
@@ -32,7 +32,7 @@
         "ticker": "GOOG",
         "name": "Alphabet",
         "current": 3144,
-        "target": 7,
+        "target": 6,
         "divYield": 0.5,
         "locked": "✅ Keep",
         "notes": "Tiny dividend (acceptable drag). AI + Search moat."
@@ -41,7 +41,7 @@
         "ticker": "PLTR",
         "name": "Palantir",
         "current": 1425,
-        "target": 8,
+        "target": 6,
         "divYield": 0,
         "locked": "✅ Keep",
         "notes": "No dividend — high-conviction AI defense play."
@@ -50,7 +50,7 @@
         "ticker": "MU",
         "name": "Micron Technology",
         "current": 2803,
-        "target": 8,
+        "target": 6,
         "divYield": 0.5,
         "locked": "✅ Keep",
         "notes": "Tiny dividend. AI memory monopoly."
@@ -95,7 +95,7 @@
         "ticker": "MSFT",
         "name": "Microsoft",
         "current": 4260,
-        "target": 0,
+        "target": 3,
         "divYield": 0.8,
         "locked": "❌ SELL",
         "notes": "MOVE TO RRSP — 0.8% dividend leaks 15% WHT."
@@ -104,7 +104,7 @@
         "ticker": "AAPL",
         "name": "Apple",
         "current": 3636,
-        "target": 0,
+        "target": 3,
         "divYield": 0.5,
         "locked": "❌ SELL",
         "notes": "MOVE TO RRSP — save withholding on dividends."
@@ -113,7 +113,7 @@
         "ticker": "META",
         "name": "Meta Platforms",
         "current": 2224,
-        "target": 0,
+        "target": 3,
         "divYield": 0.4,
         "locked": "❌ SELL",
         "notes": "MOVE TO RRSP — dividend growing."
@@ -122,7 +122,7 @@
         "ticker": "TSM",
         "name": "Taiwan Semiconductor",
         "current": 4178,
-        "target": 0,
+        "target": 3,
         "divYield": 1.5,
         "locked": "❌ SELL",
         "notes": "MOVE TO RRSP — 1.5% dividend = highest drag."
@@ -131,7 +131,7 @@
         "ticker": "ADI",
         "name": "Analog Devices",
         "current": 1274,
-        "target": 0,
+        "target": 3,
         "divYield": 1.8,
         "locked": "❌ SELL",
         "notes": "MOVE TO RRSP — highest yield in TFSA."
@@ -140,7 +140,7 @@
         "ticker": "THE",
         "name": "TD Intl Equity ETF",
         "current": 2668,
-        "target": 0,
+        "target": 3,
         "divYield": 2,
         "locked": "❌ SELL",
         "notes": "Consolidate — replace with VFV.TO."
@@ -245,6 +245,10 @@
   "cashHolding": {
     "TFSA": 3000,
     "RRSP": 33000
+  },
+  "monthlyContrib": {
+    "TFSA": 600,
+    "RRSP": 950
   },
   "portfolios": [
     "TFSA",
