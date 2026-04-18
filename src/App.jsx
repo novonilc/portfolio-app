@@ -623,11 +623,19 @@ export default function App() {
           border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.025);
         }
         .td{
-          padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.04);
+          padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.04);
           font-size:12px;color:rgba(255,255,255,0.68);vertical-align:middle;
           font-family:'JetBrains Mono',monospace;
         }
         .td-main{color:#f1f5f9;font-weight:500}
+        .td input[type=number],.td input[type=text]{
+          padding:5px 8px;font-size:13px;border-radius:6px;box-sizing:border-box;
+        }
+        .td-target input[type=number]{
+          padding:6px 8px;font-size:15px;font-weight:700;
+          color:#f1f5f9;text-align:center;
+          background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.14);
+        }
         .bar{height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;margin-top:5px}
         .bar-fill{height:100%;border-radius:2px;transition:width 0.5s cubic-bezier(.4,0,.2,1)}
         .pill{display:inline-block;padding:2px 9px;border-radius:5px;font-size:10px;font-weight:500;letter-spacing:0.03em}
@@ -1343,8 +1351,8 @@ export default function App() {
                   <th className="th" style={{ width:115 }}>Cost Basis $</th>
                   <th className="th" style={{ textAlign:"right", width:120 }}>P&amp;L $</th>
                   <th className="th" style={{ textAlign:"right", width:75 }}>P&amp;L %</th>
-                  <th className="th" style={{ width:75 }}>Target %</th>
-                  <th className="th" style={{ width:85 }}>CAGR %</th>
+                  <th className="th" style={{ width:95 }}>Target %</th>
+                  <th className="th" style={{ width:90 }}>CAGR %</th>
                   <th className="th" style={{ textAlign:"right", width:105 }}>10yr</th>
                   <th className="th" style={{ textAlign:"right", width:105 }}>15yr</th>
                   <th className="th" style={{ textAlign:"right", width:105 }}>20yr</th>
@@ -1398,9 +1406,13 @@ export default function App() {
                           </span>
                         ) : <span style={{ color:"rgba(255,255,255,0.2)" }}>—</span>}
                       </td>
-                      <td className="td">
-                        <input type="number" value={h.target} max="100" min="0"
-                          onChange={e => updateHolding(idx, "target", e.target.value)}/>
+                      <td className="td td-target">
+                        <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                          <input type="number" value={h.target} max="100" min="0" step="1"
+                            onChange={e => updateHolding(idx, "target", e.target.value)}
+                            style={{ flex:1 }}/>
+                          <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)", flexShrink:0 }}>%</span>
+                        </div>
                       </td>
                       <td className="td">
                         <input type="number" value={cagr} min="0" max="100" step="0.5"
@@ -1441,7 +1453,8 @@ export default function App() {
                     color: totalPnLPct !== null ? (totalPnLPct >= 0 ? "#34d399" : "#ef4444") : "rgba(255,255,255,0.2)" }}>
                     {totalPnLPct !== null ? `${totalPnLPct >= 0 ? "+" : ""}${totalPnLPct.toFixed(1)}%` : "—"}
                   </td>
-                  <td className="td" style={{ color: Math.abs(targetSum-100) > 0.5 ? "#ef4444" : "#34d399", fontWeight:500 }}>
+                  <td className="td" style={{ fontWeight:700, fontSize:14,
+                    color: Math.abs(targetSum-100) > 0.5 ? "#ef4444" : "#34d399" }}>
                     {targetSum}%
                   </td>
                   <td className="td"></td>
