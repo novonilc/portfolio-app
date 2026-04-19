@@ -127,7 +127,127 @@ Always-visible at the top of the screen:
 
 ---
 
-## How It Handles Canadian Tax Intelligence
+## How to Use the App Efficiently
+
+### The recommended workflow
+
+The app has five tabs that work best in a specific order. Follow this loop each time you sit down to manage your portfolio:
+
+```
+Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
+```
+
+---
+
+### Step 1 — Set up your holdings (Edit Targets tab)
+
+This is the foundation. Bad inputs here make every other tab unreliable.
+
+**Enter every position accurately:**
+- `Current $` — use your brokerage's "Market Value" number, not shares × price. Include all accounts separately.
+- `Cost Basis $` — your average cost per position (total paid ÷ shares). If you don't have this, leave it blank for now; the P&L columns will show `—` until you fill it in.
+- `Target %` — your desired allocation. These must sum to **exactly 100%** (the app turns the total red when they don't). Tip: start with round numbers (5%, 10%, 15%) and fine-tune later.
+- `CAGR %` — your personal growth estimate. The default values are reasonable starting points. Change them if you have a different view. These only affect the 10/15/20yr projections — they don't affect rebalancing calculations.
+
+**Monthly contribution field** (top right of Edit Targets): Enter your monthly contribution amount for this account. This feeds into the projected growth calculations — a $500/mo contribution compounding at 12% looks very different from $0/mo.
+
+> **Best practice**: Export a backup immediately after entering your data the first time (`⬆ Export` in the header). If your browser cache is ever cleared, this JSON is your only recovery option.
+
+---
+
+### Step 2 — Model your rebalance (Rebalance tab)
+
+**Choose your mode:**
+- **Cash-only** (default, recommended): Enter how much new cash you're deploying. The app tells you exactly what to buy without selling anything. This is optimal for registered accounts where you want to avoid realizing gains or triggering unnecessary transactions.
+- **Full rebalance**: Use this once or twice a year if positions have drifted significantly. Shows both buys and sells. In registered accounts there's no immediate tax impact, so full rebalances are cleaner here than in taxable accounts.
+
+**Use the quick-add buttons** ($500 / $1,000 / $2,500 / $5,000 / $7,000 / $10,000) to quickly model different contribution scenarios before committing. The $7,000 button maps to the 2026 TFSA annual limit.
+
+**Read the buy table before acting:**
+- The "Delta" column shows exactly how many dollars of each ticker to buy
+- The "After buy %" shows where your allocation lands after the purchase — confirm this matches your intent
+- Any concentration warning (>20% in a single position) means your targets may need revisiting
+
+**When the buy amounts look odd:** it usually means your target %s don't sum to 100%, or your current values haven't been updated recently. Go back to Edit Targets and correct those first.
+
+---
+
+### Step 3 — Schedule your purchases (DCA Plan tab)
+
+Once you know your total buy amount from the Rebalance tab, switch to DCA Plan.
+
+**Choosing your DCA window:**
+| Situation | Recommended weeks |
+|---|---|
+| Market is clearly down, high conviction | 4–6 weeks (deploy faster) |
+| Market is near highs or uncertain | 12–16 weeks (spread the risk) |
+| Very large lump sum (>$25,000) | 20–26 weeks |
+| Regular monthly contribution (<$2,000) | 4 weeks (just do it weekly) |
+
+**Reading the weekly table:** The tickers are sorted by buy priority (largest dollar gap first). Stick to this order — don't reorder based on daily price movement, that defeats the purpose of DCA.
+
+**Currency awareness:** The Exchange column shows whether each ticker trades on the TSX (C$) or NYSE (US$). When your weekly plan includes both currencies, check the `US$X · C$Y` breakdown in the summary — this tells you how to split your weekly broker purchases between CAD and USD accounts within your brokerage.
+
+**The week-by-week cards:** Use these as a literal checklist. Each Monday (or whatever day you pick), execute that week's purchases. The calendar view covers the first 12 weeks; for longer DCA windows, the weekly amounts remain constant.
+
+---
+
+### Step 4 — Optimize account placement (Ideas tab)
+
+Use this tab when you're adding a new position or reviewing whether your existing holdings are in the right accounts.
+
+**The gap detection banner** at the top tells you which sectors you have zero exposure to across both TFSA and RRSP combined. This is a useful prompt — not a mandate. If you see "Healthcare" flagged, filter by "Fills Gaps" to see targeted suggestions.
+
+**The TFSA vs RRSP label on each card is the most important field.** Before adding any US-listed dividend payer to your TFSA, check whether it should be in RRSP instead. The 15% WHT drag on a 2% yield costs you $300/year on a $100,000 position — silently, every year.
+
+**Conviction levels as a sizing guide:**
+- `High` conviction → can be a core position (8–15% of portfolio)
+- `Medium` conviction → better as a satellite position (3–7%)
+
+**One-click add:** When you find a recommendation you want, click "Add to TFSA" or "Add to RRSP" directly from the card. It creates a placeholder with the ticker pre-filled. Then go to Edit Targets to enter your actual dollar amount and cost basis.
+
+---
+
+### Step 5 — Research unknown tickers (Search tab)
+
+When you encounter a ticker that isn't in the curated list:
+1. Type the ticker and press Enter
+2. If it's in the database — full analysis appears instantly
+3. If it's not — the app generates a **ready-to-paste Claude AI prompt** tailored for Canadian investors
+
+The AI prompt asks specifically about: business model, fair value, dividend treatment, TFSA vs RRSP placement, and CAGR estimate. Copy it, paste it into [claude.ai](https://claude.ai), and you get a structured Canadian-investor analysis in seconds.
+
+---
+
+### Quarterly maintenance routine
+
+A 20–30 minute review every quarter keeps the app accurate:
+
+1. **Update current values** — go to Edit Targets, update each `Current $` to today's market value from your brokerage
+2. **Check drift** — switch to Rebalance tab. Positions with large deltas have drifted from targets
+3. **Model your contribution** — enter your available cash and see what the rebalance recommends
+4. **Review the WHT card** — if the withholding tax number has grown, consider whether a TFSA→RRSP transfer makes sense at year-end
+5. **Export a backup** — one click, keep the last 2–3 JSON files
+
+**When to do a full rebalance instead of cash-only:**
+- A position has grown to >25% of portfolio
+- You've had a significant contribution room reset (new year TFSA room)
+- You're consolidating accounts or transferring between TFSA and RRSP
+
+---
+
+### Common mistakes to avoid
+
+| Mistake | What to do instead |
+|---|---|
+| Targets don't sum to 100% | The total row turns red — fix before rebalancing |
+| Updating current values too infrequently | Stale values produce wrong buy amounts; update before each rebalance |
+| DCA window too short on large lump sums | Timing risk increases; use 12+ weeks for amounts over $15,000 |
+| US dividend payers in TFSA | Check the Ideas tab — if it says RRSP, move it |
+| Never exporting a backup | Do it after every significant change; localStorage can be wiped by browser updates |
+| Ignoring concentration warnings | A 25%+ position in a single stock means a bad quarter there tanks your portfolio |
+
+---
 
 The app has specific knowledge about Canadian registered accounts baked in:
 
