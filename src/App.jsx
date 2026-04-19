@@ -222,6 +222,19 @@ const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", di
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
+function getTickerCurrency(ticker) {
+  return (ticker.endsWith(".TO") || CAD_EXEMPT.has(ticker)) ? "CAD" : "USD";
+}
+
+function getExchange(ticker) {
+  return getTickerCurrency(ticker) === "CAD" ? "TSX" : "NYSE";
+}
+
+function fmtAmt(amount, ticker) {
+  const sym = getTickerCurrency(ticker) === "CAD" ? "C$" : "US$";
+  return `${sym}${Math.round(amount).toLocaleString()}`;
+}
+
 // Per-portfolio accent colors — TFSA/RRSP fixed, extras cycle
 const PORTFOLIO_COLORS = {
   TFSA: { accent:"#fbbf24", rgb:"251,191,36" },
@@ -499,6 +512,10 @@ export default function App() {
   const cashRemaining  = Math.max(cash - totalBuys, 0);
   const buyList        = rebalance.filter(r => r.delta > 0);
   const weeklyTotalBuy = totalBuys / dcaWeeks;
+  const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker) === "USD").reduce((s, r) => s + r.delta, 0);
+  const totalBuysCAD   = buyList.filter(r => getTickerCurrency(r.ticker) === "CAD").reduce((s, r) => s + r.delta, 0);
+  const weeklyUSD      = totalBuysUSD / dcaWeeks;
+  const weeklyCAD      = totalBuysCAD / dcaWeeks;
   const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (h.current / Math.max(currentTotal, 1)) * 100)), 1);
 
   // Concentration warnings (>20% of current portfolio)
@@ -1242,12 +1259,22 @@ export default function App() {
                 <p style={{ fontSize:24, fontWeight:500, color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>
                   ${Math.round(weeklyTotalBuy).toLocaleString()}
                 </p>
+                <div style={{ marginTop:6, display:"flex", justifyContent:"center", gap:8, flexWrap:"wrap" }}>
+                  {weeklyUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(weeklyUSD).toLocaleString()}</span>}
+                  {weeklyUSD > 0 && weeklyCAD > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>}
+                  {weeklyCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24" }}>C${Math.round(weeklyCAD).toLocaleString()}</span>}
+                </div>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
                 <p className="sec">Total to deploy</p>
                 <p style={{ fontSize:24, fontWeight:500, color:accentColor, fontFamily:"'JetBrains Mono',monospace" }}>
                   ${Math.round(totalBuys).toLocaleString()}
                 </p>
+                <div style={{ marginTop:6, display:"flex", justifyContent:"center", gap:8, flexWrap:"wrap" }}>
+                  {totalBuysUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(totalBuysUSD).toLocaleString()}</span>}
+                  {totalBuysUSD > 0 && totalBuysCAD > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>}
+                  {totalBuysCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24" }}>C${Math.round(totalBuysCAD).toLocaleString()}</span>}
+                </div>
               </div>
             </div>
           </div>
@@ -1267,6 +1294,7 @@ export default function App() {
                     <tr>
                       <th className="th">Ticker</th>
                       <th className="th">Name</th>
+                      <th className="th">Exchange</th>
                       <th className="th" style={{ textAlign:"right" }}>Total buy</th>
                       <th className="th" style={{ textAlign:"right" }}>Weekly</th>
                       <th className="th" style={{ textAlign:"right" }}>% of weekly</th>
@@ -1275,12 +1303,24 @@ export default function App() {
                   <tbody>
                     {buyList.sort((a,b) => b.delta - a.delta).map(h => {
                       const weekly = h.delta / dcaWeeks;
+                      const exch   = getExchange(h.ticker);
+                      const isCAD  = getTickerCurrency(h.ticker) === "CAD";
                       return (
                         <tr key={h.ticker}>
                           <td className="td td-main"><strong style={{ color:accentColor }}>{h.ticker}</strong></td>
                           <td className="td" style={{ color:"rgba(255,255,255,0.5)" }}>{h.name}</td>
-                          <td className="td" style={{ textAlign:"right" }}>${Math.round(h.delta).toLocaleString()}</td>
-                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>${Math.round(weekly).toLocaleString()}</td>
+                          <td className="td">
+                            <span style={{
+                              fontSize:10, padding:"2px 7px", borderRadius:4, fontWeight:500,
+                              background: isCAD ? "rgba(251,191,36,0.1)" : "rgba(96,165,250,0.1)",
+                              color:      isCAD ? "#fbbf24"              : "#60a5fa",
+                              border:     `1px solid ${isCAD ? "rgba(251,191,36,0.25)" : "rgba(96,165,250,0.25)"}`,
+                            }}>
+                              {exch} · {isCAD ? "C$" : "US$"}
+                            </span>
+                          </td>
+                          <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.delta, h.ticker)}</td>
+                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(weekly, h.ticker)}</td>
                           <td className="td" style={{ textAlign:"right" }}>{((weekly/weeklyTotalBuy)*100).toFixed(1)}%</td>
                         </tr>
                       );
@@ -1304,14 +1344,19 @@ export default function App() {
                       {buyList.sort((a,b) => b.delta - a.delta).slice(0, 5).map(h => (
                         <div key={h.ticker} style={{ display:"flex", justifyContent:"space-between",
                           fontSize:10, padding:"2px 0", fontFamily:"'JetBrains Mono',monospace" }}>
-                          <span style={{ color:"rgba(255,255,255,0.5)" }}>{h.ticker}</span>
-                          <span style={{ color:"rgba(255,255,255,0.75)" }}>${Math.round(h.delta/dcaWeeks).toLocaleString()}</span>
+                          <span style={{ color: getTickerCurrency(h.ticker) === "CAD" ? "#fbbf2488" : "rgba(255,255,255,0.5)" }}>
+                            {h.ticker}
+                          </span>
+                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.delta/dcaWeeks, h.ticker)}</span>
                         </div>
                       ))}
                       <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6,
-                        display:"flex", justifyContent:"space-between" }}>
+                        display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Total</span>
-                        <span style={{ fontSize:11, color:accentColor, fontWeight:500 }}>${Math.round(weeklyTotalBuy).toLocaleString()}</span>
+                        <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                          {weeklyUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa", fontFamily:"'JetBrains Mono',monospace" }}>US${Math.round(weeklyUSD).toLocaleString()}</span>}
+                          {weeklyCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24", fontFamily:"'JetBrains Mono',monospace" }}>C${Math.round(weeklyCAD).toLocaleString()}</span>}
+                        </div>
                       </div>
                     </div>
                   );
