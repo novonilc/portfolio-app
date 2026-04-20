@@ -281,6 +281,7 @@ export default function App() {
   const [searchQuery,      setSearchQuery]     = useState("");
   const [searchResult,     setSearchResult]    = useState(null);
   const [monthlyContrib,   setMonthlyContrib]  = useState({ TFSA: 0, RRSP: 0 });
+  const [usdCadRate,       setUsdCadRate]      = useState(1.38);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -299,6 +300,8 @@ export default function App() {
       if (cashData) setCashHolding(JSON.parse(cashData));
       const contribData = localStorage.getItem("portfolio:contrib");
       if (contribData) setMonthlyContrib(JSON.parse(contribData));
+      const fxData = localStorage.getItem("portfolio:fxRate");
+      if (fxData) setUsdCadRate(Number(fxData) || 1.38);
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
 
@@ -318,6 +321,10 @@ export default function App() {
 
   function persistContrib(next) {
     localStorage.setItem("portfolio:contrib", JSON.stringify(next));
+  }
+
+  function persistFxRate(rate) {
+    localStorage.setItem("portfolio:fxRate", String(rate));
   }
 
   function handleContrib(val) {
@@ -471,70 +478,89 @@ export default function App() {
     reader.readAsText(file);
   }
 
+  // ── FX helpers (close over usdCadRate state) ───────────────────────────
+  const toCAD = (amount, ticker) =>
+    getTickerCurrency(ticker) === "USD" ? amount * usdCadRate : amount;
+  const fromCAD = (cadAmount, ticker) =>
+    getTickerCurrency(ticker) === "USD" && usdCadRate > 0 ? cadAmount / usdCadRate : cadAmount;
+
   // ── Derived values ─────────────────────────────────────────────────────
   const current       = holdings[account];
-  const currentTotal  = current.reduce((s, h) => s + h.current, 0);
-  const cash          = cashHolding[account] || 0;
+  // All aggregate values in CAD — USD positions converted via usdCadRate
+  const currentTotal  = current.reduce((s, h) => s + toCAD(h.current, h.ticker), 0);
+  const cash          = cashHolding[account] || 0;   // cash is always CAD
   const newTotal      = currentTotal + cash;
 
-  // P&L (uses costBasis per position, summed)
-  const totalCostBasis = current.reduce((s, h) => s + (h.costBasis || 0), 0);
+  // P&L in CAD (costBasis entered in native currency, converted here)
+  const totalCostBasis = current.reduce((s, h) => s + toCAD(h.costBasis || 0, h.ticker), 0);
   const totalPnL       = totalCostBasis > 0 ? currentTotal - totalCostBasis : null;
   const totalPnLPct    = totalCostBasis > 0 ? ((currentTotal - totalCostBasis) / totalCostBasis) * 100 : null;
 
-  // Annual dividend income + TFSA withholding tax estimate
-  const annualDivIncome = current.reduce((s, h) => s + h.current * (h.divYield || 0) / 100, 0);
+  // Annual dividend income + TFSA withholding tax — in CAD
+  const annualDivIncome = current.reduce((s, h) => s + toCAD(h.current, h.ticker) * (h.divYield || 0) / 100, 0);
   const whtEstimate     = account === "TFSA"
     ? current.filter(h => !CAD_EXEMPT.has(h.ticker))
-              .reduce((s, h) => s + h.current * (h.divYield || 0) / 100 * 0.15, 0)
+              .reduce((s, h) => s + toCAD(h.current, h.ticker) * (h.divYield || 0) / 100 * 0.15, 0)
     : 0;
 
-  // Cash-constrained rebalance
+  // Cash-constrained rebalance — all deltas in CAD
   const rawItems = current.map(h => {
-    const targetDollar = newTotal * h.target / 100;
-    const rawDelta     = targetDollar - h.current;
-    return { ...h, currentDollar: h.current, targetDollar, rawDelta,
-             currentPct: currentTotal > 0 ? (h.current / currentTotal) * 100 : 0 };
+    const currentDollarCAD = toCAD(h.current, h.ticker);
+    const targetDollar     = newTotal * h.target / 100;     // CAD
+    const rawDelta         = targetDollar - currentDollarCAD; // CAD
+    return { ...h,
+      currentDollar:       currentDollarCAD,
+      currentDollarNative: h.current,
+      targetDollar,
+      rawDelta,
+      currentPct: currentTotal > 0 ? (currentDollarCAD / currentTotal) * 100 : 0,
+    };
   });
   const rawBuyTotal    = rawItems.filter(r => r.rawDelta > 0).reduce((s, r) => s + r.rawDelta, 0);
   const scaleFactor    = rebalMode === "cash" && cash > 0 && rawBuyTotal > cash ? cash / rawBuyTotal : 1;
   const isCashConstrained = scaleFactor < 1;
 
-  const rebalance = rawItems.map(r => ({
-    ...r,
-    delta: rebalMode === "cash"
+  const rebalance = rawItems.map(r => {
+    const delta = rebalMode === "cash"
       ? (r.rawDelta > 0 ? r.rawDelta * scaleFactor : 0)
-      : r.rawDelta,
-  }));
+      : r.rawDelta;
+    return {
+      ...r,
+      delta,                             // CAD
+      deltaNative: fromCAD(delta, r.ticker),  // native currency (USD or CAD)
+      rawDeltaNative: fromCAD(r.rawDelta, r.ticker),
+    };
+  });
 
   const totalBuys      = rebalance.filter(r => r.delta > 0).reduce((s, r) => s + r.delta, 0);
   const totalSells     = rebalance.filter(r => r.delta < 0).reduce((s, r) => s + Math.abs(r.delta), 0);
   const cashRemaining  = Math.max(cash - totalBuys, 0);
   const buyList        = rebalance.filter(r => r.delta > 0);
   const weeklyTotalBuy = totalBuys / dcaWeeks;
-  const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker) === "USD").reduce((s, r) => s + r.delta, 0);
+  // Split by currency — USD shown in native USD, CAD in native CAD
   const totalBuysCAD   = buyList.filter(r => getTickerCurrency(r.ticker) === "CAD").reduce((s, r) => s + r.delta, 0);
-  const weeklyUSD      = totalBuysUSD / dcaWeeks;
-  const weeklyCAD      = totalBuysCAD / dcaWeeks;
-  const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (h.current / Math.max(currentTotal, 1)) * 100)), 1);
+  const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker) === "USD").reduce((s, r) => s + r.deltaNative, 0);
+  const weeklyUSD      = totalBuysUSD / dcaWeeks;  // native USD
+  const weeklyCAD      = totalBuysCAD / dcaWeeks;  // native CAD
+  const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (toCAD(h.current, h.ticker) / Math.max(currentTotal, 1)) * 100)), 1);
 
-  // Concentration warnings (>20% of current portfolio)
+  // Concentration warnings (>20% of current portfolio) — compare in CAD
   const concentrationWarnings = current.filter(h =>
-    currentTotal > 0 && (h.current / currentTotal) * 100 > 20
+    currentTotal > 0 && (toCAD(h.current, h.ticker) / currentTotal) * 100 > 20
   );
 
-  // WHT sell recommendations — TFSA positions losing ≥$20/yr to IRS withholding
+  // WHT sell recommendations — TFSA positions losing ≥$20/yr to IRS withholding (in CAD)
   const whtSellRecs = account === "TFSA"
     ? current
         .filter(h => {
-          const wht = h.current * (h.divYield || 0) / 100 * 0.15;
-          return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) >= 3 && wht > 0;
+          const whtCAD = toCAD(h.current, h.ticker) * (h.divYield || 0) / 100 * 0.15;
+          return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) >= 3 && whtCAD > 0;
         })
         .map(h => ({
           ...h,
-          annualDiv: h.current * h.divYield / 100,
-          annualWHT: h.current * h.divYield / 100 * 0.15,
-          priority:  h.current * h.divYield / 100 * 0.15 >= 80,
+          annualDiv: toCAD(h.current, h.ticker) * h.divYield / 100,
+          annualWHT: toCAD(h.current, h.ticker) * h.divYield / 100 * 0.15,
+          priority:  toCAD(h.current, h.ticker) * h.divYield / 100 * 0.15 >= 80,
         }))
         .sort((a, b) => b.annualWHT - a.annualWHT)
     : [];
@@ -557,7 +583,7 @@ export default function App() {
         else if (CAD_EXEMPT.has(r.ticker))
           reasons.push(`WHT-exempt (CAD-listed) — full ${r.divYield}% yield retained in TFSA`);
         else
-          reasons.push(`⚠ US dividend attracts 15% IRS withholding in TFSA (~$${Math.round(r.current*(r.divYield||0)/100*0.15)}/yr drag) — consider RRSP`);
+          reasons.push(`⚠ US dividend attracts 15% IRS withholding in TFSA (~C$${Math.round(toCAD(r.current,r.ticker)*(r.divYield||0)/100*0.15)}/yr drag) — consider RRSP`);
       } else if (account === "RRSP") {
         if ((r.divYield || 0) > 0.4)
           reasons.push(`${r.divYield}% yield — 0% withholding under Canada-US tax treaty in RRSP`);
@@ -805,7 +831,7 @@ export default function App() {
             <span>
               Concentration risk in {account}: {concentrationWarnings.map(h =>
                 <strong key={h.ticker} style={{ color:"#f97316" }}>
-                  {h.ticker} ({((h.current/currentTotal)*100).toFixed(1)}%)
+                  {h.ticker} ({((toCAD(h.current,h.ticker)/currentTotal)*100).toFixed(1)}%)
                 </strong>
               ).reduce((a, b) => [a, ", ", b])} {concentrationWarnings.length > 1 ? "exceed" : "exceeds"} 20% — consider spreading risk.
             </span>
@@ -817,12 +843,12 @@ export default function App() {
       <div style={{ padding:"18px 28px 0", display:"grid",
         gridTemplateColumns:"repeat(auto-fit, minmax(152px, 1fr))", gap:10 }}>
 
-        {/* Cash */}
+        {/* Cash — always CAD */}
         <div className="stat-card" style={{ "--accent":"#34d399" }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
-            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Cash ({account})</p>
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Cash CAD ({account})</p>
           <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:4 }}>
-            <span style={{ fontSize:13, color:"rgba(255,255,255,0.22)", fontFamily:"'JetBrains Mono',monospace" }}>$</span>
+            <span style={{ fontSize:13, color:"rgba(255,255,255,0.22)", fontFamily:"'JetBrains Mono',monospace" }}>C$</span>
             <input type="number" value={cash || ""} onChange={e => handleCash(e.target.value)}
               placeholder="0"
               style={{ fontSize:21, fontWeight:600, color:"#34d399", border:"none",
@@ -832,29 +858,43 @@ export default function App() {
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>available to invest</p>
         </div>
 
-        {/* Total invested */}
+        {/* USD → CAD Rate */}
+        <div className="stat-card" style={{ "--accent":"#60a5fa" }}>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
+            marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>USD → CAD Rate</p>
+          <div style={{ display:"flex", alignItems:"center", gap:4, marginBottom:4 }}>
+            <input type="number" value={usdCadRate} step="0.001" min="1" max="2"
+              onChange={e => { const r = Number(e.target.value) || 1.38; setUsdCadRate(r); persistFxRate(r); }}
+              style={{ fontSize:21, fontWeight:600, color:"#60a5fa", border:"none",
+                background:"transparent", padding:0, width:"100%",
+                fontFamily:"'JetBrains Mono',monospace" }}/>
+          </div>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>1 USD = {usdCadRate} CAD</p>
+        </div>
+
+        {/* Total invested — in CAD */}
         <div className="stat-card" style={{ "--accent":"#64748b" }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
             marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Total invested</p>
           <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
             color: totalCostBasis > 0 ? "#94a3b8" : "rgba(255,255,255,0.18)", marginBottom:4 }}>
-            {totalCostBasis > 0 ? `$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
+            {totalCostBasis > 0 ? `C$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>cost basis</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>cost basis (CAD)</p>
         </div>
 
-        {/* Portfolio value */}
+        {/* Portfolio value — in CAD */}
         <div className="stat-card" style={{ "--accent":accentColor }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
             marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Portfolio value</p>
           <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
             color:accentColor, marginBottom:4 }}>
-            ${Math.round(currentTotal).toLocaleString()}
+            C${Math.round(currentTotal).toLocaleString()}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>market value</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>market value (CAD)</p>
         </div>
 
-        {/* Unrealized P&L */}
+        {/* Unrealized P&L — in CAD */}
         {totalPnL !== null && (
           <div className="stat-card"
             style={{ "--accent": totalPnL >= 0 ? "#34d399" : "#f43f5e" }}>
@@ -862,7 +902,7 @@ export default function App() {
               marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Unrealized P&amp;L</p>
             <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
               color: totalPnL >= 0 ? "#34d399" : "#f43f5e", marginBottom:4 }}>
-              {totalPnL >= 0 ? "+" : ""}${Math.round(totalPnL).toLocaleString()}
+              {totalPnL >= 0 ? "+" : ""}C${Math.round(totalPnL).toLocaleString()}
             </p>
             <p style={{ fontSize:9, color: totalPnL >= 0 ? "#34d399" : "#f43f5e", opacity:0.8 }}>
               {totalPnLPct >= 0 ? "+" : ""}{totalPnLPct.toFixed(1)}% total return
@@ -870,48 +910,48 @@ export default function App() {
           </div>
         )}
 
-        {/* Annual dividends */}
+        {/* Annual dividends — in CAD */}
         {annualDivIncome > 1 && (
           <div className="stat-card" style={{ "--accent":"#a78bfa" }}>
             <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
               marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>Annual dividends</p>
             <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
               color:"#a78bfa", marginBottom:4 }}>
-              ${Math.round(annualDivIncome).toLocaleString()}
+              C${Math.round(annualDivIncome).toLocaleString()}
             </p>
             {account === "TFSA" && whtEstimate > 1 ? (
-              <p style={{ fontSize:9, color:"#f97316" }}>−${Math.round(whtEstimate)} WHT/yr</p>
+              <p style={{ fontSize:9, color:"#f97316" }}>−C${Math.round(whtEstimate)} WHT/yr</p>
             ) : (
-              <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>estimated/yr</p>
+              <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>estimated/yr (CAD)</p>
             )}
           </div>
         )}
 
-        {/* After deploy */}
+        {/* After deploy — in CAD */}
         <div className="stat-card" style={{ "--accent":"#7c3aed" }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
             marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>After deploy</p>
           <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
             color:"#c4b5fd", marginBottom:4 }}>
-            ${Math.round(newTotal).toLocaleString()}
+            C${Math.round(newTotal).toLocaleString()}
           </p>
-          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>portfolio + cash</p>
+          <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>portfolio + cash (CAD)</p>
         </div>
 
-        {/* To buy */}
+        {/* To buy — in CAD */}
         <div className="stat-card" style={{ "--accent":"#22d3ee" }}>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", letterSpacing:"0.13em",
             marginBottom:8, textTransform:"uppercase", fontWeight:600 }}>To buy</p>
           <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
             color:"#22d3ee", marginBottom:4 }}>
-            ${Math.round(totalBuys).toLocaleString()}
+            C${Math.round(totalBuys).toLocaleString()}
           </p>
           <p style={{ fontSize:9, color: isCashConstrained ? "#f97316" : "rgba(255,255,255,0.22)" }}>
             {isCashConstrained ? "scaled to cash" : "at target weights"}
           </p>
         </div>
 
-        {/* Cash remaining / To sell */}
+        {/* Cash remaining / To sell — in CAD */}
         <div className="stat-card" style={{
           "--accent": rebalMode==="full" ? "#f43f5e" : cashRemaining > 0 ? "#34d399" : "#475569"
         }}>
@@ -922,7 +962,7 @@ export default function App() {
           <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
             color: rebalMode==="full" ? "#f43f5e" : cashRemaining > 0 ? "#34d399" : "#475569",
             marginBottom:4 }}>
-            ${Math.round(rebalMode === "full" ? totalSells : cashRemaining).toLocaleString()}
+            C${Math.round(rebalMode === "full" ? totalSells : cashRemaining).toLocaleString()}
           </p>
           <p style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
             {rebalMode === "full" ? "overweight positions" : "after all buys"}
@@ -951,19 +991,18 @@ export default function App() {
         <div style={{ padding:"22px 28px" }}>
           <div className="card" style={{ marginBottom:16, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
             <div style={{ flex:"1 1 220px" }}>
-              <p className="sec">Cash available to deploy ({account})</p>
+              <p className="sec">Cash available to deploy — CAD ({account})</p>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span style={{ fontSize:20, color:"rgba(255,255,255,0.4)" }}>$</span>
+                <span style={{ fontSize:20, color:"rgba(255,255,255,0.4)" }}>C$</span>
                 <input type="number" value={cash || ""} onChange={e => handleCash(e.target.value)}
                   placeholder="0" style={{ fontSize:22, fontWeight:500, color:"#34d399", maxWidth:200 }}/>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>CAD</span>
               </div>
             </div>
             <div style={{ flex:"1 1 240px" }}>
               <p className="sec">Quick add</p>
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                 {[500,1000,2500,5000,7000,10000].map(v => (
-                  <button key={v} className="btn" onClick={() => handleCash(cash + v)}>+${v.toLocaleString()}</button>
+                  <button key={v} className="btn" onClick={() => handleCash(cash + v)}>+C${v.toLocaleString()}</button>
                 ))}
               </div>
             </div>
@@ -982,15 +1021,15 @@ export default function App() {
             </div>
             <div style={{ flex:"0 0 170px" }}>
               <p className="sec">Contribution limits (2026)</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>TFSA: $7,000/yr</p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>RRSP: $32,490/yr</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>TFSA: C$7,000/yr</p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>RRSP: C$32,490/yr</p>
             </div>
           </div>
 
           {isCashConstrained && (
             <div className="warn">
-              ⚠ Buys scaled to cash: optimal deploy is ${Math.round(rawBuyTotal).toLocaleString()} but
-              only ${Math.round(cash).toLocaleString()} available — each position scaled to {(scaleFactor*100).toFixed(0)}% of optimal.
+              ⚠ Buys scaled to cash: optimal deploy is C${Math.round(rawBuyTotal).toLocaleString()} but
+              only C${Math.round(cash).toLocaleString()} available — each position scaled to {(scaleFactor*100).toFixed(0)}% of optimal.
             </div>
           )}
 
@@ -1086,8 +1125,8 @@ export default function App() {
               <div className="action-divider">
                 <div className="action-divider-bar" style={{ height:20, background:"#22d3ee" }}/>
                 <p className="sec" style={{ marginBottom:0, color:"#22d3ee" }}>
-                  Buy plan — ${Math.round(totalBuys).toLocaleString()} across {enrichedBuys.length} position{enrichedBuys.length>1?"s":""}
-                  {isCashConstrained ? ` · scaled to $${Math.round(cash).toLocaleString()} cash` : ""}
+                  Buy plan — C${Math.round(totalBuys).toLocaleString()} across {enrichedBuys.length} position{enrichedBuys.length>1?"s":""}
+                  {isCashConstrained ? ` · scaled to C${Math.round(cash).toLocaleString()} cash` : ""}
                 </p>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -1138,11 +1177,11 @@ export default function App() {
                       </span>
                       <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace",
                         fontWeight:700, color:"#22d3ee" }}>
-                        ${Math.round(h.delta).toLocaleString()}
+                        {fmtAmt(h.deltaNative, h.ticker)}
                       </p>
                       {isCashConstrained && Math.round(h.rawDelta) !== Math.round(h.delta) && (
                         <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginTop:3 }}>
-                          full: ${Math.round(h.rawDelta).toLocaleString()}
+                          full: {fmtAmt(h.rawDeltaNative, h.ticker)}
                         </p>
                       )}
                       <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>
@@ -1190,7 +1229,7 @@ export default function App() {
                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
                       </td>
                       <td className="td"><span className="pill hold">{h.locked}</span></td>
-                      <td className="td" style={{ textAlign:"right" }}>${Math.round(h.currentDollar).toLocaleString()}</td>
+                      <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.currentDollarNative, h.ticker)}</td>
                       <td className="td" style={{ textAlign:"right" }}>
                         {posPnl !== null ? (
                           <div>
@@ -1205,10 +1244,10 @@ export default function App() {
                       </td>
                       <td className="td" style={{ textAlign:"right", color:"rgba(255,255,255,0.5)" }}>{h.currentPct.toFixed(1)}%</td>
                       <td className="td" style={{ textAlign:"right", color:accentColor }}>{h.target}%</td>
-                      <td className="td" style={{ textAlign:"right" }}>${Math.round(h.targetDollar).toLocaleString()}</td>
+                      <td className="td" style={{ textAlign:"right" }}>C${Math.round(h.targetDollar).toLocaleString()}</td>
                       <td className="td" style={{ textAlign:"right" }}>
-                        {action==="buy"  && <span style={{ color:"#22d3ee" }}>▲ BUY ${Math.round(h.delta).toLocaleString()}</span>}
-                        {action==="sell" && <span style={{ color:"#ef4444" }}>▼ SELL ${Math.round(Math.abs(h.delta)).toLocaleString()}</span>}
+                        {action==="buy"  && <span style={{ color:"#22d3ee" }}>▲ BUY {fmtAmt(h.deltaNative, h.ticker)}</span>}
+                        {action==="sell" && <span style={{ color:"#ef4444" }}>▼ SELL {fmtAmt(Math.abs(h.deltaNative), h.ticker)}</span>}
                         {action==="hold" && <span style={{ color:"#94a3b8" }}>● HOLD</span>}
                         {rebalMode === "cash" && h.rawDelta < 0 && (
                           <div style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>overweight</div>
@@ -1251,13 +1290,13 @@ export default function App() {
                   </span>
                 </div>
                 <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:6 }}>
-                  ≈ {(dcaWeeks/4).toFixed(1)} months · ${Math.round(weeklyTotalBuy).toLocaleString()}/wk
+                  ≈ {(dcaWeeks/4).toFixed(1)} months · C${Math.round(weeklyTotalBuy).toLocaleString()}/wk
                 </p>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
                 <p className="sec">Weekly spend</p>
                 <p style={{ fontSize:24, fontWeight:500, color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>
-                  ${Math.round(weeklyTotalBuy).toLocaleString()}
+                  C${Math.round(weeklyTotalBuy).toLocaleString()}
                 </p>
                 <div style={{ marginTop:6, display:"flex", justifyContent:"center", gap:8, flexWrap:"wrap" }}>
                   {weeklyUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(weeklyUSD).toLocaleString()}</span>}
@@ -1268,7 +1307,7 @@ export default function App() {
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
                 <p className="sec">Total to deploy</p>
                 <p style={{ fontSize:24, fontWeight:500, color:accentColor, fontFamily:"'JetBrains Mono',monospace" }}>
-                  ${Math.round(totalBuys).toLocaleString()}
+                  C${Math.round(totalBuys).toLocaleString()}
                 </p>
                 <div style={{ marginTop:6, display:"flex", justifyContent:"center", gap:8, flexWrap:"wrap" }}>
                   {totalBuysUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(totalBuysUSD).toLocaleString()}</span>}
@@ -1302,7 +1341,6 @@ export default function App() {
                   </thead>
                   <tbody>
                     {buyList.sort((a,b) => b.delta - a.delta).map(h => {
-                      const weekly = h.delta / dcaWeeks;
                       const exch   = getExchange(h.ticker);
                       const isCAD  = getTickerCurrency(h.ticker) === "CAD";
                       return (
@@ -1319,9 +1357,9 @@ export default function App() {
                               {exch} · {isCAD ? "C$" : "US$"}
                             </span>
                           </td>
-                          <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.delta, h.ticker)}</td>
-                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(weekly, h.ticker)}</td>
-                          <td className="td" style={{ textAlign:"right" }}>{((weekly/weeklyTotalBuy)*100).toFixed(1)}%</td>
+                          <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.deltaNative, h.ticker)}</td>
+                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker)}</td>
+                          <td className="td" style={{ textAlign:"right" }}>{((h.delta/totalBuys)*100).toFixed(1)}%</td>
                         </tr>
                       );
                     })}
@@ -1347,7 +1385,7 @@ export default function App() {
                           <span style={{ color: getTickerCurrency(h.ticker) === "CAD" ? "#fbbf2488" : "rgba(255,255,255,0.5)" }}>
                             {h.ticker}
                           </span>
-                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.delta/dcaWeeks, h.ticker)}</span>
+                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker)}</span>
                         </div>
                       ))}
                       <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6,
@@ -1412,14 +1450,15 @@ export default function App() {
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
                   const contrib     = monthlyContrib[account] || 0;
                   const holdingPMT  = contrib > 0 ? (h.target / 100) * contrib : 0;
+                  const currentCAD  = toCAD(h.current, h.ticker);
                   const proj = yrs => {
                     const r = cagr / 100 / 12;
                     const n = yrs * 12;
-                    if (h.current === 0 && holdingPMT === 0) return "—";
+                    if (currentCAD === 0 && holdingPMT === 0) return "—";
                     const fv = r === 0
-                      ? h.current + holdingPMT * n
-                      : h.current * Math.pow(1+r, n) + holdingPMT * (Math.pow(1+r,n)-1) / r;
-                    return `$${Math.round(fv).toLocaleString()}`;
+                      ? currentCAD + holdingPMT * n
+                      : currentCAD * Math.pow(1+r, n) + holdingPMT * (Math.pow(1+r,n)-1) / r;
+                    return `C$${Math.round(fv).toLocaleString()}`;
                   };
                   return (
                     <tr key={h.ticker}>
@@ -1486,13 +1525,13 @@ export default function App() {
                 {/* Totals row */}
                 <tr style={{ background:"rgba(255,255,255,0.03)" }}>
                   <td className="td td-main"><strong>TOTAL</strong></td>
-                  <td className="td" style={{ color:accentColor, fontWeight:500 }}>${Math.round(currentTotal).toLocaleString()}</td>
+                  <td className="td" style={{ color:accentColor, fontWeight:500 }}>C${Math.round(currentTotal).toLocaleString()}</td>
                   <td className="td" style={{ color:"#94a3b8", fontWeight:500 }}>
-                    {totalCostBasis > 0 ? `$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
+                    {totalCostBasis > 0 ? `C$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
                   </td>
                   <td className="td" style={{ textAlign:"right", fontWeight:500,
                     color: totalPnL !== null ? (totalPnL >= 0 ? "#34d399" : "#ef4444") : "rgba(255,255,255,0.2)" }}>
-                    {totalPnL !== null ? `${totalPnL >= 0 ? "+" : ""}$${Math.round(totalPnL).toLocaleString()}` : "—"}
+                    {totalPnL !== null ? `${totalPnL >= 0 ? "+" : ""}C$${Math.round(totalPnL).toLocaleString()}` : "—"}
                   </td>
                   <td className="td" style={{ textAlign:"right", fontWeight:500,
                     color: totalPnLPct !== null ? (totalPnLPct >= 0 ? "#34d399" : "#ef4444") : "rgba(255,255,255,0.2)" }}>
@@ -1504,24 +1543,24 @@ export default function App() {
                   </td>
                   <td className="td"></td>
                   <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
-                    ${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100);
-                      if(h.current===0&&pmt===0)return s;
-                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    C${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      if(c===0&&pmt===0)return s;
+                      return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>
-                    ${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100);
-                      if(h.current===0&&pmt===0)return s;
-                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    C${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      if(c===0&&pmt===0)return s;
+                      return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
-                    ${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100);
-                      if(h.current===0&&pmt===0)return s;
-                      return s+(r===0?h.current+pmt*n:h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+                    C${Math.round(current.reduce((s,h)=>{
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      if(c===0&&pmt===0)return s;
+                      return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
@@ -1537,14 +1576,16 @@ export default function App() {
             const contrib = monthlyContrib[account] || 0;
             const fv = (yrs) => current.reduce((s,h) => {
               const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
+              const c = toCAD(h.current, h.ticker);
               const pmt = contrib * (h.target/100);
-              if (h.current===0 && pmt===0) return s;
-              return s + (r===0 ? h.current+pmt*n : h.current*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
+              if (c===0 && pmt===0) return s;
+              return s + (r===0 ? c+pmt*n : c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
             }, 0);
             const lump = (yrs) => current.reduce((s,h) => {
               const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
-              if (h.current===0) return s;
-              return s + h.current*Math.pow(1+r,n);
+              const c = toCAD(h.current, h.ticker);
+              if (c===0) return s;
+              return s + c*Math.pow(1+r,n);
             }, 0);
             const totalContrib = contrib * 12;
             return (
@@ -1553,7 +1594,7 @@ export default function App() {
                   <p className="sec" style={{ margin:0 }}>Growth Milestones</p>
                   {contrib > 0 && (
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>
-                      ${contrib.toLocaleString()}/mo · ${totalContrib.toLocaleString()}/yr in contributions
+                      C${contrib.toLocaleString()}/mo · C${totalContrib.toLocaleString()}/yr in contributions
                     </span>
                   )}
                 </div>
@@ -1566,15 +1607,15 @@ export default function App() {
                       <div key={yrs} className="stat-card" style={{ "--accent": accentColor }}>
                         <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:6 }}>{yrs}-Year Projection</div>
                         <div style={{ fontSize:22, fontWeight:700, color: accentColor, marginBottom:4 }}>
-                          ${Math.round(withC).toLocaleString()}
+                          C${Math.round(withC).toLocaleString()}
                         </div>
                         {contrib > 0 ? (
                           <>
                             <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>
-                              Without contributions: <span style={{ color:"rgba(255,255,255,0.6)" }}>${Math.round(noC).toLocaleString()}</span>
+                              Without contributions: <span style={{ color:"rgba(255,255,255,0.6)" }}>C${Math.round(noC).toLocaleString()}</span>
                             </div>
                             <div style={{ fontSize:11, color:"#34d399", marginTop:3 }}>
-                              +${Math.round(boost).toLocaleString()} from ${(contrib*yrs*12).toLocaleString()} invested
+                              +C${Math.round(boost).toLocaleString()} from C${(contrib*yrs*12).toLocaleString()} invested
                             </div>
                           </>
                         ) : (

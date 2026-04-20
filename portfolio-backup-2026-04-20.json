@@ -38,33 +38,6 @@
         "notes": "Tiny dividend (acceptable drag). AI + Search moat."
       },
       {
-        "ticker": "PLTR",
-        "name": "Palantir",
-        "current": 1425,
-        "target": 6,
-        "divYield": 0,
-        "locked": "✅ Keep",
-        "notes": "No dividend — high-conviction AI defense play."
-      },
-      {
-        "ticker": "MU",
-        "name": "Micron Technology",
-        "current": 2803,
-        "target": 6,
-        "divYield": 0.5,
-        "locked": "✅ Keep",
-        "notes": "Tiny dividend. AI memory monopoly."
-      },
-      {
-        "ticker": "CNQ",
-        "name": "Cdn Natural Resources",
-        "current": 3174,
-        "target": 10,
-        "divYield": 4.5,
-        "locked": "✅ Keep",
-        "notes": "Canadian dividend — full tax credit in TFSA."
-      },
-      {
         "ticker": "XIU",
         "name": "iShares S&P/TSX 60",
         "current": 1885,
@@ -155,6 +128,17 @@
         "cagr": 10,
         "locked": "✅ Keep",
         "notes": "Sitting on $330B+ cash amid tariff volatility — Buffett deploys aggressively in corrections. Natural market hedge with z…"
+      },
+      {
+        "ticker": "XEQT",
+        "name": "XEQT",
+        "current": 212,
+        "costBasis": 0,
+        "target": 30,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
       }
     ],
     "RRSP": [
@@ -190,7 +174,7 @@
     ]
   },
   "cashHolding": {
-    "TFSA": 3000,
+    "TFSA": 11620,
     "RRSP": 60000
   },
   "monthlyContrib": {

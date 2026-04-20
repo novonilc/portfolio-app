@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Bash(/home/nchoudhu/portfolio-app/node_modules/.bin/vite build *)"
+    ]
+  }
+}
