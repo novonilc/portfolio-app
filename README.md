@@ -4,6 +4,33 @@
 
 A free, open-source web app that helps you manage your TFSA, RRSP, and custom investment accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding tax optimization, and curated stock recommendations — all without connecting a single bank account.
 
+## Quick Start
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:5173`.
+
+## Table of Contents
+
+- [Quick Start](#quick-start)
+- [The Problem It Solves](#the-problem-it-solves)
+- [What the App Does](#what-the-app-does)
+- [How to Use the App Efficiently](#how-to-use-the-app-efficiently)
+- [How It Compares to the Alternatives](#how-it-compares-to-the-alternatives)
+- [Privacy Model](#privacy-model)
+- [Tech Stack](#tech-stack)
+- [Getting Started](#getting-started)
+- [Available Scripts](#available-scripts)
+- [Troubleshooting](#troubleshooting)
+- [File Structure](#file-structure)
+- [Customizing for Your Portfolio](#customizing-for-your-portfolio)
+- [Data Backup and Portability](#data-backup-and-portability)
+- [Disclaimer](#disclaimer)
+- [License](#license)
+
 ---
 
 ## The Problem It Solves
@@ -383,6 +410,21 @@ npm run dev
 
 Requirements: Node.js 18+ (download from nodejs.org)
 
+### Available Scripts
+
+From the project root:
+
+- `npm run dev` — start the local development server
+- `npm run build` — produce a production build in `dist/`
+- `npm run preview` — locally preview the production build
+
+Typical production verification flow:
+
+```bash
+npm run build
+npm run preview
+```
+
 ### Deploy to Vercel (Free — Recommended)
 
 1. Fork this repository to your GitHub account (keep it **Private** — your portfolio data is in your browser, but keeping the repo private is good practice)
@@ -409,6 +451,16 @@ npm run deploy
 ```
 
 Enable Pages in your repo Settings → Pages → Source: `gh-pages` branch.
+
+### Troubleshooting
+
+Common fixes when running locally:
+
+- **Port already in use (`5173`)**: run `npm run dev -- --port 4173` to use a different port.
+- **Blank page after pulling changes**: stop server, run `npm install`, then restart `npm run dev`.
+- **Data missing after browser cleanup**: import your last `portfolio-backup-YYYY-MM-DD.json`.
+- **Build errors**: run `npm run build` and fix the first error shown (usually a syntax issue in `src/App.jsx`).
+- **Recommendations not appearing**: confirm the ticker is not already present in your active portfolio.
 
 ### Install on Your Phone (PWA)
 
