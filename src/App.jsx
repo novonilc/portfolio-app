@@ -217,21 +217,22 @@ const DEFAULT_CAGR = {
 // ═══════════════════════════════════════════════════════════════════════════
 // APP
 // ═══════════════════════════════════════════════════════════════════════════
-const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", divYield:"", cagr:"", notes:"" };
+const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", divYield:"", cagr:"", currencyOverride:"", notes:"" };
 
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
-function getTickerCurrency(ticker) {
+function getTickerCurrency(ticker, currencyOverride = "") {
+  if (currencyOverride === "CAD" || currencyOverride === "USD") return currencyOverride;
   return (ticker.endsWith(".TO") || CAD_EXEMPT.has(ticker)) ? "CAD" : "USD";
 }
 
-function getExchange(ticker) {
-  return getTickerCurrency(ticker) === "CAD" ? "TSX" : "NYSE";
+function getExchange(ticker, currencyOverride = "") {
+  return getTickerCurrency(ticker, currencyOverride) === "CAD" ? "TSX" : "NYSE";
 }
 
-function fmtAmt(amount, ticker) {
-  const sym = getTickerCurrency(ticker) === "CAD" ? "C$" : "US$";
+function fmtAmt(amount, ticker, currencyOverride = "") {
+  const sym = getTickerCurrency(ticker, currencyOverride) === "CAD" ? "C$" : "US$";
   return `${sym}${Math.round(amount).toLocaleString()}`;
 }
 
@@ -282,6 +283,7 @@ export default function App() {
   const [searchResult,     setSearchResult]    = useState(null);
   const [monthlyContrib,   setMonthlyContrib]  = useState({ TFSA: 0, RRSP: 0 });
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
+  const [targetsFilter,    setTargetsFilter]   = useState("all");
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -337,7 +339,10 @@ export default function App() {
   function updateHolding(idx, field, value) {
     const next = { ...holdings };
     next[account] = [...next[account]];
-    next[account][idx] = { ...next[account][idx], [field]: Number(value) || 0 };
+    next[account][idx] = {
+      ...next[account][idx],
+      [field]: field === "currencyOverride" ? value : (Number(value) || 0),
+    };
     setHoldings(next);
     persist(account, next[account]);
   }
@@ -358,6 +363,7 @@ export default function App() {
       target:    Number(addForm.target)    || 0,
       divYield:  Number(addForm.divYield)  || 0,
       cagr:      Number(addForm.cagr)      || DEFAULT_CAGR[ticker] || 10,
+      currencyOverride: addForm.currencyOverride || "",
       locked:    "✅ Keep",
       notes:     addForm.notes.trim(),
     }];
@@ -388,6 +394,7 @@ export default function App() {
       target:    0,
       divYield:  rec.divYield,
       cagr:      DEFAULT_CAGR[rec.ticker] || 10,
+      currencyOverride: "",
       locked:    "✅ Keep",
       notes:     rec.thesis.slice(0, 120) + "…",
     }];
@@ -479,33 +486,33 @@ export default function App() {
   }
 
   // ── FX helpers (close over usdCadRate state) ───────────────────────────
-  const toCAD = (amount, ticker) =>
-    getTickerCurrency(ticker) === "USD" ? amount * usdCadRate : amount;
-  const fromCAD = (cadAmount, ticker) =>
-    getTickerCurrency(ticker) === "USD" && usdCadRate > 0 ? cadAmount / usdCadRate : cadAmount;
+  const toCAD = (amount, ticker, currencyOverride = "") =>
+    getTickerCurrency(ticker, currencyOverride) === "USD" ? amount * usdCadRate : amount;
+  const fromCAD = (cadAmount, ticker, currencyOverride = "") =>
+    getTickerCurrency(ticker, currencyOverride) === "USD" && usdCadRate > 0 ? cadAmount / usdCadRate : cadAmount;
 
   // ── Derived values ─────────────────────────────────────────────────────
   const current       = holdings[account];
   // All aggregate values in CAD — USD positions converted via usdCadRate
-  const currentTotal  = current.reduce((s, h) => s + toCAD(h.current, h.ticker), 0);
+  const currentTotal  = current.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride), 0);
   const cash          = cashHolding[account] || 0;   // cash is always CAD
   const newTotal      = currentTotal + cash;
 
   // P&L in CAD (costBasis entered in native currency, converted here)
-  const totalCostBasis = current.reduce((s, h) => s + toCAD(h.costBasis || 0, h.ticker), 0);
+  const totalCostBasis = current.reduce((s, h) => s + toCAD(h.costBasis || 0, h.ticker, h.currencyOverride), 0);
   const totalPnL       = totalCostBasis > 0 ? currentTotal - totalCostBasis : null;
   const totalPnLPct    = totalCostBasis > 0 ? ((currentTotal - totalCostBasis) / totalCostBasis) * 100 : null;
 
   // Annual dividend income + TFSA withholding tax — in CAD
-  const annualDivIncome = current.reduce((s, h) => s + toCAD(h.current, h.ticker) * (h.divYield || 0) / 100, 0);
+  const annualDivIncome = current.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100, 0);
   const whtEstimate     = account === "TFSA"
     ? current.filter(h => !CAD_EXEMPT.has(h.ticker))
-              .reduce((s, h) => s + toCAD(h.current, h.ticker) * (h.divYield || 0) / 100 * 0.15, 0)
+              .reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100 * 0.15, 0)
     : 0;
 
   // Cash-constrained rebalance — all deltas in CAD
   const rawItems = current.map(h => {
-    const currentDollarCAD = toCAD(h.current, h.ticker);
+    const currentDollarCAD = toCAD(h.current, h.ticker, h.currencyOverride);
     const targetDollar     = newTotal * h.target / 100;     // CAD
     const rawDelta         = targetDollar - currentDollarCAD; // CAD
     return { ...h,
@@ -527,8 +534,8 @@ export default function App() {
     return {
       ...r,
       delta,                             // CAD
-      deltaNative: fromCAD(delta, r.ticker),  // native currency (USD or CAD)
-      rawDeltaNative: fromCAD(r.rawDelta, r.ticker),
+      deltaNative: fromCAD(delta, r.ticker, r.currencyOverride),  // native currency (USD or CAD)
+      rawDeltaNative: fromCAD(r.rawDelta, r.ticker, r.currencyOverride),
     };
   });
 
@@ -538,29 +545,29 @@ export default function App() {
   const buyList        = rebalance.filter(r => r.delta > 0);
   const weeklyTotalBuy = totalBuys / dcaWeeks;
   // Split by currency — USD shown in native USD, CAD in native CAD
-  const totalBuysCAD   = buyList.filter(r => getTickerCurrency(r.ticker) === "CAD").reduce((s, r) => s + r.delta, 0);
-  const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker) === "USD").reduce((s, r) => s + r.deltaNative, 0);
+  const totalBuysCAD   = buyList.filter(r => getTickerCurrency(r.ticker, r.currencyOverride) === "CAD").reduce((s, r) => s + r.delta, 0);
+  const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker, r.currencyOverride) === "USD").reduce((s, r) => s + r.deltaNative, 0);
   const weeklyUSD      = totalBuysUSD / dcaWeeks;  // native USD
   const weeklyCAD      = totalBuysCAD / dcaWeeks;  // native CAD
-  const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (toCAD(h.current, h.ticker) / Math.max(currentTotal, 1)) * 100)), 1);
+  const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (toCAD(h.current, h.ticker, h.currencyOverride) / Math.max(currentTotal, 1)) * 100)), 1);
 
   // Concentration warnings (>20% of current portfolio) — compare in CAD
   const concentrationWarnings = current.filter(h =>
-    currentTotal > 0 && (toCAD(h.current, h.ticker) / currentTotal) * 100 > 20
+    currentTotal > 0 && (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100 > 20
   );
 
   // WHT sell recommendations — TFSA positions losing ≥$20/yr to IRS withholding (in CAD)
   const whtSellRecs = account === "TFSA"
     ? current
         .filter(h => {
-          const whtCAD = toCAD(h.current, h.ticker) * (h.divYield || 0) / 100 * 0.15;
+          const whtCAD = toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100 * 0.15;
           return !CAD_EXEMPT.has(h.ticker) && (h.divYield || 0) >= 3 && whtCAD > 0;
         })
         .map(h => ({
           ...h,
-          annualDiv: toCAD(h.current, h.ticker) * h.divYield / 100,
-          annualWHT: toCAD(h.current, h.ticker) * h.divYield / 100 * 0.15,
-          priority:  toCAD(h.current, h.ticker) * h.divYield / 100 * 0.15 >= 80,
+          annualDiv: toCAD(h.current, h.ticker, h.currencyOverride) * h.divYield / 100,
+          annualWHT: toCAD(h.current, h.ticker, h.currencyOverride) * h.divYield / 100 * 0.15,
+          priority:  toCAD(h.current, h.ticker, h.currencyOverride) * h.divYield / 100 * 0.15 >= 80,
         }))
         .sort((a, b) => b.annualWHT - a.annualWHT)
     : [];
@@ -610,6 +617,10 @@ export default function App() {
   const colorInfo   = PORTFOLIO_COLORS[account] ?? EXTRA_COLORS[Math.max(0, accountIdx - 2) % EXTRA_COLORS.length];
   const accentColor = colorInfo.accent;
   const accentRGB   = colorInfo.rgb;
+  const filteredCurrent = (targetsFilter === "manual"
+    ? current.filter(h => !!h.currencyOverride)
+    : current
+  ).map((h, idx) => ({ h, idx: current.indexOf(h) }));
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -831,7 +842,7 @@ export default function App() {
             <span>
               Concentration risk in {account}: {concentrationWarnings.map(h =>
                 <strong key={h.ticker} style={{ color:"#f97316" }}>
-                  {h.ticker} ({((toCAD(h.current,h.ticker)/currentTotal)*100).toFixed(1)}%)
+                  {h.ticker} ({((toCAD(h.current, h.ticker, h.currencyOverride)/currentTotal)*100).toFixed(1)}%)
                 </strong>
               ).reduce((a, b) => [a, ", ", b])} {concentrationWarnings.length > 1 ? "exceed" : "exceeds"} 20% — consider spreading risk.
             </span>
@@ -1177,11 +1188,11 @@ export default function App() {
                       </span>
                       <p style={{ fontSize:21, fontFamily:"'JetBrains Mono',monospace",
                         fontWeight:700, color:"#22d3ee" }}>
-                        {fmtAmt(h.deltaNative, h.ticker)}
+                        {fmtAmt(h.deltaNative, h.ticker, h.currencyOverride)}
                       </p>
                       {isCashConstrained && Math.round(h.rawDelta) !== Math.round(h.delta) && (
                         <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginTop:3 }}>
-                          full: {fmtAmt(h.rawDeltaNative, h.ticker)}
+                          full: {fmtAmt(h.rawDeltaNative, h.ticker, h.currencyOverride)}
                         </p>
                       )}
                       <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>
@@ -1229,7 +1240,7 @@ export default function App() {
                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
                       </td>
                       <td className="td"><span className="pill hold">{h.locked}</span></td>
-                      <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.currentDollarNative, h.ticker)}</td>
+                      <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.currentDollarNative, h.ticker, h.currencyOverride)}</td>
                       <td className="td" style={{ textAlign:"right" }}>
                         {posPnl !== null ? (
                           <div>
@@ -1246,8 +1257,8 @@ export default function App() {
                       <td className="td" style={{ textAlign:"right", color:accentColor }}>{h.target}%</td>
                       <td className="td" style={{ textAlign:"right" }}>C${Math.round(h.targetDollar).toLocaleString()}</td>
                       <td className="td" style={{ textAlign:"right" }}>
-                        {action==="buy"  && <span style={{ color:"#22d3ee" }}>▲ BUY {fmtAmt(h.deltaNative, h.ticker)}</span>}
-                        {action==="sell" && <span style={{ color:"#ef4444" }}>▼ SELL {fmtAmt(Math.abs(h.deltaNative), h.ticker)}</span>}
+                        {action==="buy"  && <span style={{ color:"#22d3ee" }}>▲ BUY {fmtAmt(h.deltaNative, h.ticker, h.currencyOverride)}</span>}
+                        {action==="sell" && <span style={{ color:"#ef4444" }}>▼ SELL {fmtAmt(Math.abs(h.deltaNative), h.ticker, h.currencyOverride)}</span>}
                         {action==="hold" && <span style={{ color:"#94a3b8" }}>● HOLD</span>}
                         {rebalMode === "cash" && h.rawDelta < 0 && (
                           <div style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:2 }}>overweight</div>
@@ -1341,8 +1352,8 @@ export default function App() {
                   </thead>
                   <tbody>
                     {buyList.sort((a,b) => b.delta - a.delta).map(h => {
-                      const exch   = getExchange(h.ticker);
-                      const isCAD  = getTickerCurrency(h.ticker) === "CAD";
+                      const exch   = getExchange(h.ticker, h.currencyOverride);
+                      const isCAD  = getTickerCurrency(h.ticker, h.currencyOverride) === "CAD";
                       return (
                         <tr key={h.ticker}>
                           <td className="td td-main"><strong style={{ color:accentColor }}>{h.ticker}</strong></td>
@@ -1357,8 +1368,8 @@ export default function App() {
                               {exch} · {isCAD ? "C$" : "US$"}
                             </span>
                           </td>
-                          <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.deltaNative, h.ticker)}</td>
-                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker)}</td>
+                          <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.deltaNative, h.ticker, h.currencyOverride)}</td>
+                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker, h.currencyOverride)}</td>
                           <td className="td" style={{ textAlign:"right" }}>{((h.delta/totalBuys)*100).toFixed(1)}%</td>
                         </tr>
                       );
@@ -1382,10 +1393,10 @@ export default function App() {
                       {buyList.sort((a,b) => b.delta - a.delta).slice(0, 5).map(h => (
                         <div key={h.ticker} style={{ display:"flex", justifyContent:"space-between",
                           fontSize:10, padding:"2px 0", fontFamily:"'JetBrains Mono',monospace" }}>
-                          <span style={{ color: getTickerCurrency(h.ticker) === "CAD" ? "#fbbf2488" : "rgba(255,255,255,0.5)" }}>
+                          <span style={{ color: getTickerCurrency(h.ticker, h.currencyOverride) === "CAD" ? "#fbbf2488" : "rgba(255,255,255,0.5)" }}>
                             {h.ticker}
                           </span>
-                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker)}</span>
+                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker, h.currencyOverride)}</span>
                         </div>
                       ))}
                       <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6,
@@ -1412,24 +1423,45 @@ export default function App() {
         <div style={{ padding:"22px 28px" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
             <p className="sec" style={{ margin:0 }}>Edit holdings, cost basis &amp; targets — {account}</p>
-            <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"8px 14px" }}>
-              <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Monthly contribution</span>
-              <div style={{ position:"relative" }}>
-                <span style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", fontSize:12, color:"rgba(255,255,255,0.4)" }}>$</span>
-                <input type="number" min="0" step="100"
-                  value={monthlyContrib[account] || ""}
-                  placeholder="0"
-                  onChange={e => handleContrib(e.target.value)}
-                  style={{ paddingLeft:18, width:100 }}/>
+            <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"6px 10px" }}>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Rows</span>
+                {[["all","All"],["manual","Manual only"]].map(([v,l]) => (
+                  <button
+                    key={v}
+                    className={`tab-btn ${targetsFilter===v?"on":""}`}
+                    onClick={() => setTargetsFilter(v)}
+                    style={{ padding:"4px 10px", fontSize:10 }}
+                  >
+                    {l}
+                  </button>
+                ))}
               </div>
-              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>/mo</span>
+              <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"8px 14px" }}>
+                <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Monthly contribution</span>
+                <div style={{ position:"relative" }}>
+                  <span style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", fontSize:12, color:"rgba(255,255,255,0.4)" }}>$</span>
+                  <input type="number" min="0" step="100"
+                    value={monthlyContrib[account] || ""}
+                    placeholder="0"
+                    onChange={e => handleContrib(e.target.value)}
+                    style={{ paddingLeft:18, width:100 }}/>
+                </div>
+                <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>/mo</span>
+              </div>
+              {targetsFilter === "manual" && (
+                <span style={{ fontSize:10, color:"rgba(251,191,36,0.8)" }}>
+                  Showing {filteredCurrent.length} manual override row{filteredCurrent.length === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
           </div>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1280 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1380 }}>
               <thead>
                 <tr>
                   <th className="th">Ticker / Name</th>
+                  <th className="th" style={{ width:120 }}>Currency</th>
                   <th className="th" style={{ width:115 }}>Current $</th>
                   <th className="th" style={{ width:115 }}>Cost Basis $</th>
                   <th className="th" style={{ textAlign:"right", width:120 }}>P&amp;L $</th>
@@ -1443,14 +1475,14 @@ export default function App() {
                 </tr>
               </thead>
               <tbody>
-                {current.map((h, idx) => {
+                {filteredCurrent.map(({ h, idx }) => {
                   const cagr      = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
                   const contrib     = monthlyContrib[account] || 0;
                   const holdingPMT  = contrib > 0 ? (h.target / 100) * contrib : 0;
-                  const currentCAD  = toCAD(h.current, h.ticker);
+                  const currentCAD  = toCAD(h.current, h.ticker, h.currencyOverride);
                   const proj = yrs => {
                     const r = cagr / 100 / 12;
                     const n = yrs * 12;
@@ -1465,6 +1497,33 @@ export default function App() {
                       <td className="td td-main">
                         <strong style={{ color:accentColor }}>{h.ticker}</strong>
                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
+                      </td>
+                      <td className="td">
+                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                          <select
+                            value={h.currencyOverride || ""}
+                            onChange={e => updateHolding(idx, "currencyOverride", e.target.value)}
+                            style={{ fontSize:11, padding:"5px 8px", borderRadius:6 }}
+                          >
+                            <option value="">Auto</option>
+                            <option value="CAD">CAD</option>
+                            <option value="USD">USD</option>
+                          </select>
+                          <span
+                            className="pill"
+                            style={{
+                              width:"fit-content",
+                              padding:"1px 6px",
+                              fontSize:9,
+                              borderRadius:4,
+                              color: h.currencyOverride ? "#fbbf24" : "rgba(255,255,255,0.65)",
+                              border: h.currencyOverride ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(148,163,184,0.22)",
+                              background: h.currencyOverride ? "rgba(251,191,36,0.08)" : "rgba(148,163,184,0.08)",
+                            }}
+                          >
+                            {h.currencyOverride ? "MANUAL" : "AUTO"} · {getTickerCurrency(h.ticker, h.currencyOverride)}
+                          </span>
+                        </div>
                       </td>
                       <td className="td">
                         <input type="number" value={h.current}
@@ -1525,6 +1584,7 @@ export default function App() {
                 {/* Totals row */}
                 <tr style={{ background:"rgba(255,255,255,0.03)" }}>
                   <td className="td td-main"><strong>TOTAL</strong></td>
+                  <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>AUTO / MANUAL</td>
                   <td className="td" style={{ color:accentColor, fontWeight:500 }}>C${Math.round(currentTotal).toLocaleString()}</td>
                   <td className="td" style={{ color:"#94a3b8", fontWeight:500 }}>
                     {totalCostBasis > 0 ? `C$${Math.round(totalCostBasis).toLocaleString()}` : "—"}
@@ -1544,21 +1604,21 @@ export default function App() {
                   <td className="td"></td>
                   <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
@@ -1576,14 +1636,14 @@ export default function App() {
             const contrib = monthlyContrib[account] || 0;
             const fv = (yrs) => current.reduce((s,h) => {
               const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
-              const c = toCAD(h.current, h.ticker);
+              const c = toCAD(h.current, h.ticker, h.currencyOverride);
               const pmt = contrib * (h.target/100);
               if (c===0 && pmt===0) return s;
               return s + (r===0 ? c+pmt*n : c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
             }, 0);
             const lump = (yrs) => current.reduce((s,h) => {
               const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
-              const c = toCAD(h.current, h.ticker);
+              const c = toCAD(h.current, h.ticker, h.currencyOverride);
               if (c===0) return s;
               return s + c*Math.pow(1+r,n);
             }, 0);
@@ -1658,6 +1718,18 @@ export default function App() {
                       })}/>
                   </div>
                 ))}
+                <div>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Currency</p>
+                  <select
+                    value={addForm.currencyOverride || ""}
+                    onChange={e => setAddForm({ ...addForm, currencyOverride: e.target.value })}
+                    style={{ width:"100%", fontSize:12, padding:"8px 10px", borderRadius:8 }}
+                  >
+                    <option value="">Auto-detect</option>
+                    <option value="CAD">CAD</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
               </div>
               <div style={{ marginBottom:12 }}>
                 <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", marginBottom:4 }}>Notes (optional)</p>
