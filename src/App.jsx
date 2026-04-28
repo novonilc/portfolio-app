@@ -218,6 +218,24 @@ const DEFAULT_CAGR = {
 // APP
 // ═══════════════════════════════════════════════════════════════════════════
 const BLANK_FORM = { ticker:"", name:"", current:"", costBasis:"", target:"", divYield:"", cagr:"", currencyOverride:"", notes:"" };
+const CONTRIB_FREQUENCY_OPTIONS = [
+  { value:"weekly",   label:"Weekly",   periodsPerYear:52, cadenceWeeks:1, shortLabel:"wk" },
+  { value:"biweekly", label:"Bi-weekly", periodsPerYear:26, cadenceWeeks:2, shortLabel:"2wk" },
+  { value:"monthly",  label:"Monthly",  periodsPerYear:12, cadenceWeeks:4, shortLabel:"mo" },
+];
+const DEFAULT_CONTRIB_PLAN = { amount:0, frequency:"monthly" };
+const CSV_HEADER_ALIASES = {
+  ticker: ["ticker", "symbol"],
+  name: ["name", "company", "companyname"],
+  current: ["current", "current$", "currentvalue", "marketvalue", "value"],
+  costBasis: ["costbasis", "cost_basis", "avgcost", "averagecost", "bookvalue", "invested"],
+  target: ["target", "target%", "targetpct", "allocation", "weight"],
+  divYield: ["divyield", "dividend", "dividendyield", "yield", "yield%"],
+  cagr: ["cagr", "growth", "growthrate", "estcagr"],
+  currencyOverride: ["currency", "ccy"],
+  notes: ["notes", "note", "thesis"],
+  account: ["account", "portfolio", "bucket"],
+};
 
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
@@ -281,7 +299,10 @@ export default function App() {
   const [addPortfolioForm, setAddPortfolioForm]= useState(null);
   const [searchQuery,      setSearchQuery]     = useState("");
   const [searchResult,     setSearchResult]    = useState(null);
-  const [monthlyContrib,   setMonthlyContrib]  = useState({ TFSA: 0, RRSP: 0 });
+  const [contribPlan,      setContribPlan]     = useState({
+    TFSA: { ...DEFAULT_CONTRIB_PLAN },
+    RRSP: { ...DEFAULT_CONTRIB_PLAN },
+  });
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
   const [targetsFilter,    setTargetsFilter]   = useState("all");
 
@@ -301,7 +322,21 @@ export default function App() {
       const cashData = localStorage.getItem("portfolio:cash");
       if (cashData) setCashHolding(JSON.parse(cashData));
       const contribData = localStorage.getItem("portfolio:contrib");
-      if (contribData) setMonthlyContrib(JSON.parse(contribData));
+      if (contribData) {
+        const rawContrib = JSON.parse(contribData);
+        const nextContrib = Object.fromEntries(pList.map(p => {
+          const existing = rawContrib?.[p];
+          if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+            const freq = CONTRIB_FREQUENCY_OPTIONS.some(o => o.value === existing.frequency)
+              ? existing.frequency
+              : "monthly";
+            return [p, { amount: Number(existing.amount) || 0, frequency: freq }];
+          }
+          // Backward-compat for old saves where value was monthly number
+          return [p, { amount: Number(existing) || 0, frequency: "monthly" }];
+        }));
+        setContribPlan(nextContrib);
+      }
       const fxData = localStorage.getItem("portfolio:fxRate");
       if (fxData) setUsdCadRate(Number(fxData) || 1.38);
     } catch (e) { console.warn("Could not load saved data:", e); }
@@ -329,9 +364,22 @@ export default function App() {
     localStorage.setItem("portfolio:fxRate", String(rate));
   }
 
-  function handleContrib(val) {
-    const next = { ...monthlyContrib, [account]: Number(val) || 0 };
-    setMonthlyContrib(next);
+  function handleContribAmount(val) {
+    const next = {
+      ...contribPlan,
+      [account]: { ...(contribPlan[account] || DEFAULT_CONTRIB_PLAN), amount: Number(val) || 0 },
+    };
+    setContribPlan(next);
+    persistContrib(next);
+  }
+
+  function handleContribFrequency(freq) {
+    const validFreq = CONTRIB_FREQUENCY_OPTIONS.some(o => o.value === freq) ? freq : "monthly";
+    const next = {
+      ...contribPlan,
+      [account]: { ...(contribPlan[account] || DEFAULT_CONTRIB_PLAN), frequency: validFreq },
+    };
+    setContribPlan(next);
     persistContrib(next);
   }
 
@@ -423,6 +471,9 @@ export default function App() {
     const nextC = { ...cashHolding, [clean]: 0 };
     setCashHolding(nextC);
     persistCash(nextC);
+    const nextContrib = { ...contribPlan, [clean]: { ...DEFAULT_CONTRIB_PLAN } };
+    setContribPlan(nextContrib);
+    persistContrib(nextContrib);
     setAccount(clean);
     setAddPortfolioForm(null);
   }
@@ -440,6 +491,10 @@ export default function App() {
     delete nextC[pName];
     setCashHolding(nextC);
     persistCash(nextC);
+    const nextContrib = { ...contribPlan };
+    delete nextContrib[pName];
+    setContribPlan(nextContrib);
+    persistContrib(nextContrib);
     if (account === pName) setAccount(next[0] || "TFSA");
   }
 
@@ -452,7 +507,7 @@ export default function App() {
   }
 
   function exportData() {
-    const data = JSON.stringify({ holdings, cashHolding, monthlyContrib, portfolios }, null, 2);
+    const data = JSON.stringify({ holdings, cashHolding, contribPlan, portfolios }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -462,25 +517,168 @@ export default function App() {
     URL.revokeObjectURL(url);
   }
 
+  function normalizeCsvHeader(header = "") {
+    return header.trim().toLowerCase().replace(/[\s_-]/g, "");
+  }
+
+  function parseCsvLine(line) {
+    const cells = [];
+    let curr = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === "\"") {
+        if (inQuotes && line[i + 1] === "\"") {
+          curr += "\"";
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (ch === "," && !inQuotes) {
+        cells.push(curr.trim());
+        curr = "";
+      } else {
+        curr += ch;
+      }
+    }
+    cells.push(curr.trim());
+    return cells;
+  }
+
+  function parseCsvText(csvText) {
+    const lines = csvText
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    if (lines.length < 2) throw new Error("CSV must include a header and at least one data row");
+
+    const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+    const headerIdx = Object.fromEntries(headers.map((h, i) => [h, i]));
+    const fieldIdx = {};
+    for (const [field, aliases] of Object.entries(CSV_HEADER_ALIASES)) {
+      const found = aliases.find(a => headerIdx[normalizeCsvHeader(a)] !== undefined);
+      if (found) fieldIdx[field] = headerIdx[normalizeCsvHeader(found)];
+    }
+
+    if (fieldIdx.ticker === undefined) {
+      throw new Error("Missing required column: ticker");
+    }
+
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCsvLine(lines[i]);
+      const get = (field) => {
+        const idx = fieldIdx[field];
+        return idx === undefined ? "" : (cells[idx] ?? "").trim();
+      };
+      const ticker = get("ticker").toUpperCase();
+      if (!ticker) continue;
+
+      const accountRaw = get("account").toUpperCase();
+      const sanitizedAccount = accountRaw
+        ? accountRaw.replace(/\s+/g, "_").replace(/[^A-Z0-9_]/g, "").slice(0, 20)
+        : account;
+      const currencyRaw = get("currencyOverride").toUpperCase();
+      rows.push({
+        account: sanitizedAccount || account,
+        ticker,
+        name: get("name") || ticker,
+        current: Number(get("current")) || 0,
+        costBasis: Number(get("costBasis")) || 0,
+        target: Number(get("target")) || 0,
+        divYield: Number(get("divYield")) || 0,
+        cagr: Number(get("cagr")) || DEFAULT_CAGR[ticker] || 10,
+        currencyOverride: currencyRaw === "USD" || currencyRaw === "CAD" ? currencyRaw : "",
+        notes: get("notes"),
+        locked: "✅ Keep",
+      });
+    }
+    if (!rows.length) throw new Error("No valid rows found in CSV");
+    return rows;
+  }
+
+  function applyCsvImport(rows) {
+    const csvAccounts = [...new Set(rows.map(r => r.account).filter(Boolean))];
+    const basePortfolios = [...portfolios];
+    const nextPortfolios = [...new Set([...basePortfolios, ...csvAccounts])];
+    const nextHoldings = { ...holdings };
+    const nextCash = { ...cashHolding };
+    const nextContrib = { ...contribPlan };
+
+    for (const p of nextPortfolios) {
+      if (!nextHoldings[p]) nextHoldings[p] = [];
+      if (nextCash[p] === undefined) nextCash[p] = 0;
+      if (!nextContrib[p]) nextContrib[p] = { ...DEFAULT_CONTRIB_PLAN };
+    }
+
+    for (const p of csvAccounts) {
+      nextHoldings[p] = rows.filter(r => r.account === p).map(({ account: _a, ...rest }) => rest);
+    }
+
+    setPortfolios(nextPortfolios);
+    localStorage.setItem("portfolio:list", JSON.stringify(nextPortfolios));
+    setHoldings(nextHoldings);
+    for (const p of csvAccounts) persist(p, nextHoldings[p]);
+    setCashHolding(nextCash);
+    persistCash(nextCash);
+    setContribPlan(nextContrib);
+    persistContrib(nextContrib);
+    if (csvAccounts.length) setAccount(csvAccounts[0]);
+  }
+
   function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = JSON.parse(e.target.result);
+        const text = String(e.target.result || "");
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+
+        if (ext === "csv") {
+          const rows = parseCsvText(text);
+          applyCsvImport(rows);
+          alert(`✅ Imported ${rows.length} holding${rows.length === 1 ? "" : "s"} from CSV.`);
+          event.target.value = "";
+          return;
+        }
+
+        const data = JSON.parse(text);
         const h = data.holdings || data;
-        if (h.TFSA && h.RRSP) {
-          const pList = data.portfolios || ["TFSA","RRSP"];
-          setPortfolios(pList);
-          localStorage.setItem("portfolio:list", JSON.stringify(pList));
-          setHoldings(h);
-          for (const p of pList) { if (h[p]) persist(p, h[p]); }
-          if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
-          if (data.monthlyContrib) { setMonthlyContrib(data.monthlyContrib); persistContrib(data.monthlyContrib); }
-          alert("✅ Portfolio imported successfully!");
-        } else { alert("⚠ Invalid file format"); }
-      } catch { alert("⚠ Could not read file"); }
+        if (!(h.TFSA && h.RRSP)) throw new Error("Invalid JSON format");
+        const pList = data.portfolios || ["TFSA","RRSP"];
+        setPortfolios(pList);
+        localStorage.setItem("portfolio:list", JSON.stringify(pList));
+        setHoldings(h);
+        for (const p of pList) { if (h[p]) persist(p, h[p]); }
+        if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
+        if (data.contribPlan) {
+          const nextContrib = Object.fromEntries(pList.map(p => {
+            const existing = data.contribPlan?.[p];
+            const freq = CONTRIB_FREQUENCY_OPTIONS.some(o => o.value === existing?.frequency)
+              ? existing.frequency
+              : "monthly";
+            return [p, { amount: Number(existing?.amount) || 0, frequency: freq }];
+          }));
+          setContribPlan(nextContrib);
+          persistContrib(nextContrib);
+        } else if (data.monthlyContrib) {
+          // Backward-compatible import support
+          const nextContrib = Object.fromEntries(pList.map(p => [
+            p,
+            { amount: Number(data.monthlyContrib[p]) || 0, frequency:"monthly" },
+          ]));
+          setContribPlan(nextContrib);
+          persistContrib(nextContrib);
+        }
+        alert("✅ Portfolio imported successfully!");
+      } catch (err) {
+        alert(`⚠ Import failed: ${err?.message || "Could not read file"}`);
+      }
+      event.target.value = "";
     };
     reader.readAsText(file);
   }
@@ -543,12 +741,21 @@ export default function App() {
   const totalSells     = rebalance.filter(r => r.delta < 0).reduce((s, r) => s + Math.abs(r.delta), 0);
   const cashRemaining  = Math.max(cash - totalBuys, 0);
   const buyList        = rebalance.filter(r => r.delta > 0);
-  const weeklyTotalBuy = totalBuys / dcaWeeks;
+  const accountContribPlan = contribPlan[account] || DEFAULT_CONTRIB_PLAN;
+  const contribAmount       = Number(accountContribPlan.amount) || 0;
+  const contribFrequency    = CONTRIB_FREQUENCY_OPTIONS.some(o => o.value === accountContribPlan.frequency)
+    ? accountContribPlan.frequency
+    : "monthly";
+  const contribFrequencyMeta = CONTRIB_FREQUENCY_OPTIONS.find(o => o.value === contribFrequency) || CONTRIB_FREQUENCY_OPTIONS[2];
+  const annualContrib       = contribAmount * contribFrequencyMeta.periodsPerYear;
+  const monthlyContribEq    = annualContrib / 12;
+  const dcaPeriods          = Math.max(1, Math.ceil(dcaWeeks / contribFrequencyMeta.cadenceWeeks));
+  const perPeriodTotalBuy   = totalBuys / dcaPeriods;
   // Split by currency — USD shown in native USD, CAD in native CAD
   const totalBuysCAD   = buyList.filter(r => getTickerCurrency(r.ticker, r.currencyOverride) === "CAD").reduce((s, r) => s + r.delta, 0);
   const totalBuysUSD   = buyList.filter(r => getTickerCurrency(r.ticker, r.currencyOverride) === "USD").reduce((s, r) => s + r.deltaNative, 0);
-  const weeklyUSD      = totalBuysUSD / dcaWeeks;  // native USD
-  const weeklyCAD      = totalBuysCAD / dcaWeeks;  // native CAD
+  const perPeriodUSD   = totalBuysUSD / dcaPeriods;  // native USD
+  const perPeriodCAD   = totalBuysCAD / dcaPeriods;  // native CAD
   const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (toCAD(h.current, h.ticker, h.currencyOverride) / Math.max(currentTotal, 1)) * 100)), 1);
 
   // Concentration warnings (>20% of current portfolio) — compare in CAD
@@ -772,9 +979,9 @@ export default function App() {
             )}
 
             {/* Utility */}
-            <label className="btn" style={{ cursor:"pointer", fontSize:11, padding:"6px 12px" }}>
-              ⬇ Import
-              <input type="file" accept=".json" style={{ display:"none" }} onChange={importData}/>
+            <label className="btn" style={{ cursor:"pointer", fontSize:11, padding:"6px 12px" }} title="Import JSON backup or CSV holdings">
+              ⬇ Import (JSON/CSV)
+              <input type="file" accept=".json,.csv,text/csv,application/json" style={{ display:"none" }} onChange={importData}/>
             </label>
             <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}>
               ⬆ Export
@@ -1292,6 +1499,19 @@ export default function App() {
             <div style={{ display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
               <div style={{ flex:"1 1 280px" }}>
                 <p className="sec">Spread buying over weeks (DCA)</p>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)", textTransform:"uppercase", letterSpacing:0.5 }}>Cadence</span>
+                  {CONTRIB_FREQUENCY_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      className={`tab-btn ${contribFrequency===opt.value?"on":""}`}
+                      onClick={() => handleContribFrequency(opt.value)}
+                      style={{ padding:"4px 10px", fontSize:10 }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
                 <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                   <input type="range" min={4} max={26} value={dcaWeeks}
                     onChange={e => setDcaWeeks(Number(e.target.value))}/>
@@ -1301,18 +1521,18 @@ export default function App() {
                   </span>
                 </div>
                 <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:6 }}>
-                  ≈ {(dcaWeeks/4).toFixed(1)} months · C${Math.round(weeklyTotalBuy).toLocaleString()}/wk
+                  ≈ {(dcaWeeks/4).toFixed(1)} months · {dcaPeriods} {contribFrequencyMeta.label.toLowerCase()} contributions · C${Math.round(perPeriodTotalBuy).toLocaleString()}/{contribFrequencyMeta.shortLabel}
                 </p>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
-                <p className="sec">Weekly spend</p>
+                <p className="sec">{contribFrequencyMeta.label} spend</p>
                 <p style={{ fontSize:24, fontWeight:500, color:"#22d3ee", fontFamily:"'JetBrains Mono',monospace" }}>
-                  C${Math.round(weeklyTotalBuy).toLocaleString()}
+                  C${Math.round(perPeriodTotalBuy).toLocaleString()}
                 </p>
                 <div style={{ marginTop:6, display:"flex", justifyContent:"center", gap:8, flexWrap:"wrap" }}>
-                  {weeklyUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(weeklyUSD).toLocaleString()}</span>}
-                  {weeklyUSD > 0 && weeklyCAD > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>}
-                  {weeklyCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24" }}>C${Math.round(weeklyCAD).toLocaleString()}</span>}
+                  {perPeriodUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa" }}>US${Math.round(perPeriodUSD).toLocaleString()}</span>}
+                  {perPeriodUSD > 0 && perPeriodCAD > 0 && <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>}
+                  {perPeriodCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24" }}>C${Math.round(perPeriodCAD).toLocaleString()}</span>}
                 </div>
               </div>
               <div style={{ flex:"0 0 180px", textAlign:"center" }}>
@@ -1337,7 +1557,7 @@ export default function App() {
             </div>
           ) : (
             <>
-              <p className="sec">Weekly DCA plan — {account}</p>
+              <p className="sec">{contribFrequencyMeta.label} DCA plan — {account}</p>
               <div className="card" style={{ padding:0, overflow:"auto", marginBottom:16 }}>
                 <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
                   <thead>
@@ -1346,8 +1566,8 @@ export default function App() {
                       <th className="th">Name</th>
                       <th className="th">Exchange</th>
                       <th className="th" style={{ textAlign:"right" }}>Total buy</th>
-                      <th className="th" style={{ textAlign:"right" }}>Weekly</th>
-                      <th className="th" style={{ textAlign:"right" }}>% of weekly</th>
+                      <th className="th" style={{ textAlign:"right" }}>Per {contribFrequencyMeta.label.toLowerCase()}</th>
+                      <th className="th" style={{ textAlign:"right" }}>% of plan</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1369,7 +1589,7 @@ export default function App() {
                             </span>
                           </td>
                           <td className="td" style={{ textAlign:"right" }}>{fmtAmt(h.deltaNative, h.ticker, h.currencyOverride)}</td>
-                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker, h.currencyOverride)}</td>
+                          <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>{fmtAmt(h.deltaNative/dcaPeriods, h.ticker, h.currencyOverride)}</td>
                           <td className="td" style={{ textAlign:"right" }}>{((h.delta/totalBuys)*100).toFixed(1)}%</td>
                         </tr>
                       );
@@ -1378,14 +1598,14 @@ export default function App() {
                 </table>
               </div>
 
-              <p className="sec">Week-by-week schedule</p>
+              <p className="sec">{contribFrequencyMeta.label} schedule</p>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))", gap:10 }}>
-                {Array.from({ length: Math.min(dcaWeeks, 12) }, (_, w) => {
-                  const isoDate = new Date(Date.now() + w * 7 * 24 * 60 * 60 * 1000);
+                {Array.from({ length: Math.min(dcaPeriods, 12) }, (_, w) => {
+                  const isoDate = new Date(Date.now() + w * contribFrequencyMeta.cadenceWeeks * 7 * 24 * 60 * 60 * 1000);
                   return (
                     <div key={w} className="dca-week">
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-                        <span style={{ fontSize:11, color:accentColor, fontWeight:500 }}>Week {w+1}</span>
+                        <span style={{ fontSize:11, color:accentColor, fontWeight:500 }}>{contribFrequencyMeta.label} {w+1}</span>
                         <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
                           {isoDate.toLocaleDateString("en-CA", { month:"short", day:"numeric" })}
                         </span>
@@ -1396,15 +1616,15 @@ export default function App() {
                           <span style={{ color: getTickerCurrency(h.ticker, h.currencyOverride) === "CAD" ? "#fbbf2488" : "rgba(255,255,255,0.5)" }}>
                             {h.ticker}
                           </span>
-                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.deltaNative/dcaWeeks, h.ticker, h.currencyOverride)}</span>
+                          <span style={{ color:"rgba(255,255,255,0.75)" }}>{fmtAmt(h.deltaNative/dcaPeriods, h.ticker, h.currencyOverride)}</span>
                         </div>
                       ))}
                       <div style={{ borderTop:"1px solid rgba(255,255,255,0.05)", marginTop:8, paddingTop:6,
                         display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                         <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>Total</span>
                         <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
-                          {weeklyUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa", fontFamily:"'JetBrains Mono',monospace" }}>US${Math.round(weeklyUSD).toLocaleString()}</span>}
-                          {weeklyCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24", fontFamily:"'JetBrains Mono',monospace" }}>C${Math.round(weeklyCAD).toLocaleString()}</span>}
+                          {perPeriodUSD > 0 && <span style={{ fontSize:10, color:"#60a5fa", fontFamily:"'JetBrains Mono',monospace" }}>US${Math.round(perPeriodUSD).toLocaleString()}</span>}
+                          {perPeriodCAD > 0 && <span style={{ fontSize:10, color:"#fbbf24", fontFamily:"'JetBrains Mono',monospace" }}>C${Math.round(perPeriodCAD).toLocaleString()}</span>}
                         </div>
                       </div>
                     </div>
@@ -1438,16 +1658,24 @@ export default function App() {
                 ))}
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"8px 14px" }}>
-                <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Monthly contribution</span>
+                <span style={{ fontSize:12, color:"rgba(255,255,255,0.5)" }}>Contribution</span>
                 <div style={{ position:"relative" }}>
                   <span style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", fontSize:12, color:"rgba(255,255,255,0.4)" }}>$</span>
                   <input type="number" min="0" step="100"
-                    value={monthlyContrib[account] || ""}
+                    value={contribAmount || ""}
                     placeholder="0"
-                    onChange={e => handleContrib(e.target.value)}
+                    onChange={e => handleContribAmount(e.target.value)}
                     style={{ paddingLeft:18, width:100 }}/>
                 </div>
-                <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>/mo</span>
+                <select
+                  value={contribFrequency}
+                  onChange={e => handleContribFrequency(e.target.value)}
+                  style={{ width:105, fontSize:11 }}
+                >
+                  {CONTRIB_FREQUENCY_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
               {targetsFilter === "manual" && (
                 <span style={{ fontSize:10, color:"rgba(251,191,36,0.8)" }}>
@@ -1480,7 +1708,7 @@ export default function App() {
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
-                  const contrib     = monthlyContrib[account] || 0;
+                  const contrib     = monthlyContribEq;
                   const holdingPMT  = contrib > 0 ? (h.target / 100) * contrib : 0;
                   const currentCAD  = toCAD(h.current, h.ticker, h.currencyOverride);
                   const proj = yrs => {
@@ -1604,21 +1832,21 @@ export default function App() {
                   <td className="td"></td>
                   <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=120,pmt=monthlyContribEq*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:"#22d3ee", fontWeight:500 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=180,pmt=monthlyContribEq*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
                   </td>
                   <td className="td" style={{ textAlign:"right", color:accentColor, fontWeight:600 }}>
                     C${Math.round(current.reduce((s,h)=>{
-                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=(monthlyContrib[account]||0)*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
+                      const r=(h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12,n=240,pmt=monthlyContribEq*(h.target/100),c=toCAD(h.current,h.ticker,h.currencyOverride);
                       if(c===0&&pmt===0)return s;
                       return s+(r===0?c+pmt*n:c*Math.pow(1+r,n)+pmt*(Math.pow(1+r,n)-1)/r);
                     },0)).toLocaleString()}
@@ -1633,7 +1861,7 @@ export default function App() {
 
           {/* Growth Milestones */}
           {(() => {
-            const contrib = monthlyContrib[account] || 0;
+            const contrib = monthlyContribEq;
             const fv = (yrs) => current.reduce((s,h) => {
               const r = (h.cagr??DEFAULT_CAGR[h.ticker]??10)/100/12, n = yrs*12;
               const c = toCAD(h.current, h.ticker, h.currencyOverride);
@@ -1647,14 +1875,14 @@ export default function App() {
               if (c===0) return s;
               return s + c*Math.pow(1+r,n);
             }, 0);
-            const totalContrib = contrib * 12;
+            const totalContrib = annualContrib;
             return (
               <div style={{ marginTop:20, padding:"18px 20px", background:"rgba(255,255,255,0.03)", border:`1px solid ${accentColor}33`, borderRadius:14 }}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
                   <p className="sec" style={{ margin:0 }}>Growth Milestones</p>
                   {contrib > 0 && (
                     <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>
-                      C${contrib.toLocaleString()}/mo · C${totalContrib.toLocaleString()}/yr in contributions
+                      C${contribAmount.toLocaleString()}/{contribFrequencyMeta.shortLabel} · C${totalContrib.toLocaleString()}/yr in contributions
                     </span>
                   )}
                 </div>
@@ -1675,11 +1903,11 @@ export default function App() {
                               Without contributions: <span style={{ color:"rgba(255,255,255,0.6)" }}>C${Math.round(noC).toLocaleString()}</span>
                             </div>
                             <div style={{ fontSize:11, color:"#34d399", marginTop:3 }}>
-                              +C${Math.round(boost).toLocaleString()} from C${(contrib*yrs*12).toLocaleString()} invested
+                              +C${Math.round(boost).toLocaleString()} from C${Math.round(annualContrib*yrs).toLocaleString()} invested
                             </div>
                           </>
                         ) : (
-                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Add monthly contribution above to see boost</div>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Add a recurring contribution above to see boost</div>
                         )}
                       </div>
                     );

@@ -52,7 +52,7 @@ This app defaults to cash-only rebalancing. It takes your available cash and cal
 ### 3. DCA is more than just "invest monthly"
 Dollar-cost averaging means spreading purchases over time to reduce timing risk. But if you're buying 8 different securities across two accounts with $10,000, which security do you buy this week? How much? Tracking this manually in a spreadsheet is error-prone and easy to abandon.
 
-This app generates a **week-by-week purchase schedule** — not just totals, but a calendar of exactly which ticker to buy each week and for how much.
+This app generates a **cadence-aware purchase schedule** (weekly, bi-weekly, or monthly) — not just totals, but a calendar of exactly which ticker to buy and for how much each period.
 
 ### 4. Knowing what you paid matters more than knowing what you own
 Most portfolio trackers show your current value but not your true profit/loss, because they don't know your cost basis. This app lets you enter your **average cost per position** and instantly shows your unrealized P&L — both in dollars and percentage — for every holding and for your total portfolio.
@@ -80,9 +80,10 @@ The core of the app. Enter how much cash you have available to invest, and the a
 Takes your total buy amount and spreads it intelligently over the number of weeks you choose (4–26 weeks).
 
 - **Slider control**: Drag to pick your DCA window from 1 month to 6 months.
-- **Weekly allocation table**: Shows exactly how much to buy of each security every week, sorted by buy priority.
-- **Calendar view**: A week-by-week card for the first 12 weeks showing dates, tickers, and dollar amounts.
-- **Weekly spend summary**: Shows your total weekly spend so you can match it to your regular income schedule.
+- **Contribution cadence toggle**: Choose Weekly, Bi-weekly, or Monthly cadence for the plan.
+- **Cadence allocation table**: Shows exactly how much to buy of each security every contribution period, sorted by buy priority.
+- **Schedule view**: Period-by-period cards (up to first 12 periods) showing dates, tickers, and amounts.
+- **Cadence spend summary**: Shows your spend per selected cadence, including CAD/USD split.
 
 ### Edit Targets Tab
 Your portfolio editor. Every holding is a row with editable fields.
@@ -176,7 +177,7 @@ This is the foundation. Bad inputs here make every other tab unreliable.
 - `Target %` — your desired allocation. These must sum to **exactly 100%** (the app turns the total red when they don't). Tip: start with round numbers (5%, 10%, 15%) and fine-tune later.
 - `CAGR %` — your personal growth estimate. The default values are reasonable starting points. Change them if you have a different view. These only affect the 10/15/20yr projections — they don't affect rebalancing calculations.
 
-**Monthly contribution field** (top right of Edit Targets): Enter your monthly contribution amount for this account. This feeds into the projected growth calculations — a $500/mo contribution compounding at 12% looks very different from $0/mo.
+**Recurring contribution field** (top right of Edit Targets): Enter your contribution amount and cadence (weekly, bi-weekly, or monthly) for this account. The app annualizes this and uses a monthly-equivalent flow for growth projections — so a recurring $500 contribution compounds very differently from $0.
 
 > **Best practice**: Export a backup immediately after entering your data the first time (`⬆ Export` in the header). If your browser cache is ever cleared, this JSON is your only recovery option.
 
@@ -209,13 +210,13 @@ Once you know your total buy amount from the Rebalance tab, switch to DCA Plan.
 | Market is clearly down, high conviction | 4–6 weeks (deploy faster) |
 | Market is near highs or uncertain | 12–16 weeks (spread the risk) |
 | Very large lump sum (>$25,000) | 20–26 weeks |
-| Regular monthly contribution (<$2,000) | 4 weeks (just do it weekly) |
+| Regular contribution cadence (weekly/bi-weekly/monthly) | Match the cadence you actually fund from payroll |
 
-**Reading the weekly table:** The tickers are sorted by buy priority (largest dollar gap first). Stick to this order — don't reorder based on daily price movement, that defeats the purpose of DCA.
+**Reading the cadence table:** The tickers are sorted by buy priority (largest dollar gap first). Stick to this order — don't reorder based on daily price movement, that defeats the purpose of DCA.
 
-**Currency awareness:** The Exchange column shows whether each ticker trades on the TSX (C$) or NYSE (US$). When your weekly plan includes both currencies, check the `US$X · C$Y` breakdown in the summary — this tells you how to split your weekly broker purchases between CAD and USD accounts within your brokerage.
+**Currency awareness:** The Exchange column shows whether each ticker trades on the TSX (C$) or NYSE (US$). When your plan includes both currencies, check the `US$X · C$Y` breakdown in the summary — this tells you how to split each contribution-period purchase between CAD and USD accounts within your brokerage.
 
-**The week-by-week cards:** Use these as a literal checklist. Each Monday (or whatever day you pick), execute that week's purchases. The calendar view covers the first 12 weeks; for longer DCA windows, the weekly amounts remain constant.
+**The schedule cards:** Use these as a literal checklist. Execute each period as it comes due based on your selected cadence. The calendar view covers the first 12 periods; for longer DCA windows, per-period amounts remain constant.
 
 ---
 
@@ -529,7 +530,27 @@ After changing defaults, run `npm run dev` to see the changes. The app automatic
 Click **Export** in the header. Downloads a `portfolio-backup-YYYY-MM-DD.json` file with all portfolios, cash balances, cost basis, targets, and custom CAGR values.
 
 ### Import
-Click **Import** and select a previously exported JSON file. This restores all data including custom portfolios. The old format (without the `portfolios` array) is also supported for backwards compatibility.
+Click **Import** and select either:
+
+- A previously exported **JSON** backup (restores all portfolios/settings), or
+- A **CSV** file to import holdings quickly.
+
+JSON notes:
+- Restores holdings, cash balances, custom portfolios, and contribution settings.
+- Old format (without the `portfolios` array) is still supported for backwards compatibility.
+
+CSV notes:
+- Required column: `ticker` (or `symbol`)
+- Optional columns: `name`, `current`, `costBasis`, `target`, `divYield`, `cagr`, `currency`, `notes`, `account`
+- If `account` is present, rows are grouped into matching portfolios (new portfolios are auto-created).
+- If `account` is omitted, rows are imported into the currently selected account.
+
+Example CSV:
+```csv
+ticker,name,current,costBasis,target,divYield,cagr,currency,account,notes
+NVDA,Nvidia,5200,3100,14,0,18,USD,TFSA,Core AI growth
+ENB,Enbridge,4200,3600,8,7.4,7,CAD,RRSP,Dividend income
+```
 
 ### Export format
 ```json
@@ -556,6 +577,11 @@ Click **Import** and select a previously exported JSON file. This restores all d
     "TFSA": 5000,
     "RRSP": 2000,
     "TAXABLE": 0
+  },
+  "contribPlan": {
+    "TFSA": { "amount": 500, "frequency": "weekly" },
+    "RRSP": { "amount": 1000, "frequency": "monthly" },
+    "TAXABLE": { "amount": 0, "frequency": "monthly" }
   }
 }
 ```
