@@ -176,6 +176,37 @@ function DonutChart({ segments, size = 110, thickness = 16, centerLabel, centerS
   );
 }
 
+const PIE_COLORS = [
+  "#fbbf24","#22d3ee","#a78bfa","#34d399","#f87171",
+  "#60a5fa","#fb923c","#f472b6","#4ade80","#818cf8",
+  "#facc15","#2dd4bf","#c084fc","#86efac","#fca5a5","#93c5fd",
+];
+
+function PieChart({ slices, size = 150 }) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 3;
+  let cum = -Math.PI / 2;
+  const paths = [];
+  for (const s of slices.filter(s => s.pct > 0.3)) {
+    const angle = (s.pct / 100) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(cum);
+    const y1 = cy + r * Math.sin(cum);
+    cum += angle;
+    const x2 = cx + r * Math.cos(cum);
+    const y2 = cy + r * Math.sin(cum);
+    const d = `M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r},0,${angle > Math.PI ? 1 : 0},1,${x2.toFixed(2)},${y2.toFixed(2)} Z`;
+    paths.push({ ...s, d });
+  }
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}
+      style={{ display:"block", flexShrink:0 }}>
+      {paths.map((p, i) => (
+        <path key={i} d={p.d} fill={p.color}
+          stroke="rgba(15,23,42,0.6)" strokeWidth={1.5}/>
+      ))}
+    </svg>
+  );
+}
+
 function AppLogo() {
   return (
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -2558,6 +2589,48 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Holdings breakdown pie chart */}
+                {(() => {
+                  const slices = acctH
+                    .map((h, i) => ({
+                      label: h.ticker,
+                      valueCAD: toCAD(h.current, h.ticker, h.currencyOverride),
+                      color: PIE_COLORS[i % PIE_COLORS.length],
+                    }))
+                    .filter(s => s.valueCAD > 0)
+                    .sort((a, b) => b.valueCAD - a.valueCAD)
+                    .map(s => ({ ...s, pct: totalCAD > 0 ? (s.valueCAD / totalCAD) * 100 : 0 }));
+                  if (slices.length === 0) return null;
+                  return (
+                    <div>
+                      <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                        color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:10 }}>
+                        Holdings Breakdown
+                      </p>
+                      <div style={{ display:"flex", gap:16, alignItems:"flex-start" }}>
+                        <PieChart slices={slices} size={130} />
+                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:5,
+                          overflowY:"auto", maxHeight:130 }}>
+                          {slices.map(s => (
+                            <div key={s.label} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <div style={{ width:8, height:8, borderRadius:2,
+                                background:s.color, flexShrink:0 }}/>
+                              <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                                fontWeight:600, color:"rgba(255,255,255,0.75)", flex:1 }}>
+                                {s.label}
+                              </span>
+                              <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                                color:"rgba(255,255,255,0.4)" }}>
+                                {s.pct.toFixed(1)}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Income & alerts row */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
                   <div style={{ background:"rgba(167,139,250,0.05)", border:"1px solid rgba(167,139,250,0.15)",
@@ -2624,12 +2697,32 @@ export default function App() {
         return (
           <div style={{ padding:"22px 28px" }}>
             {/* ── Header label ── */}
-            <div style={{ marginBottom:18 }}>
-              <p style={{ fontSize:10, letterSpacing:"0.2em", textTransform:"uppercase",
-                color:"rgba(255,255,255,0.3)", fontWeight:600 }}>Portfolio Dashboard</p>
-              <p style={{ fontSize:12, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
-                Combined view — TFSA + RRSP · 1 USD = {usdCadRate} CAD
-              </p>
+            <div style={{ marginBottom:18, display:"flex", alignItems:"flex-end",
+              justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+              <div>
+                <p style={{ fontSize:10, letterSpacing:"0.2em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.3)", fontWeight:600 }}>Portfolio Dashboard</p>
+                <p style={{ fontSize:12, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
+                  Combined view — TFSA + RRSP · 1 USD = {usdCadRate} CAD
+                </p>
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.15em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:4 }}>Total Holdings</p>
+                <p style={{ fontSize:30, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#a78bfa", lineHeight:1 }}>
+                  C${fmt(combTotalCAD)}
+                </p>
+                <div style={{ display:"flex", gap:12, justifyContent:"flex-end", marginTop:5 }}>
+                  <span style={{ fontSize:10, color:"#fbbf24" }}>
+                    TFSA C${fmt(tfsaTotalCAD)}
+                  </span>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>
+                  <span style={{ fontSize:10, color:"#22d3ee" }}>
+                    RRSP C${fmt(rrspTotalCAD)}
+                  </span>
+                </div>
+              </div>
             </div>
 
             {/* ── Row 1: Combined summary stats ── */}
