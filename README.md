@@ -31,6 +31,8 @@ Then open `http://localhost:5173`.
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
+> **New in this version:** a full-portfolio **Dashboard** tab gives you a combined TFSA + RRSP snapshot — capital allocation in USD and CAD, currency exposure donut charts, ranked top holdings, WHT drag, dividend income breakdown, and portfolio health indicators — all without switching accounts.
+
 ---
 
 ## The Problem It Solves
@@ -65,6 +67,46 @@ The dominant portfolio trackers (Empower, Wealthica, Personal Capital, Mint) req
 ---
 
 ## What the App Does
+
+### Dashboard Tab
+A combined portfolio overview that sits above the per-account tabs. It shows both your TFSA and RRSP together in a single view — no switching required.
+
+**Summary stat cards (always visible at the top):**
+
+| Card | What it shows |
+|---|---|
+| Total Portfolio | Combined market value in C$ with US$ equivalent |
+| TFSA | Account value with native USD / CAD split |
+| RRSP | Account value with native USD / CAD split |
+| Combined P&L | Total unrealized gain/loss in C$ and as a percentage |
+| Annual Dividends | Combined dividend income across both accounts |
+| USD Exposure | Total USD holdings in native US$ with % of portfolio |
+
+**Account allocation bar:** A visual split bar showing what percentage of your total wealth sits in TFSA vs RRSP. Useful for spotting whether your accounts are growing proportionally to your plan.
+
+**Combined currency donut:** An SVG donut chart breaking the full portfolio into USD-denominated holdings vs CAD-denominated holdings, with a line-item breakdown of exact dollar amounts in both native currency and CAD equivalent.
+
+**WHT annual drag summary:** If your TFSA holds any US dividend-paying securities, this card shows the exact dollar amount lost to IRS withholding tax per year and explains how to recover it permanently by moving positions to RRSP under the Canada–US Tax Treaty.
+
+**Per-account panels (TFSA and RRSP side by side):**
+
+Each panel shows:
+- Account total in C$ and unrealized P&L (if cost basis is set)
+- **Currency exposure donut** with proportional bars for USD and CAD holdings — each showing the native amount (US$ or C$) and the CAD equivalent
+- **Top holdings** ranked by market value with proportional bars, native currency value, account percentage, and a USD/CAD tag
+- **Annual dividend income** with WHT deducted (TFSA only) and net income received
+- **Target weight health** — shows the sum of your target percentages and flags when they deviate from 100%
+- **Concentration warnings** — highlights any single position exceeding 20% of that account
+
+**Combined top holdings table:** All positions from both accounts ranked together by market value in CAD, with account badge, proportional bar, native value, percentage of total portfolio, and currency tag. Covers up to 12 positions.
+
+**Portfolio health cards:**
+- **WHT recovery** — dollar amount reclaimed per year if US dividend payers are moved from TFSA to RRSP
+- **Income breakdown** — TFSA dividends, WHT deducted, RRSP dividends, and net combined income in a single waterfall
+- **Sector gaps** — sectors with no coverage across both accounts
+- **Cost basis summary** — invested capital by account and combined total
+
+---
 
 ### Rebalance Tab
 The core of the app. Enter how much cash you have available to invest, and the app calculates the optimal purchase amounts across all your holdings to move your portfolio toward your target allocations.
@@ -159,11 +201,25 @@ Always-visible at the top of the screen:
 
 ### The recommended workflow
 
-The app has five tabs that work best in a specific order. Follow this loop each time you sit down to manage your portfolio:
+The app has six tabs that work best in a specific order. Follow this loop each time you sit down to manage your portfolio:
 
 ```
-Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
+Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
 ```
+
+**Start on the Dashboard.** Before touching any numbers, the Dashboard gives you a full-portfolio snapshot: combined value in CAD and USD, how your TFSA and RRSP are splitting your wealth, whether WHT is leaking money from TFSA, and whether any positions are too concentrated. This context makes every decision in the other tabs more informed.
+
+---
+
+### Step 0 — Get the big picture first (Dashboard tab)
+
+Open the Dashboard before making any changes. It answers the three questions that should drive every portfolio decision:
+
+1. **Am I losing money to WHT?** — The orange "WHT Annual Drag" card shows exactly how much the IRS is withholding from TFSA dividends each year. If the number is above $100/yr, moving the offending positions to RRSP should be your first action.
+2. **Are my accounts growing proportionally?** — The TFSA/RRSP allocation bar shows the split. If one account has grown far beyond your intent, that account needs more attention in the rebalance.
+3. **Is anything dangerously concentrated?** — The per-account panels flag any position above 20%. If you see a concentration warning, revisit that position's target percentage before running a rebalance.
+
+Only after checking these three points should you proceed to the other tabs.
 
 ---
 
@@ -252,10 +308,11 @@ The AI prompt asks specifically about: business model, fair value, dividend trea
 A 20–30 minute review every quarter keeps the app accurate:
 
 1. **Update current values** — go to Edit Targets, update each `Current $` to today's market value from your brokerage
-2. **Check drift** — switch to Rebalance tab. Positions with large deltas have drifted from targets
-3. **Model your contribution** — enter your available cash and see what the rebalance recommends
-4. **Review the WHT card** — if the withholding tax number has grown, consider whether a TFSA→RRSP transfer makes sense at year-end
-5. **Export a backup** — one click, keep the last 2–3 JSON files
+2. **Open Dashboard** — check the combined snapshot. Note the TFSA/RRSP split, total USD exposure, WHT drag, and any concentration warnings before touching anything else
+3. **Check drift** — switch to Rebalance tab. Positions with large deltas have drifted from targets
+4. **Model your contribution** — enter your available cash and see what the rebalance recommends
+5. **Review the WHT card** — if the withholding tax number in the Dashboard has grown, consider whether a TFSA→RRSP transfer makes sense at year-end
+6. **Export a backup** — one click, keep the last 2–3 JSON files
 
 **When to do a full rebalance instead of cash-only:**
 - A position has grown to >25% of portfolio
@@ -387,7 +444,7 @@ To verify this yourself: open DevTools → Network tab → use the app → see t
 | Hosting | Vercel or GitHub Pages (free) |
 | Bundle size | < 200KB gzipped |
 
-No backend. No database. No authentication library. No charting library. No state management library. The entire application logic is in a single file: `src/App.jsx`.
+No backend. No database. No authentication library. No state management library. Charts (the Dashboard currency donuts and allocation bars) are rendered as pure SVG and CSS — no charting library dependency. The entire application logic is in a single file: `src/App.jsx`.
 
 ---
 
@@ -483,7 +540,7 @@ portfolio-app/
 ├── vite.config.js        # Vite configuration
 └── src/
     ├── main.jsx          # React root mount
-    └── App.jsx           # Entire application (~1,600 lines)
+    └── App.jsx           # Entire application (~3,100 lines)
 ```
 
 The app is intentionally monolithic — no component splitting, no separate data files, no API layer. This makes it easy to fork, customize, and understand.
@@ -513,12 +570,15 @@ const DEFAULT_CAGR = {
 };
 ```
 
-### Add WHT-exempt Canadian tickers (`CAD_EXEMPT` set, line ~223)
+### Add WHT-exempt Canadian tickers (`CAD_EXEMPT` set, line ~241)
 ```js
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","ZAG.TO","XRE.TO",
   // Add any CAD-listed ETF or stock that pays no US WHT
 ]);
 ```
+
+### Dashboard data is derived automatically
+The Dashboard tab reads `holdings["TFSA"]` and `holdings["RRSP"]` directly — it always reflects the latest values you've entered in Edit Targets and respects the USD/CAD rate you've set in the header. No additional configuration is needed. The top-holdings limit (8 per account, 12 combined) can be changed by adjusting the `.slice()` calls inside the `tab === "dashboard"` IIFE, around line ~2460.
 
 After changing defaults, run `npm run dev` to see the changes. The app automatically saves to localStorage on any edit, so default data only loads on first use (or after a reset).
 
