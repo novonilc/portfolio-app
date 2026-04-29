@@ -270,6 +270,50 @@ const EXTRA_COLORS = [
 // Quick ticker lookup for search tab
 const TICKER_DB = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 
+function DonutChart({ segments, size = 110, thickness = 16, centerLabel, centerSub }) {
+  const cx = size / 2, cy = size / 2;
+  const r = (size - thickness) / 2;
+  const circ = 2 * Math.PI * r;
+  let cum = 0;
+  return (
+    <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
+      <svg width={size} height={size} style={{ display:"block" }}>
+        <circle cx={cx} cy={cy} r={r} fill="none"
+          stroke="rgba(255,255,255,0.06)" strokeWidth={thickness}/>
+        {segments.filter(s => s.pct > 0.5).map((seg, i) => {
+          const dash = (seg.pct / 100) * circ;
+          const dashOffset = -(cum / 100) * circ;
+          cum += seg.pct;
+          return (
+            <circle key={i} cx={cx} cy={cy} r={r} fill="none"
+              stroke={seg.color} strokeWidth={thickness - 2}
+              strokeDasharray={`${dash} ${circ}`}
+              strokeDashoffset={dashOffset}
+              transform={`rotate(-90 ${cx} ${cy})`}
+            />
+          );
+        })}
+      </svg>
+      {(centerLabel !== undefined || centerSub !== undefined) && (
+        <div style={{
+          position:"absolute", inset:0, display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center", textAlign:"center", pointerEvents:"none"
+        }}>
+          {centerLabel !== undefined && (
+            <div style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+              color:"#f1f5f9", lineHeight:1.2 }}>
+              {centerLabel}
+            </div>
+          )}
+          {centerSub !== undefined && (
+            <div style={{ fontSize:9, color:"rgba(255,255,255,0.38)", marginTop:2 }}>{centerSub}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AppLogo() {
   return (
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1191,7 +1235,7 @@ export default function App() {
       {/* ── Tab bar ── */}
       <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
         borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
-        {[["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
+        {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
           ["recommend","💡 Ideas"],["search","🔍 Search"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`}
             onClick={() => setTab(v)}
@@ -2366,6 +2410,725 @@ export default function App() {
           </p>
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: DASHBOARD
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "dashboard" && (() => {
+        const tfsaH = holdings["TFSA"] || [];
+        const rrspH = holdings["RRSP"] || [];
+
+        // Values in CAD
+        const tfsaTotalCAD = tfsaH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride), 0);
+        const rrspTotalCAD = rrspH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride), 0);
+        const combTotalCAD = tfsaTotalCAD + rrspTotalCAD;
+
+        // USD vs CAD splits per account (values in CAD for comparison, native USD for display)
+        const tfsaUSDValCAD = tfsaH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "USD")
+          .reduce((s, h) => s + h.current * usdCadRate, 0);
+        const tfsaCADValCAD = tfsaH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "CAD")
+          .reduce((s, h) => s + h.current, 0);
+        const tfsaUSDNative = usdCadRate > 0 ? tfsaUSDValCAD / usdCadRate : 0;
+
+        const rrspUSDValCAD = rrspH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "USD")
+          .reduce((s, h) => s + h.current * usdCadRate, 0);
+        const rrspCADValCAD = rrspH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "CAD")
+          .reduce((s, h) => s + h.current, 0);
+        const rrspUSDNative = usdCadRate > 0 ? rrspUSDValCAD / usdCadRate : 0;
+
+        const combUSDNative = tfsaUSDNative + rrspUSDNative;
+        const combCADNative = tfsaCADValCAD + rrspCADValCAD;
+        const combUSDValCAD = tfsaUSDValCAD + rrspUSDValCAD;
+
+        // P&L
+        const tfsaCostCAD = tfsaH.reduce((s, h) => s + toCAD(h.costBasis || 0, h.ticker, h.currencyOverride), 0);
+        const rrspCostCAD = rrspH.reduce((s, h) => s + toCAD(h.costBasis || 0, h.ticker, h.currencyOverride), 0);
+        const combCostCAD = tfsaCostCAD + rrspCostCAD;
+        const tfsaPnL = tfsaCostCAD > 0 ? tfsaTotalCAD - tfsaCostCAD : null;
+        const rrspPnL = rrspCostCAD > 0 ? rrspTotalCAD - rrspCostCAD : null;
+        const combPnL = combCostCAD > 0 ? combTotalCAD - combCostCAD : null;
+        const combPnLPct = combCostCAD > 0 ? (combTotalCAD - combCostCAD) / combCostCAD * 100 : null;
+
+        // Dividends
+        const tfsaDivCAD = tfsaH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100, 0);
+        const rrspDivCAD = rrspH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100, 0);
+        const combDivCAD = tfsaDivCAD + rrspDivCAD;
+
+        // WHT drag (TFSA — US dividends taxed at 15% by IRS)
+        const tfsaWHTCAD = tfsaH.filter(h => !CAD_EXEMPT.has(h.ticker))
+          .reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride) * (h.divYield || 0) / 100 * 0.15, 0);
+
+        // Effective yield (after WHT for TFSA)
+        const tfsaEffDivCAD = tfsaDivCAD - tfsaWHTCAD;
+
+        // Top holdings per account (sorted by CAD value)
+        const tfsaTop = [...tfsaH]
+          .map(h => ({ ...h, valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) }))
+          .filter(h => h.valueCAD > 0)
+          .sort((a, b) => b.valueCAD - a.valueCAD)
+          .slice(0, 8);
+        const rrspTop = [...rrspH]
+          .map(h => ({ ...h, valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) }))
+          .filter(h => h.valueCAD > 0)
+          .sort((a, b) => b.valueCAD - a.valueCAD)
+          .slice(0, 8);
+
+        // Combined sorted across both accounts
+        const allTop = [
+          ...tfsaH.map(h => ({ ...h, acct:"TFSA", valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
+          ...rrspH.map(h => ({ ...h, acct:"RRSP", valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
+        ].filter(h => h.valueCAD > 0).sort((a, b) => b.valueCAD - a.valueCAD).slice(0, 12);
+
+        // Target alignment health
+        const tfsaTargetSum = tfsaH.reduce((s, h) => s + (h.target || 0), 0);
+        const rrspTargetSum = rrspH.reduce((s, h) => s + (h.target || 0), 0);
+        const tfsaConc = tfsaTotalCAD > 0
+          ? tfsaH.filter(h => (toCAD(h.current, h.ticker, h.currencyOverride) / tfsaTotalCAD) * 100 > 20)
+          : [];
+        const rrspConc = rrspTotalCAD > 0
+          ? rrspH.filter(h => (toCAD(h.current, h.ticker, h.currencyOverride) / rrspTotalCAD) * 100 > 20)
+          : [];
+
+        // Account allocation %
+        const tfsaAcctPct = combTotalCAD > 0 ? (tfsaTotalCAD / combTotalCAD) * 100 : 0;
+        const rrspAcctPct = combTotalCAD > 0 ? (rrspTotalCAD / combTotalCAD) * 100 : 0;
+
+        // Max bar value helpers
+        const tfsaMaxVal = tfsaTop[0]?.valueCAD || 1;
+        const rrspMaxVal = rrspTop[0]?.valueCAD || 1;
+        const allMaxVal  = allTop[0]?.valueCAD || 1;
+
+        // Donut segments
+        const acctSegments = [
+          { pct: tfsaAcctPct, color:"#fbbf24", label:"TFSA" },
+          { pct: rrspAcctPct, color:"#22d3ee", label:"RRSP" },
+        ];
+        const tfsaCurrSegments = tfsaTotalCAD > 0 ? [
+          { pct: (tfsaUSDValCAD / tfsaTotalCAD) * 100, color:"#60a5fa", label:"USD" },
+          { pct: (tfsaCADValCAD / tfsaTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
+        const rrspCurrSegments = rrspTotalCAD > 0 ? [
+          { pct: (rrspUSDValCAD / rrspTotalCAD) * 100, color:"#60a5fa", label:"USD" },
+          { pct: (rrspCADValCAD / rrspTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
+        const combCurrSegments = combTotalCAD > 0 ? [
+          { pct: (combUSDValCAD / combTotalCAD) * 100, color:"#60a5fa", label:"USD" },
+          { pct: (combCADNative  / combTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
+
+        const fmt = (n) => Math.round(n).toLocaleString();
+        const pnlColor = (v) => v === null ? "#64748b" : v >= 0 ? "#34d399" : "#ef4444";
+        const pnlSign  = (v) => v >= 0 ? "+" : "";
+
+        // Account panel renderer (used for both TFSA and RRSP)
+        function AccountPanel({ label, color, rgb, holdings: acctH, totalCAD, usdValCAD, cadValCAD, usdNative,
+                                topHoldings, maxVal, divCAD, whtCAD, pnL, costCAD, targetSum, currSegments, concWarns }) {
+          const usdPct = totalCAD > 0 ? (usdValCAD / totalCAD) * 100 : 0;
+          const cadPct = totalCAD > 0 ? (cadValCAD / totalCAD) * 100 : 0;
+          const effDiv = divCAD - (whtCAD || 0);
+          return (
+            <div className="card" style={{ padding:0, overflow:"hidden" }}>
+              {/* Panel header */}
+              <div style={{ padding:"14px 18px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)",
+                background:`rgba(${rgb},0.04)` }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:8 }}>
+                  <div>
+                    <span style={{ fontSize:10, fontWeight:700, letterSpacing:"0.15em",
+                      color, textTransform:"uppercase" }}>{label}</span>
+                    <p style={{ fontSize:24, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color, marginTop:4 }}>
+                      C${fmt(totalCAD)}
+                    </p>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>
+                      market value (CAD equiv.)
+                    </p>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    {pnL !== null ? (
+                      <>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:4,
+                          letterSpacing:"0.1em", textTransform:"uppercase" }}>Unrealized P&L</p>
+                        <p style={{ fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                          color: pnlColor(pnL) }}>
+                          {pnlSign(pnL)}C${fmt(pnL)}
+                        </p>
+                        <p style={{ fontSize:10, color: pnlColor(pnL), opacity:0.8, marginTop:2 }}>
+                          {pnlSign(pnL)}{((pnL / costCAD) * 100).toFixed(1)}% return
+                        </p>
+                      </>
+                    ) : (
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>No cost basis set</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ padding:"14px 18px", display:"flex", flexDirection:"column", gap:14 }}>
+                {/* Currency exposure */}
+                <div>
+                  <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                    color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:10 }}>Currency Exposure</p>
+                  <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                    <DonutChart
+                      segments={currSegments} size={90} thickness={14}
+                      centerLabel={totalCAD > 0 ? `${Math.round(usdPct)}%` : "—"}
+                      centerSub="USD"
+                    />
+                    <div style={{ flex:1 }}>
+                      {/* USD row */}
+                      <div style={{ marginBottom:10 }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                          <span style={{ fontSize:10, color:"#60a5fa", fontWeight:600 }}>USD Holdings</span>
+                          <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#60a5fa" }}>
+                            US${fmt(usdNative)}
+                          </span>
+                        </div>
+                        <div style={{ height:4, background:"rgba(255,255,255,0.06)", borderRadius:2 }}>
+                          <div style={{ height:4, background:"#60a5fa", borderRadius:2,
+                            width:`${usdPct}%`, transition:"width 0.5s" }}/>
+                        </div>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
+                          C${fmt(usdValCAD)} equiv · {usdPct.toFixed(1)}%
+                        </p>
+                      </div>
+                      {/* CAD row */}
+                      <div>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                          <span style={{ fontSize:10, color:"#34d399", fontWeight:600 }}>CAD Holdings</span>
+                          <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#34d399" }}>
+                            C${fmt(cadValCAD)}
+                          </span>
+                        </div>
+                        <div style={{ height:4, background:"rgba(255,255,255,0.06)", borderRadius:2 }}>
+                          <div style={{ height:4, background:"#34d399", borderRadius:2,
+                            width:`${cadPct}%`, transition:"width 0.5s" }}/>
+                        </div>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
+                          {cadPct.toFixed(1)}% of {label}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top holdings */}
+                {topHoldings.length > 0 && (
+                  <div>
+                    <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                      color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>
+                      Top Holdings
+                    </p>
+                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                      {topHoldings.map((h, i) => {
+                        const barPct = (h.valueCAD / maxVal) * 100;
+                        const isUSD = getTickerCurrency(h.ticker, h.currencyOverride) === "USD";
+                        const dispVal = isUSD
+                          ? `US$${fmt(h.current)}`
+                          : `C$${fmt(h.current)}`;
+                        const acctPct = totalCAD > 0 ? (h.valueCAD / totalCAD) * 100 : 0;
+                        return (
+                          <div key={h.ticker}>
+                            <div style={{ display:"flex", justifyContent:"space-between",
+                              alignItems:"baseline", marginBottom:3 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                                  fontWeight:600, color }}>
+                                  {i+1}. {h.ticker}
+                                </span>
+                                <span style={{ fontSize:9, color: isUSD ? "#60a5fa" : "#34d399",
+                                  padding:"0px 5px", borderRadius:3,
+                                  background: isUSD ? "rgba(96,165,250,0.1)" : "rgba(52,211,153,0.1)",
+                                  border: `1px solid ${isUSD ? "rgba(96,165,250,0.2)" : "rgba(52,211,153,0.2)"}` }}>
+                                  {isUSD ? "USD" : "CAD"}
+                                </span>
+                              </div>
+                              <div style={{ textAlign:"right" }}>
+                                <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                                  color:"rgba(255,255,255,0.75)", fontWeight:500 }}>
+                                  {dispVal}
+                                </span>
+                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginLeft:5 }}>
+                                  {acctPct.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ height:3, background:"rgba(255,255,255,0.05)", borderRadius:2 }}>
+                              <div style={{ height:3, borderRadius:2, transition:"width 0.5s",
+                                background:`linear-gradient(90deg, ${color}bb, ${color}55)`,
+                                width:`${barPct}%` }}/>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Income & alerts row */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  <div style={{ background:"rgba(167,139,250,0.05)", border:"1px solid rgba(167,139,250,0.15)",
+                    borderRadius:8, padding:"10px 12px" }}>
+                    <p style={{ fontSize:9, color:"rgba(167,139,250,0.7)", letterSpacing:"0.1em",
+                      textTransform:"uppercase", marginBottom:5 }}>Annual Dividends</p>
+                    <p style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace",
+                      fontWeight:700, color:"#a78bfa" }}>
+                      C${fmt(divCAD)}
+                    </p>
+                    {whtCAD > 1 && (
+                      <p style={{ fontSize:9, color:"#f97316", marginTop:3 }}>
+                        −C${fmt(whtCAD)} WHT drag
+                      </p>
+                    )}
+                    {whtCAD > 1 && (
+                      <p style={{ fontSize:9, color:"#34d399", marginTop:1 }}>
+                        = C${fmt(effDiv)} net
+                      </p>
+                    )}
+                  </div>
+                  <div style={{
+                    background: Math.abs(targetSum - 100) > 0.5
+                      ? "rgba(249,115,22,0.05)" : "rgba(52,211,153,0.05)",
+                    border: `1px solid ${Math.abs(targetSum - 100) > 0.5 ? "rgba(249,115,22,0.2)" : "rgba(52,211,153,0.2)"}`,
+                    borderRadius:8, padding:"10px 12px"
+                  }}>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", letterSpacing:"0.1em",
+                      textTransform:"uppercase", marginBottom:5 }}>Target Weights</p>
+                    <p style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                      color: Math.abs(targetSum - 100) > 0.5 ? "#f97316" : "#34d399" }}>
+                      {targetSum}%
+                    </p>
+                    <p style={{ fontSize:9, marginTop:3,
+                      color: Math.abs(targetSum - 100) > 0.5 ? "#f97316" : "rgba(52,211,153,0.7)" }}>
+                      {Math.abs(targetSum - 100) > 0.5
+                        ? `⚠ Off by ${Math.abs(targetSum - 100).toFixed(1)}%`
+                        : "✓ Balanced"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Concentration warnings inside panel */}
+                {concWarns.length > 0 && (
+                  <div style={{ background:"rgba(249,115,22,0.04)", border:"1px solid rgba(249,115,22,0.18)",
+                    borderLeft:"3px solid #f97316", borderRadius:8, padding:"8px 12px" }}>
+                    <p style={{ fontSize:9, color:"#f97316", fontWeight:600, marginBottom:4 }}>
+                      ⚠ Concentration risk
+                    </p>
+                    {concWarns.map(h => (
+                      <p key={h.ticker} style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>
+                        <strong style={{ color:"#f97316" }}>{h.ticker}</strong>{" "}
+                        {((toCAD(h.current, h.ticker, h.currencyOverride) / totalCAD) * 100).toFixed(1)}%
+                        {" "}— exceeds 20% allocation
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ padding:"22px 28px" }}>
+            {/* ── Header label ── */}
+            <div style={{ marginBottom:18 }}>
+              <p style={{ fontSize:10, letterSpacing:"0.2em", textTransform:"uppercase",
+                color:"rgba(255,255,255,0.3)", fontWeight:600 }}>Portfolio Dashboard</p>
+              <p style={{ fontSize:12, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
+                Combined view — TFSA + RRSP · 1 USD = {usdCadRate} CAD
+              </p>
+            </div>
+
+            {/* ── Row 1: Combined summary stats ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:10, marginBottom:20 }}>
+
+              {/* Combined total */}
+              <div className="stat-card" style={{ "--accent":"#a78bfa" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Total Portfolio</p>
+                <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#a78bfa", marginBottom:4 }}>
+                  C${fmt(combTotalCAD)}
+                </p>
+                <p style={{ fontSize:10, color:"rgba(96,165,250,0.85)" }}>
+                  US${fmt(combTotalCAD / usdCadRate)} equiv.
+                </p>
+              </div>
+
+              {/* TFSA total */}
+              <div className="stat-card" style={{ "--accent":"#fbbf24" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>TFSA</p>
+                <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#fbbf24", marginBottom:4 }}>
+                  C${fmt(tfsaTotalCAD)}
+                </p>
+                <div style={{ display:"flex", gap:8 }}>
+                  <span style={{ fontSize:9, color:"#60a5fa" }}>US${fmt(tfsaUSDNative)}</span>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
+                  <span style={{ fontSize:9, color:"#34d399" }}>C${fmt(tfsaCADValCAD)}</span>
+                </div>
+              </div>
+
+              {/* RRSP total */}
+              <div className="stat-card" style={{ "--accent":"#22d3ee" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>RRSP</p>
+                <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#22d3ee", marginBottom:4 }}>
+                  C${fmt(rrspTotalCAD)}
+                </p>
+                <div style={{ display:"flex", gap:8 }}>
+                  <span style={{ fontSize:9, color:"#60a5fa" }}>US${fmt(rrspUSDNative)}</span>
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
+                  <span style={{ fontSize:9, color:"#34d399" }}>C${fmt(rrspCADValCAD)}</span>
+                </div>
+              </div>
+
+              {/* Combined P&L */}
+              <div className="stat-card" style={{ "--accent": combPnL !== null ? (combPnL >= 0 ? "#34d399" : "#ef4444") : "#475569" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Combined P&L</p>
+                {combPnL !== null ? (
+                  <>
+                    <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                      color: pnlColor(combPnL), marginBottom:4 }}>
+                      {pnlSign(combPnL)}C${fmt(combPnL)}
+                    </p>
+                    <p style={{ fontSize:10, color: pnlColor(combPnL), opacity:0.8 }}>
+                      {pnlSign(combPnL)}{combPnLPct.toFixed(1)}% total return
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ fontSize:14, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>—</p>
+                )}
+              </div>
+
+              {/* Annual dividends */}
+              <div className="stat-card" style={{ "--accent":"#a78bfa" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Annual Dividends</p>
+                <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#a78bfa", marginBottom:4 }}>
+                  C${fmt(combDivCAD)}
+                </p>
+                {tfsaWHTCAD > 1 && (
+                  <p style={{ fontSize:9, color:"#f97316" }}>
+                    −C${fmt(tfsaWHTCAD)} WHT drag (TFSA)
+                  </p>
+                )}
+              </div>
+
+              {/* USD exposure */}
+              <div className="stat-card" style={{ "--accent":"#60a5fa" }}>
+                <p style={{ fontSize:9, letterSpacing:"0.13em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>USD Exposure</p>
+                <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
+                  color:"#60a5fa", marginBottom:4 }}>
+                  US${fmt(combUSDNative)}
+                </p>
+                <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                  {combTotalCAD > 0 ? ((combUSDValCAD / combTotalCAD) * 100).toFixed(1) : 0}% of combined
+                </p>
+              </div>
+
+            </div>
+
+            {/* ── Row 2: Account split + currency donut ── */}
+            <div className="card" style={{ marginBottom:20, padding:"16px 20px" }}>
+              <div style={{ display:"flex", gap:24, alignItems:"center", flexWrap:"wrap" }}>
+
+                {/* Account split bar */}
+                <div style={{ flex:"1 1 260px" }}>
+                  <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                    color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:10 }}>Account Allocation</p>
+                  <div style={{ height:20, borderRadius:6, overflow:"hidden", display:"flex", marginBottom:8 }}>
+                    <div style={{ width:`${tfsaAcctPct}%`, background:"linear-gradient(90deg,#fbbf24,#f59e0b)",
+                      display:"flex", alignItems:"center", justifyContent:"center", transition:"width 0.5s",
+                      minWidth: tfsaAcctPct > 5 ? "auto" : 0 }}>
+                      {tfsaAcctPct > 8 && (
+                        <span style={{ fontSize:9, fontWeight:700, color:"rgba(0,0,0,0.65)" }}>
+                          TFSA {tfsaAcctPct.toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ width:`${rrspAcctPct}%`, background:"linear-gradient(90deg,#22d3ee,#06b6d4)",
+                      display:"flex", alignItems:"center", justifyContent:"center", transition:"width 0.5s" }}>
+                      {rrspAcctPct > 8 && (
+                        <span style={{ fontSize:9, fontWeight:700, color:"rgba(0,0,0,0.65)" }}>
+                          RRSP {rrspAcctPct.toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:16 }}>
+                    <span style={{ fontSize:10, color:"#fbbf24" }}>
+                      TFSA — C${fmt(tfsaTotalCAD)}
+                    </span>
+                    <span style={{ fontSize:10, color:"#22d3ee" }}>
+                      RRSP — C${fmt(rrspTotalCAD)}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ width:1, height:60, background:"rgba(255,255,255,0.07)", flexShrink:0 }}/>
+
+                {/* Currency donut */}
+                <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                  <DonutChart
+                    segments={combCurrSegments} size={80} thickness={13}
+                    centerLabel={combTotalCAD > 0 ? `${((combUSDValCAD / combTotalCAD) * 100).toFixed(0)}%` : "—"}
+                    centerSub="USD"
+                  />
+                  <div>
+                    <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                      color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Combined Currency</p>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:"#60a5fa", flexShrink:0 }}/>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)" }}>
+                        USD — US${fmt(combUSDNative)}
+                        <span style={{ color:"rgba(255,255,255,0.3)", marginLeft:4 }}>
+                          (C${fmt(combUSDValCAD)})
+                        </span>
+                      </span>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                      <div style={{ width:8, height:8, borderRadius:"50%", background:"#34d399", flexShrink:0 }}/>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)" }}>
+                        CAD — C${fmt(combCADNative)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ width:1, height:60, background:"rgba(255,255,255,0.07)", flexShrink:0 }}/>
+
+                {/* WHT summary */}
+                {tfsaWHTCAD > 1 && (
+                  <div style={{ background:"rgba(249,115,22,0.05)", border:"1px solid rgba(249,115,22,0.2)",
+                    borderRadius:8, padding:"10px 14px", minWidth:160 }}>
+                    <p style={{ fontSize:9, color:"#f97316", letterSpacing:"0.1em",
+                      textTransform:"uppercase", marginBottom:5 }}>WHT Annual Drag</p>
+                    <p style={{ fontSize:18, fontFamily:"'JetBrains Mono',monospace",
+                      fontWeight:700, color:"#f97316" }}>
+                      −C${fmt(tfsaWHTCAD)}
+                    </p>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginTop:3, lineHeight:1.4 }}>
+                      IRS withholds 15% on US dividends in TFSA
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Row 3: TFSA | RRSP account panels ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(360px, 1fr))", gap:14, marginBottom:20 }}>
+              <AccountPanel
+                label="TFSA" color="#fbbf24" rgb="251,191,36"
+                holdings={tfsaH} totalCAD={tfsaTotalCAD}
+                usdValCAD={tfsaUSDValCAD} cadValCAD={tfsaCADValCAD} usdNative={tfsaUSDNative}
+                topHoldings={tfsaTop} maxVal={tfsaMaxVal}
+                divCAD={tfsaDivCAD} whtCAD={tfsaWHTCAD}
+                pnL={tfsaPnL} costCAD={tfsaCostCAD}
+                targetSum={tfsaTargetSum}
+                currSegments={tfsaCurrSegments}
+                concWarns={tfsaConc}
+              />
+              <AccountPanel
+                label="RRSP" color="#22d3ee" rgb="34,211,238"
+                holdings={rrspH} totalCAD={rrspTotalCAD}
+                usdValCAD={rrspUSDValCAD} cadValCAD={rrspCADValCAD} usdNative={rrspUSDNative}
+                topHoldings={rrspTop} maxVal={rrspMaxVal}
+                divCAD={rrspDivCAD} whtCAD={0}
+                pnL={rrspPnL} costCAD={rrspCostCAD}
+                targetSum={rrspTargetSum}
+                currSegments={rrspCurrSegments}
+                concWarns={rrspConc}
+              />
+            </div>
+
+            {/* ── Row 4: Combined top holdings ── */}
+            {allTop.length > 0 && (
+              <div className="card" style={{ marginBottom:20 }}>
+                <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                  color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:14 }}>
+                  Combined Top Holdings — largest positions across both accounts
+                </p>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {allTop.map((h, i) => {
+                    const isUSD = getTickerCurrency(h.ticker, h.currencyOverride) === "USD";
+                    const barPct = (h.valueCAD / allMaxVal) * 100;
+                    const acctColor = h.acct === "TFSA" ? "#fbbf24" : "#22d3ee";
+                    const pct = combTotalCAD > 0 ? (h.valueCAD / combTotalCAD) * 100 : 0;
+                    const dispVal = isUSD ? `US$${fmt(h.current)}` : `C$${fmt(h.current)}`;
+                    return (
+                      <div key={`${h.acct}-${h.ticker}`} style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)",
+                          fontFamily:"'JetBrains Mono',monospace", minWidth:18, textAlign:"right" }}>
+                          {i + 1}
+                        </span>
+                        <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                          fontWeight:600, color:acctColor, minWidth:56 }}>
+                          {h.ticker}
+                        </span>
+                        <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, minWidth:36, textAlign:"center",
+                          background: h.acct === "TFSA" ? "rgba(251,191,36,0.1)" : "rgba(34,211,238,0.1)",
+                          color:acctColor,
+                          border:`1px solid ${h.acct === "TFSA" ? "rgba(251,191,36,0.22)" : "rgba(34,211,238,0.22)"}` }}>
+                          {h.acct}
+                        </span>
+                        <div style={{ flex:1, height:6, background:"rgba(255,255,255,0.05)", borderRadius:3, overflow:"hidden" }}>
+                          <div style={{ height:6, borderRadius:3, transition:"width 0.5s",
+                            background:`linear-gradient(90deg, ${acctColor}cc, ${acctColor}44)`,
+                            width:`${barPct}%` }}/>
+                        </div>
+                        <span style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                          color:"rgba(255,255,255,0.7)", minWidth:96, textAlign:"right" }}>
+                          {dispVal}
+                        </span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.28)",
+                          minWidth:38, textAlign:"right" }}>
+                          {pct.toFixed(1)}%
+                        </span>
+                        <span style={{ fontSize:9, padding:"1px 5px", borderRadius:3,
+                          background: isUSD ? "rgba(96,165,250,0.1)" : "rgba(52,211,153,0.1)",
+                          color: isUSD ? "#60a5fa" : "#34d399",
+                          border:`1px solid ${isUSD ? "rgba(96,165,250,0.18)" : "rgba(52,211,153,0.18)"}` }}>
+                          {isUSD ? "USD" : "CAD"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── Row 5: Portfolio health summary ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:10, marginBottom:14 }}>
+
+              {/* WHT recovery opportunity */}
+              {tfsaWHTCAD > 1 && (
+                <div style={{ background:"rgba(249,115,22,0.04)", border:"1px solid rgba(249,115,22,0.18)",
+                  borderLeft:"3px solid #f97316", borderRadius:10, padding:"12px 14px" }}>
+                  <p style={{ fontSize:9, color:"#f97316", fontWeight:700, letterSpacing:"0.08em",
+                    textTransform:"uppercase", marginBottom:6 }}>WHT Recovery</p>
+                  <p style={{ fontSize:14, fontFamily:"'JetBrains Mono',monospace",
+                    fontWeight:700, color:"#fb923c", marginBottom:4 }}>
+                    C${fmt(tfsaWHTCAD)}/yr
+                  </p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)", lineHeight:1.5 }}>
+                    Moving US dividend payers from TFSA → RRSP recovers this permanently under the Canada–US Tax Treaty.
+                  </p>
+                </div>
+              )}
+
+              {/* Dividend income breakdown */}
+              {combDivCAD > 1 && (
+                <div style={{ background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.18)",
+                  borderLeft:"3px solid #a78bfa", borderRadius:10, padding:"12px 14px" }}>
+                  <p style={{ fontSize:9, color:"#a78bfa", fontWeight:700, letterSpacing:"0.08em",
+                    textTransform:"uppercase", marginBottom:6 }}>Income Breakdown</p>
+                  <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>TFSA dividends</span>
+                      <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>
+                        C${fmt(tfsaDivCAD)}/yr
+                      </span>
+                    </div>
+                    {tfsaWHTCAD > 1 && (
+                      <div style={{ display:"flex", justifyContent:"space-between" }}>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>  WHT deducted</span>
+                        <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#f97316" }}>
+                          −C${fmt(tfsaWHTCAD)}/yr
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>RRSP dividends</span>
+                      <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
+                        C${fmt(rrspDivCAD)}/yr
+                      </span>
+                    </div>
+                    <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", marginTop:3, paddingTop:5,
+                      display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)", fontWeight:600 }}>Net received</span>
+                      <span style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace",
+                        color:"#a78bfa", fontWeight:700 }}>
+                        C${fmt(combDivCAD - tfsaWHTCAD)}/yr
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sector gaps */}
+              {(() => {
+                const gapList = detectGaps(tfsaH, rrspH);
+                return gapList.length > 0 ? (
+                  <div style={{ background:"rgba(249,115,22,0.04)", border:"1px solid rgba(249,115,22,0.18)",
+                    borderLeft:"3px solid #f97316", borderRadius:10, padding:"12px 14px" }}>
+                    <p style={{ fontSize:9, color:"#f97316", fontWeight:700, letterSpacing:"0.08em",
+                      textTransform:"uppercase", marginBottom:6 }}>Sector Gaps</p>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:7 }}>
+                      {gapList.map(g => (
+                        <span key={g} className="gap-badge">{g}</span>
+                      ))}
+                    </div>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", lineHeight:1.5 }}>
+                      No positions in these sectors across both accounts.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ background:"rgba(52,211,153,0.04)", border:"1px solid rgba(52,211,153,0.18)",
+                    borderLeft:"3px solid #34d399", borderRadius:10, padding:"12px 14px" }}>
+                    <p style={{ fontSize:9, color:"#34d399", fontWeight:700, letterSpacing:"0.08em",
+                      textTransform:"uppercase", marginBottom:6 }}>Sector Coverage</p>
+                    <p style={{ fontSize:14, color:"#34d399" }}>✓ All sectors covered</p>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:4 }}>
+                      Your portfolio spans all tracked sectors.
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Cost basis summary */}
+              {combCostCAD > 0 && (
+                <div style={{ background:"rgba(148,163,184,0.04)", border:"1px solid rgba(148,163,184,0.15)",
+                  borderLeft:"3px solid #64748b", borderRadius:10, padding:"12px 14px" }}>
+                  <p style={{ fontSize:9, color:"rgba(148,163,184,0.7)", fontWeight:700, letterSpacing:"0.08em",
+                    textTransform:"uppercase", marginBottom:6 }}>Cost Basis</p>
+                  <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>TFSA invested</span>
+                      <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>
+                        C${fmt(tfsaCostCAD)}
+                      </span>
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>RRSP invested</span>
+                      <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
+                        C${fmt(rrspCostCAD)}
+                      </span>
+                    </div>
+                    <div style={{ borderTop:"1px solid rgba(255,255,255,0.07)", marginTop:3, paddingTop:5,
+                      display:"flex", justifyContent:"space-between" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)", fontWeight:600 }}>Total invested</span>
+                      <span style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace",
+                        color:"#94a3b8", fontWeight:700 }}>
+                        C${fmt(combCostCAD)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", lineHeight:1.5 }}>
+              ⚠ Not financial advice. Data stored locally in your browser. Export regularly to back up. Consult a licensed CFP before trading.
+            </p>
+          </div>
+        );
+      })()}
     </div>
   );
 }
