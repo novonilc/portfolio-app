@@ -1,0 +1,337 @@
+{
+  "lastUpdated": "2026-04-29",
+  "marketContext": {
+    "period": "April 2026",
+    "conflictAlert": "ACTIVE CONFLICT — Middle East",
+    "conflictInsights": [
+      {
+        "label": "Defense supercycle",
+        "desc": "Patriot, F-35, THAAD, B-21 orders surging — RTX, LMT, NOC backlogs at multi-decade highs"
+      },
+      {
+        "label": "Oil above $90 (Brent)",
+        "desc": "Strait of Hormuz risk premium benefits North American producers — Canadian oil sands = no supply disruption risk"
+      },
+      {
+        "label": "Safe-haven bid",
+        "desc": "Physical gold, USD assets, and North American energy outperforming risk assets globally"
+      },
+      {
+        "label": "Naval buildup",
+        "desc": "US carrier group deployments accelerating — HII shipbuilding backlog extends to 2032"
+      }
+    ],
+    "themes": [
+      { "icon": "💥", "label": "Iran war premium",    "color": "#ef4444", "desc": "Active Middle East conflict driving defense stocks and oil to multi-year highs" },
+      { "icon": "🛢️", "label": "Oil price tailwind",  "color": "#fb923c", "desc": "Brent above $90 on Hormuz risk — Canadian oil sands benefit with zero supply exposure" },
+      { "icon": "🛡️", "label": "Defense supercycle",  "color": "#f97316", "desc": "Iran + NATO 2% mandate = unprecedented multi-year weapon systems procurement wave" },
+      { "icon": "🥇", "label": "Safe-haven bid",      "color": "#fbbf24", "desc": "Gold, CAD energy, and North American assets outperforming on geopolitical uncertainty" },
+      { "icon": "🤖", "label": "AI buildout intact",  "color": "#a78bfa", "desc": "Enterprise AI spend accelerating despite geopolitical headwinds — infrastructure is sticky" },
+      { "icon": "💊", "label": "Healthcare resilient", "color": "#34d399", "desc": "GLP-1 + aging demographics = secular demand independent of conflict or recession cycles" },
+      { "icon": "🏦", "label": "Rate-cut cycle",      "color": "#22d3ee", "desc": "BoC & Fed easing — bonds and REITs positioned for revaluation as rates decline" },
+      { "icon": "📉", "label": "Tariff drag",         "color": "#64748b", "desc": "US-China tariffs ongoing — favor domestically-focused businesses and Canadian names" }
+    ]
+  },
+  "recommendations": [
+    {
+      "ticker": "BRK.B",
+      "name": "Berkshire Hathaway B",
+      "sector": "Financials",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0,
+      "cagr": 10,
+      "thesis": "Sitting on $330B+ cash amid tariff volatility — Buffett deploys aggressively in corrections. Natural market hedge with zero dividend drag. Complements tech-heavy TFSA with value ballast.",
+      "tags": ["Value", "Defensive", "Cash-Rich"],
+      "fills": ["financials", "value"]
+    },
+    {
+      "ticker": "V",
+      "name": "Visa",
+      "sector": "Financials",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0.8,
+      "cagr": 14,
+      "thesis": "Digital payments toll-road untouched by tariffs. Global cross-border volume growing as travel rebounds. Asset-light royalty model: $0.001 per transaction × billions of transactions = immense free cash flow.",
+      "tags": ["Payments", "Global", "Asset-Light"],
+      "fills": ["financials", "payments"]
+    },
+    {
+      "ticker": "ISRG",
+      "name": "Intuitive Surgical",
+      "sector": "Healthcare",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0,
+      "cagr": 15,
+      "thesis": "7,000+ da Vinci robotic systems installed creates razor/blade recurring revenue. New Ion bronchoscopy expanding TAM. Secular shift to minimally invasive surgery = 20-year compounding runway.",
+      "tags": ["Robotic Surgery", "Recurring", "Monopoly"],
+      "fills": ["healthcare", "medtech"]
+    },
+    {
+      "ticker": "NVO",
+      "name": "Novo Nordisk",
+      "sector": "Healthcare",
+      "bestFor": "RRSP",
+      "conviction": "High",
+      "divYield": 1.4,
+      "cagr": 13,
+      "thesis": "GLP-1 peer to your LLY at a cheaper valuation. Ozempic/Wegovy demand still exceeds supply. Oral semaglutide + next-gen CagriSema data due in 2026. Portfolio: LLY + NVO = dual GLP-1 coverage.",
+      "tags": ["GLP-1", "Obesity", "Europe"],
+      "fills": ["healthcare", "pharma"]
+    },
+    {
+      "ticker": "ARM",
+      "name": "ARM Holdings",
+      "sector": "Semiconductor",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0,
+      "cagr": 18,
+      "thesis": "CPU architecture royalty on every advanced chip. Powers all Apple silicon, Nvidia data center CPUs, and AI edge devices. Scales to $100B revenue with zero manufacturing risk — the ultimate AI leverage play.",
+      "tags": ["AI Infrastructure", "IP Royalties", "Monopoly"],
+      "fills": ["ai-infra", "semis"]
+    },
+    {
+      "ticker": "AXON",
+      "name": "Axon Enterprise",
+      "sector": "Defense Tech",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0,
+      "cagr": 20,
+      "thesis": "AI law enforcement platform (Taser + cameras + Evidence.com SaaS). Government contracts = recession-proof revenue. International expansion accelerating amid global security concerns. Zero dividend = pure TFSA compounder.",
+      "tags": ["AI", "Defense", "SaaS"],
+      "fills": ["defense", "government-tech"]
+    },
+    {
+      "ticker": "COST",
+      "name": "Costco Wholesale",
+      "sector": "Consumer Staples",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 0.5,
+      "cagr": 12,
+      "thesis": "Membership model is recession-proof — members don't cancel during downturns, they shop more. International expansion accelerating. Tariff pressure minimal as private-label pricing power offsets costs.",
+      "tags": ["Defensive", "Membership", "Recession-Proof"],
+      "fills": ["consumer", "defensive"]
+    },
+    {
+      "ticker": "RTX",
+      "name": "RTX Corporation",
+      "sector": "Defense",
+      "bestFor": "RRSP",
+      "conviction": "High",
+      "divYield": 2.3,
+      "cagr": 12,
+      "thesis": "Iran conflict has made RTX's Patriot missile systems the single most in-demand air defense platform on earth — restocking demand from the US, Israel, Gulf states, and NATO allies extends the Patriot backlog past 2031. Pratt & Whitney (F-35 engines) at maximum production capacity. Raytheon munitions lines running at war-footing output. NATO 2% GDP commitment adds a decade-long structural layer on top of the immediate Middle East demand surge.",
+      "tags": ["Defense", "Patriot", "F-35", "Dividend", "Iran Play"],
+      "fills": ["defense", "industrials"]
+    },
+    {
+      "ticker": "ENB",
+      "name": "Enbridge",
+      "sector": "Energy Infrastructure",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 6.8,
+      "cagr": 8,
+      "thesis": "Largest North American pipeline — 30% of US crude flows through Enbridge's network. Iran conflict + Strait of Hormuz risk premium has elevated oil prices, improving Canadian oil sands economics and driving higher throughput on Enbridge's lines. 7% dividend eligible for Canadian dividend tax credit (0% WHT in TFSA). 29 consecutive years of dividend growth. Rate-regulated cash flows = recession-resistant income regardless of oil price direction.",
+      "tags": ["Pipeline", "Canadian Dividend", "Income", "Oil Tailwind"],
+      "fills": ["energy-infra", "income"]
+    },
+    {
+      "ticker": "LMT",
+      "name": "Lockheed Martin",
+      "sector": "Defense",
+      "bestFor": "RRSP",
+      "conviction": "High",
+      "divYield": 2.8,
+      "cagr": 11,
+      "thesis": "Iran conflict has driven F-35 fighter orders and THAAD missile defense deployments to record levels — Lockheed is the only Western supplier of operational 5th-generation stealth aircraft. Hellfire, JASSM, and JAGM missile inventories are being rebuilt at accelerated rates to replenish allied stockpiles. $170B+ backlog = 3+ years of revenue locked in. Cost-plus government contracts protect margins regardless of input inflation. 2.8% dividend in RRSP = 0% WHT under Canada-US treaty.",
+      "tags": ["Defense", "F-35", "THAAD", "Missile", "Iran Play", "Dividend"],
+      "fills": ["defense", "aerospace"]
+    },
+    {
+      "ticker": "NOC",
+      "name": "Northrop Grumman",
+      "sector": "Defense",
+      "bestFor": "RRSP",
+      "conviction": "High",
+      "divYield": 1.7,
+      "cagr": 10,
+      "thesis": "B-21 Raider stealth bomber — the only new strategic bomber in 50 years — is entering full-rate production as Iran escalation accelerates Pentagon urgency for long-range strike capability. Sole-source contractor on the Sentinel ICBM (nuclear triad modernization), Columbia-class submarine weapons systems, and Ground-Based Midcourse Defense upgrade. Near-zero foreign competition on any of these programs. Backlog visibility extends to 2033.",
+      "tags": ["Defense", "B-21", "Stealth", "Nuclear Triad", "Sole-Source"],
+      "fills": ["defense", "aerospace"]
+    },
+    {
+      "ticker": "SU.TO",
+      "name": "Suncor Energy",
+      "sector": "Energy",
+      "bestFor": "TFSA",
+      "conviction": "High",
+      "divYield": 4.5,
+      "cagr": 9,
+      "thesis": "Iran conflict + Strait of Hormuz supply risk has pushed Brent crude above $90 — Suncor's Alberta oil sands produce ~750,000 bbl/day with zero Middle East exposure, making it the safest large-cap oil bet in a geopolitical crisis. Trading at a steep discount to US oil majors on free cash flow yield. CAD-listed (TSX) = no US withholding tax in TFSA and eligible for the Canadian dividend tax credit. Has repurchased 25%+ of shares outstanding since 2020.",
+      "tags": ["Canadian Oil", "Energy", "Dividend", "CAD", "No WHT", "Iran Hedge"],
+      "fills": ["oil & gas", "canadian-energy"]
+    },
+    {
+      "ticker": "XEG.TO",
+      "name": "iShares S&P/TSX Capped Energy ETF",
+      "sector": "Energy",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 2.2,
+      "cagr": 8,
+      "thesis": "Diversified basket of Canadian oil producers and pipelines — CNQ, SU, CVE, TOU, MEG — all benefiting from Iran-driven oil price elevation with zero Strait of Hormuz supply risk. CAD-listed on TSX = 0% withholding tax in TFSA. Lower single-stock risk than owning individual producers. Capitalizes on the structural premium North American oil commands when Middle East supply routes are threatened.",
+      "tags": ["Canadian Energy", "ETF", "CAD", "Oil", "No WHT", "Diversified"],
+      "fills": ["oil & gas", "canadian-energy"]
+    },
+    {
+      "ticker": "HII",
+      "name": "Huntington Ingalls Industries",
+      "sector": "Defense",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 2.3,
+      "cagr": 9,
+      "thesis": "The US Navy's sole builder of nuclear-powered aircraft carriers and one of only two submarine constructors. Strait of Hormuz tensions and Iran conflict are driving accelerated carrier group deployments and a multi-year naval expansion program — the Navy's 2026 shipbuilding budget is the largest since the Cold War. No foreign competition for these contracts. Backlogs extend to 2032. Steady dividend grower with a uniquely captive government customer.",
+      "tags": ["Defense", "Naval", "Shipbuilding", "Dividend", "Iran Play"],
+      "fills": ["defense", "industrials"]
+    },
+    {
+      "ticker": "MELI",
+      "name": "MercadoLibre",
+      "sector": "Emerging Markets",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 0,
+      "cagr": 18,
+      "thesis": "Latin America's Amazon + PayPal combined. 220M+ users, 50M+ credit card holders. Tariff war benefits regional champions vs global platforms. Brazil and Mexico economies more insulated from US-China tensions.",
+      "tags": ["LatAm", "E-Commerce", "Fintech", "Growth"],
+      "fills": ["latam", "emerging-markets"]
+    },
+    {
+      "ticker": "INDA",
+      "name": "iShares MSCI India ETF",
+      "sector": "Emerging Markets",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 0.5,
+      "cagr": 12,
+      "thesis": "India = China replacement manufacturing hub. Apple, Samsung shifting production. 1.4B population, median age 28, 7%+ GDP growth. Modi infrastructure boom. Demographics + manufacturing shift = generational opportunity.",
+      "tags": ["India", "Demographics", "Manufacturing"],
+      "fills": ["asia", "emerging-markets"]
+    },
+    {
+      "ticker": "VGK",
+      "name": "Vanguard European ETF",
+      "sector": "International",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 3.1,
+      "cagr": 9,
+      "thesis": "European stocks at 40-year discount to US on P/E. Defense spending surge (NATO commitment). ECB cutting rates faster than Fed. Deep diversification away from your US concentration.",
+      "tags": ["Europe", "Diversification", "Value"],
+      "fills": ["europe", "international"]
+    },
+    {
+      "ticker": "EWJ",
+      "name": "iShares MSCI Japan ETF",
+      "sector": "International",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 1.8,
+      "cagr": 8,
+      "thesis": "Tokyo Stock Exchange governance reforms forcing buybacks + ROE improvement. Yen weakness creates value for CAD investors. Buffett's Japan trading house bets validated. Cheap valuations uncorrelated to US tariff drama.",
+      "tags": ["Japan", "Corporate Reform", "Value"],
+      "fills": ["japan", "international"]
+    },
+    {
+      "ticker": "TLT",
+      "name": "iShares 20+ Year Treasury Bond",
+      "sector": "Fixed Income",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 4.2,
+      "cagr": 5,
+      "thesis": "If Fed cuts 2-3x in 2026 amid tariff slowdown, long-duration bonds capture 15-25% capital gain. High 4%+ yield provides carry while waiting. Contrarian — most investors are underweight duration entering a rate-cut cycle.",
+      "tags": ["Bonds", "Rate Play", "Income"],
+      "fills": ["bonds", "fixed-income"]
+    },
+    {
+      "ticker": "ZAG.TO",
+      "name": "BMO Aggregate Bond ETF",
+      "sector": "Fixed Income",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 3.2,
+      "cagr": 4,
+      "thesis": "As Bank of Canada continues rate-cut cycle, bond prices rise. Canadian aggregate bonds: zero currency risk, no WHT. Portfolio ballast — rises when equities fall. Reduces overall portfolio volatility.",
+      "tags": ["CAD", "Bonds", "Defensive"],
+      "fills": ["bonds", "canadian-fixed-income"]
+    },
+    {
+      "ticker": "XRE.TO",
+      "name": "iShares Canadian REIT ETF",
+      "sector": "Real Estate",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 4.5,
+      "cagr": 9,
+      "thesis": "Canadian REITs deeply oversold from rate cycle. As BoC cuts rates, cap rate compression lifts valuations. Canadian-listed = no WHT in TFSA. Diversified industrial, retail, and residential REIT exposure.",
+      "tags": ["REIT", "CAD", "Real Estate", "Rate Play"],
+      "fills": ["reit", "real-estate"]
+    },
+    {
+      "ticker": "WMT",
+      "name": "Walmart",
+      "sector": "Consumer Staples",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 1.1,
+      "cagr": 10,
+      "thesis": "Walmart has become an ad-tech company: $4B+ advertising revenue growing 50% YoY. Flipkart + international. Tariff-resilient: US supply chain more diversified than Target or Amazon peers.",
+      "tags": ["Retail", "Ad Platform", "Defensive"],
+      "fills": ["consumer", "defensive"]
+    },
+    {
+      "ticker": "SHOP",
+      "name": "Shopify",
+      "sector": "Technology",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 0,
+      "cagr": 15,
+      "thesis": "Canadian fintech/commerce platform powering 10%+ of US e-commerce. AI tools (Sidekick) driving merchant GMV growth. Freed from logistics. Expanding into B2B commerce globally. Zero dividend = pure tax-free TFSA growth.",
+      "tags": ["Canadian", "E-Commerce", "AI", "Fintech"],
+      "fills": ["canadian-tech", "fintech"]
+    },
+    {
+      "ticker": "ACN",
+      "name": "Accenture",
+      "sector": "Technology",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 1.6,
+      "cagr": 12,
+      "thesis": "Every Fortune 500 firm needs AI implementation. Accenture's AI practice growing 40%+ YoY — $3B+ annual revenue. Captures 5-15% of every enterprise AI budget as the execution layer regardless of which model wins.",
+      "tags": ["Enterprise AI", "Consulting", "Secular"],
+      "fills": ["enterprise-software", "ai-consulting"]
+    },
+    {
+      "ticker": "VIG",
+      "name": "Vanguard Dividend Appreciation ETF",
+      "sector": "Dividend Growth",
+      "bestFor": "RRSP",
+      "conviction": "Medium",
+      "divYield": 1.7,
+      "cagr": 11,
+      "thesis": "Companies growing dividends 10+ consecutive years: Visa, Microsoft, J&J, UnitedHealth. Quality factor in disguise — these firms have durable moats. RRSP: 0% WHT. Outperforms in drawdowns. MER 0.06%.",
+      "tags": ["Dividend Growth", "Quality", "ETF"],
+      "fills": ["income", "quality-factor"]
+    }
+  ]
+}
