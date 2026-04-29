@@ -1,0 +1,297 @@
+{
+  "holdings": {
+    "TFSA": [
+      {
+        "ticker": "NVDA",
+        "name": "Nvidia",
+        "current": 3748,
+        "target": 10,
+        "divYield": 0,
+        "locked": "✅ Keep",
+        "notes": "No dividend — pure growth compounder. Perfect in TFSA."
+      },
+      {
+        "ticker": "AMZN",
+        "name": "Amazon",
+        "current": 1388,
+        "target": 6,
+        "divYield": 0,
+        "locked": "✅ Keep",
+        "notes": "No dividend — 100% tax-free growth in TFSA."
+      },
+      {
+        "ticker": "NOW",
+        "name": "ServiceNow",
+        "current": 3971,
+        "target": 10,
+        "divYield": 0,
+        "locked": "✅ Keep",
+        "notes": "No dividend — AI enterprise software leader."
+      },
+      {
+        "ticker": "GOOG",
+        "name": "Alphabet",
+        "current": 3227,
+        "target": 6,
+        "divYield": 0.5,
+        "locked": "✅ Keep",
+        "notes": "Tiny dividend (acceptable drag). AI + Search moat."
+      },
+      {
+        "ticker": "BTCC",
+        "name": "Purpose Bitcoin ETF",
+        "current": 1428,
+        "target": 5,
+        "divYield": 0,
+        "locked": "✅ Keep",
+        "notes": "CAD-listed, crypto exposure capped at 5%."
+      },
+      {
+        "ticker": "GOLD",
+        "name": "Physically Backed Gold",
+        "current": 1281,
+        "target": 5,
+        "divYield": 0,
+        "locked": "✅ Keep",
+        "notes": "Inflation hedge. CAD-denominated."
+      },
+      {
+        "ticker": "MSFT",
+        "name": "Microsoft",
+        "current": 200,
+        "target": 3,
+        "divYield": 0.8,
+        "locked": "❌ SELL",
+        "notes": "MOVE TO RRSP — 0.8% dividend leaks 15% WHT."
+      },
+      {
+        "ticker": "AAPL",
+        "name": "Apple",
+        "current": 3732,
+        "target": 3,
+        "divYield": 0.5,
+        "locked": "❌ SELL",
+        "notes": "MOVE TO RRSP — save withholding on dividends."
+      },
+      {
+        "ticker": "META",
+        "name": "Meta Platforms",
+        "current": 1358,
+        "target": 3,
+        "divYield": 0.4,
+        "locked": "❌ SELL",
+        "notes": "MOVE TO RRSP — dividend growing."
+      },
+      {
+        "ticker": "TSM",
+        "name": "Taiwan Semiconductor",
+        "current": 4178,
+        "target": 3,
+        "divYield": 1.5,
+        "locked": "❌ SELL",
+        "notes": "MOVE TO RRSP — 1.5% dividend = highest drag."
+      },
+      {
+        "ticker": "ADI",
+        "name": "Analog Devices",
+        "current": 1274,
+        "target": 3,
+        "divYield": 1.8,
+        "locked": "❌ SELL",
+        "notes": "MOVE TO RRSP — highest yield in TFSA."
+      },
+      {
+        "ticker": "THE",
+        "name": "TD Intl Equity ETF",
+        "current": 2668,
+        "target": 3,
+        "divYield": 2,
+        "locked": "❌ SELL",
+        "notes": "Consolidate — replace with VFV.TO."
+      },
+      {
+        "ticker": "BRK.B",
+        "name": "Berkshire Hathaway B",
+        "current": 5391,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": "Sitting on $330B+ cash amid tariff volatility — Buffett deploys aggressively in corrections. Natural market hedge with z…"
+      },
+      {
+        "ticker": "XEQT",
+        "name": "XEQT",
+        "current": 212,
+        "costBasis": 0,
+        "target": 25,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "XRE",
+        "name": "XRE",
+        "current": 1664,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "MDA",
+        "name": "MDA",
+        "current": 0,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      }
+    ],
+    "RRSP": [
+      {
+        "ticker": "RTX",
+        "name": "RTX",
+        "current": 3488,
+        "costBasis": 0,
+        "target": 3,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "QQQM",
+        "name": "QQQM",
+        "current": 4593,
+        "costBasis": 0,
+        "target": 15,
+        "divYield": 0,
+        "cagr": 12,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "SMH",
+        "name": "SMH",
+        "current": 4022,
+        "costBasis": 0,
+        "target": 15,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "CIBR",
+        "name": "CIBR",
+        "current": 3049,
+        "costBasis": 0,
+        "target": 8,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "GLD",
+        "name": "GLD",
+        "current": 0,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "BIL",
+        "name": "BIL",
+        "current": 0,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "VXUS",
+        "name": "VXUS",
+        "current": 0,
+        "costBasis": 0,
+        "target": 15,
+        "divYield": 0,
+        "cagr": 7,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "VRT",
+        "name": "VRT",
+        "current": 0,
+        "costBasis": 0,
+        "target": 5,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      },
+      {
+        "ticker": "ZEQT",
+        "name": "ZEQT",
+        "current": 4312,
+        "costBasis": 0,
+        "target": 20,
+        "divYield": 0,
+        "cagr": 10,
+        "currencyOverride": "",
+        "locked": "✅ Keep",
+        "notes": ""
+      }
+    ],
+    "SHREYA_TFSA": [
+      {
+        "ticker": "XEQT",
+        "name": "XEQT",
+        "current": 0,
+        "costBasis": 0,
+        "target": 100,
+        "divYield": 0,
+        "cagr": 10,
+        "locked": "✅ Keep",
+        "notes": ""
+      }
+    ]
+  },
+  "cashHolding": {
+    "TFSA": 27000,
+    "RRSP": 70000,
+    "SHREYA_TFSA": 3000
+  },
+  "contribPlan": {
+    "TFSA": {
+      "amount": 600,
+      "frequency": "biweekly"
+    },
+    "RRSP": {
+      "amount": 850,
+      "frequency": "biweekly"
+    },
+    "SHREYA_TFSA": {
+      "amount": 600,
+      "frequency": "monthly"
+    }
+  },
+  "portfolios": [
+    "TFSA",
+    "RRSP",
+    "SHREYA_TFSA"
+  ]
+}
