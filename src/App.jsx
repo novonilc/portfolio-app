@@ -2348,6 +2348,14 @@ export default function App() {
         const rrspTotalCAD = rrspH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride), 0);
         const combTotalCAD = tfsaTotalCAD + rrspTotalCAD;
 
+        // Cash (always CAD)
+        const tfsaCash = cashHolding["TFSA"] || 0;
+        const rrspCash = cashHolding["RRSP"] || 0;
+        const combCashTotal = tfsaCash + rrspCash;
+        const tfsaGrandTotal = tfsaTotalCAD + tfsaCash;
+        const rrspGrandTotal = rrspTotalCAD + rrspCash;
+        const combGrandTotal = tfsaGrandTotal + rrspGrandTotal;
+
         // USD vs CAD splits per account (values in CAD for comparison, native USD for display)
         const tfsaUSDValCAD = tfsaH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "USD")
           .reduce((s, h) => s + h.current * usdCadRate, 0);
@@ -2414,9 +2422,9 @@ export default function App() {
           ? rrspH.filter(h => (toCAD(h.current, h.ticker, h.currencyOverride) / rrspTotalCAD) * 100 > 20)
           : [];
 
-        // Account allocation %
-        const tfsaAcctPct = combTotalCAD > 0 ? (tfsaTotalCAD / combTotalCAD) * 100 : 0;
-        const rrspAcctPct = combTotalCAD > 0 ? (rrspTotalCAD / combTotalCAD) * 100 : 0;
+        // Account allocation % (includes cash)
+        const tfsaAcctPct = combGrandTotal > 0 ? (tfsaGrandTotal / combGrandTotal) * 100 : 0;
+        const rrspAcctPct = combGrandTotal > 0 ? (rrspGrandTotal / combGrandTotal) * 100 : 0;
 
         // Max bar value helpers
         const tfsaMaxVal = tfsaTop[0]?.valueCAD || 1;
@@ -2428,17 +2436,17 @@ export default function App() {
           { pct: tfsaAcctPct, color:"#fbbf24", label:"TFSA" },
           { pct: rrspAcctPct, color:"#22d3ee", label:"RRSP" },
         ];
-        const tfsaCurrSegments = tfsaTotalCAD > 0 ? [
-          { pct: (tfsaUSDValCAD / tfsaTotalCAD) * 100, color:"#60a5fa", label:"USD" },
-          { pct: (tfsaCADValCAD / tfsaTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        const tfsaCurrSegments = tfsaGrandTotal > 0 ? [
+          { pct: (tfsaUSDValCAD / tfsaGrandTotal) * 100, color:"#60a5fa", label:"USD" },
+          { pct: ((tfsaCADValCAD + tfsaCash) / tfsaGrandTotal) * 100, color:"#34d399", label:"CAD" },
         ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
-        const rrspCurrSegments = rrspTotalCAD > 0 ? [
-          { pct: (rrspUSDValCAD / rrspTotalCAD) * 100, color:"#60a5fa", label:"USD" },
-          { pct: (rrspCADValCAD / rrspTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        const rrspCurrSegments = rrspGrandTotal > 0 ? [
+          { pct: (rrspUSDValCAD / rrspGrandTotal) * 100, color:"#60a5fa", label:"USD" },
+          { pct: ((rrspCADValCAD + rrspCash) / rrspGrandTotal) * 100, color:"#34d399", label:"CAD" },
         ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
-        const combCurrSegments = combTotalCAD > 0 ? [
-          { pct: (combUSDValCAD / combTotalCAD) * 100, color:"#60a5fa", label:"USD" },
-          { pct: (combCADNative  / combTotalCAD) * 100, color:"#34d399", label:"CAD" },
+        const combCurrSegments = combGrandTotal > 0 ? [
+          { pct: (combUSDValCAD / combGrandTotal) * 100, color:"#60a5fa", label:"USD" },
+          { pct: ((combCADNative + combCashTotal) / combGrandTotal) * 100, color:"#34d399", label:"CAD" },
         ] : [{ pct:100, color:"rgba(255,255,255,0.07)", label:"—" }];
 
         const fmt = (n) => Math.round(n).toLocaleString();
@@ -2446,10 +2454,11 @@ export default function App() {
         const pnlSign  = (v) => v >= 0 ? "+" : "";
 
         // Account panel renderer (used for both TFSA and RRSP)
-        function AccountPanel({ label, color, rgb, holdings: acctH, totalCAD, usdValCAD, cadValCAD, usdNative,
+        function AccountPanel({ label, color, rgb, holdings: acctH, totalCAD, grandTotal, cash,
+                                usdValCAD, cadValCAD, usdNative,
                                 topHoldings, maxVal, divCAD, whtCAD, pnL, costCAD, targetSum, currSegments, concWarns }) {
-          const usdPct = totalCAD > 0 ? (usdValCAD / totalCAD) * 100 : 0;
-          const cadPct = totalCAD > 0 ? (cadValCAD / totalCAD) * 100 : 0;
+          const usdPct = grandTotal > 0 ? (usdValCAD / grandTotal) * 100 : 0;
+          const cadPct = grandTotal > 0 ? ((cadValCAD + cash) / grandTotal) * 100 : 0;
           const effDiv = divCAD - (whtCAD || 0);
           return (
             <div className="card" style={{ padding:0, overflow:"hidden" }}>
@@ -2462,11 +2471,21 @@ export default function App() {
                       color, textTransform:"uppercase" }}>{label}</span>
                     <p style={{ fontSize:24, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
                       color, marginTop:4 }}>
-                      C${fmt(totalCAD)}
+                      C${fmt(grandTotal)}
                     </p>
-                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>
-                      market value (CAD equiv.)
-                    </p>
+                    <div style={{ display:"flex", gap:8, marginTop:2, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                        C${fmt(totalCAD)} invested
+                      </span>
+                      {cash > 0 && (
+                        <>
+                          <span style={{ fontSize:10, color:"rgba(255,255,255,0.15)" }}>·</span>
+                          <span style={{ fontSize:10, color:"#94a3b8" }}>
+                            C${fmt(cash)} cash
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     {pnL !== null ? (
@@ -2496,12 +2515,12 @@ export default function App() {
                   <div style={{ display:"flex", alignItems:"center", gap:16 }}>
                     <DonutChart
                       segments={currSegments} size={90} thickness={14}
-                      centerLabel={totalCAD > 0 ? `${Math.round(usdPct)}%` : "—"}
+                      centerLabel={grandTotal > 0 ? `${Math.round(usdPct)}%` : "—"}
                       centerSub="USD"
                     />
                     <div style={{ flex:1 }}>
                       {/* USD row */}
-                      <div style={{ marginBottom:10 }}>
+                      <div style={{ marginBottom:8 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                           <span style={{ fontSize:10, color:"#60a5fa", fontWeight:600 }}>USD Holdings</span>
                           <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#60a5fa" }}>
@@ -2517,7 +2536,7 @@ export default function App() {
                         </p>
                       </div>
                       {/* CAD row */}
-                      <div>
+                      <div style={{ marginBottom: cash > 0 ? 8 : 0 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                           <span style={{ fontSize:10, color:"#34d399", fontWeight:600 }}>CAD Holdings</span>
                           <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#34d399" }}>
@@ -2529,9 +2548,30 @@ export default function App() {
                             width:`${cadPct}%`, transition:"width 0.5s" }}/>
                         </div>
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
-                          {cadPct.toFixed(1)}% of {label}
+                          {(grandTotal > 0 ? (cadValCAD / grandTotal * 100) : 0).toFixed(1)}% of {label}
                         </p>
                       </div>
+                      {/* Cash row */}
+                      {cash > 0 && (() => {
+                        const cashPct = grandTotal > 0 ? (cash / grandTotal) * 100 : 0;
+                        return (
+                          <div>
+                            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                              <span style={{ fontSize:10, color:"#94a3b8", fontWeight:600 }}>Cash</span>
+                              <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#94a3b8" }}>
+                                C${fmt(cash)}
+                              </span>
+                            </div>
+                            <div style={{ height:4, background:"rgba(255,255,255,0.06)", borderRadius:2 }}>
+                              <div style={{ height:4, background:"#94a3b8", borderRadius:2,
+                                width:`${cashPct}%`, transition:"width 0.5s" }}/>
+                            </div>
+                            <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", marginTop:3 }}>
+                              {cashPct.toFixed(1)}% of {label}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -2591,15 +2631,21 @@ export default function App() {
 
                 {/* Holdings breakdown pie chart */}
                 {(() => {
-                  const slices = acctH
+                  const holdingSlices = acctH
                     .map((h, i) => ({
                       label: h.ticker,
                       valueCAD: toCAD(h.current, h.ticker, h.currencyOverride),
                       color: PIE_COLORS[i % PIE_COLORS.length],
                     }))
                     .filter(s => s.valueCAD > 0)
-                    .sort((a, b) => b.valueCAD - a.valueCAD)
-                    .map(s => ({ ...s, pct: totalCAD > 0 ? (s.valueCAD / totalCAD) * 100 : 0 }));
+                    .sort((a, b) => b.valueCAD - a.valueCAD);
+                  if (cash > 0) {
+                    holdingSlices.push({ label: "CASH", valueCAD: cash, color: "#94a3b8" });
+                  }
+                  const slices = holdingSlices.map(s => ({
+                    ...s,
+                    pct: grandTotal > 0 ? (s.valueCAD / grandTotal) * 100 : 0,
+                  }));
                   if (slices.length === 0) return null;
                   return (
                     <div>
@@ -2711,16 +2757,24 @@ export default function App() {
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:4 }}>Total Holdings</p>
                 <p style={{ fontSize:30, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
                   color:"#a78bfa", lineHeight:1 }}>
-                  C${fmt(combTotalCAD)}
+                  C${fmt(combGrandTotal)}
                 </p>
-                <div style={{ display:"flex", gap:12, justifyContent:"flex-end", marginTop:5 }}>
+                <div style={{ display:"flex", gap:12, justifyContent:"flex-end", marginTop:5, flexWrap:"wrap" }}>
                   <span style={{ fontSize:10, color:"#fbbf24" }}>
-                    TFSA C${fmt(tfsaTotalCAD)}
+                    TFSA C${fmt(tfsaGrandTotal)}
                   </span>
                   <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>
                   <span style={{ fontSize:10, color:"#22d3ee" }}>
-                    RRSP C${fmt(rrspTotalCAD)}
+                    RRSP C${fmt(rrspGrandTotal)}
                   </span>
+                  {combCashTotal > 0 && (
+                    <>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>·</span>
+                      <span style={{ fontSize:10, color:"#94a3b8" }}>
+                        Cash C${fmt(combCashTotal)}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -2734,10 +2788,10 @@ export default function App() {
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Total Portfolio</p>
                 <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
                   color:"#a78bfa", marginBottom:4 }}>
-                  C${fmt(combTotalCAD)}
+                  C${fmt(combGrandTotal)}
                 </p>
                 <p style={{ fontSize:10, color:"rgba(96,165,250,0.85)" }}>
-                  US${fmt(combTotalCAD / usdCadRate)} equiv.
+                  US${fmt(combGrandTotal / usdCadRate)} equiv.
                 </p>
               </div>
 
@@ -2747,12 +2801,18 @@ export default function App() {
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>TFSA</p>
                 <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
                   color:"#fbbf24", marginBottom:4 }}>
-                  C${fmt(tfsaTotalCAD)}
+                  C${fmt(tfsaGrandTotal)}
                 </p>
-                <div style={{ display:"flex", gap:8 }}>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:9, color:"#60a5fa" }}>US${fmt(tfsaUSDNative)}</span>
                   <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
                   <span style={{ fontSize:9, color:"#34d399" }}>C${fmt(tfsaCADValCAD)}</span>
+                  {tfsaCash > 0 && (
+                    <>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
+                      <span style={{ fontSize:9, color:"#94a3b8" }}>C${fmt(tfsaCash)} cash</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -2762,12 +2822,18 @@ export default function App() {
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>RRSP</p>
                 <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
                   color:"#22d3ee", marginBottom:4 }}>
-                  C${fmt(rrspTotalCAD)}
+                  C${fmt(rrspGrandTotal)}
                 </p>
-                <div style={{ display:"flex", gap:8 }}>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:9, color:"#60a5fa" }}>US${fmt(rrspUSDNative)}</span>
                   <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
                   <span style={{ fontSize:9, color:"#34d399" }}>C${fmt(rrspCADValCAD)}</span>
+                  {rrspCash > 0 && (
+                    <>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>·</span>
+                      <span style={{ fontSize:9, color:"#94a3b8" }}>C${fmt(rrspCash)} cash</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -2814,7 +2880,7 @@ export default function App() {
                   US${fmt(combUSDNative)}
                 </p>
                 <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
-                  {combTotalCAD > 0 ? ((combUSDValCAD / combTotalCAD) * 100).toFixed(1) : 0}% of combined
+                  {combGrandTotal > 0 ? ((combUSDValCAD / combGrandTotal) * 100).toFixed(1) : 0}% of combined
                 </p>
               </div>
 
@@ -2847,12 +2913,12 @@ export default function App() {
                       )}
                     </div>
                   </div>
-                  <div style={{ display:"flex", gap:16 }}>
+                  <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
                     <span style={{ fontSize:10, color:"#fbbf24" }}>
-                      TFSA — C${fmt(tfsaTotalCAD)}
+                      TFSA — C${fmt(tfsaGrandTotal)}
                     </span>
                     <span style={{ fontSize:10, color:"#22d3ee" }}>
-                      RRSP — C${fmt(rrspTotalCAD)}
+                      RRSP — C${fmt(rrspGrandTotal)}
                     </span>
                   </div>
                 </div>
@@ -2863,7 +2929,7 @@ export default function App() {
                 <div style={{ display:"flex", alignItems:"center", gap:16 }}>
                   <DonutChart
                     segments={combCurrSegments} size={80} thickness={13}
-                    centerLabel={combTotalCAD > 0 ? `${((combUSDValCAD / combTotalCAD) * 100).toFixed(0)}%` : "—"}
+                    centerLabel={combGrandTotal > 0 ? `${((combUSDValCAD / combGrandTotal) * 100).toFixed(0)}%` : "—"}
                     centerSub="USD"
                   />
                   <div>
@@ -2878,12 +2944,20 @@ export default function App() {
                         </span>
                       </span>
                     </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom: combCashTotal > 0 ? 5 : 0 }}>
                       <div style={{ width:8, height:8, borderRadius:"50%", background:"#34d399", flexShrink:0 }}/>
                       <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)" }}>
                         CAD — C${fmt(combCADNative)}
                       </span>
                     </div>
+                    {combCashTotal > 0 && (
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <div style={{ width:8, height:8, borderRadius:"50%", background:"#94a3b8", flexShrink:0 }}/>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.6)" }}>
+                          Cash — C${fmt(combCashTotal)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2912,6 +2986,7 @@ export default function App() {
               <AccountPanel
                 label="TFSA" color="#fbbf24" rgb="251,191,36"
                 holdings={tfsaH} totalCAD={tfsaTotalCAD}
+                grandTotal={tfsaGrandTotal} cash={tfsaCash}
                 usdValCAD={tfsaUSDValCAD} cadValCAD={tfsaCADValCAD} usdNative={tfsaUSDNative}
                 topHoldings={tfsaTop} maxVal={tfsaMaxVal}
                 divCAD={tfsaDivCAD} whtCAD={tfsaWHTCAD}
@@ -2923,6 +2998,7 @@ export default function App() {
               <AccountPanel
                 label="RRSP" color="#22d3ee" rgb="34,211,238"
                 holdings={rrspH} totalCAD={rrspTotalCAD}
+                grandTotal={rrspGrandTotal} cash={rrspCash}
                 usdValCAD={rrspUSDValCAD} cadValCAD={rrspCADValCAD} usdNative={rrspUSDNative}
                 topHoldings={rrspTop} maxVal={rrspMaxVal}
                 divCAD={rrspDivCAD} whtCAD={0}
