@@ -1001,6 +1001,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       const prompt = buildMarketPulsePrompt(live);
       await navigator.clipboard.writeText(prompt);
       setPulseCopied(true);
+      setPulsePasteOpen(true);
       setTimeout(() => setPulseCopied(false), 4000);
     } catch (e) {
       setPulseError("Could not copy: " + e.message);
@@ -2635,18 +2636,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           <div style={{ padding:"22px 28px" }}>
 
             {/* ── Claude AI refresh panel ── */}
-            <div className="card" style={{ marginBottom:16, padding:"14px 18px",
+            <div className="card" style={{ marginBottom:16, padding:"16px 20px",
               background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
 
-              {/* Header row */}
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, flexWrap:"wrap", gap:6 }}>
+              {/* Header */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:6 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:7 }}>
                   <span style={{ fontSize:13 }}>✨</span>
                   <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa" }}>Refresh with Claude AI</p>
-                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>—</span>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
-                    Fetches live signals then asks Claude to generate a fresh market pulse
-                  </p>
                 </div>
                 {pulseRefreshedAt && (
                   <span style={{ fontSize:9, color:"rgba(167,139,250,0.5)", fontFamily:"'JetBrains Mono',monospace" }}>
@@ -2655,19 +2652,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 )}
               </div>
 
-              {/* Two options */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+              {/* Step 1 — two options side by side */}
+              <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.35)", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                Step 1 — Choose how to run Claude
+              </p>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
 
-                {/* Option 1 — claude.ai (Pro) */}
+                {/* Option A — claude.ai */}
                 <div style={{ border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 14px",
                   background:"rgba(167,139,250,0.05)" }}>
                   <p style={{ fontSize:10, fontWeight:600, color:"rgba(167,139,250,0.8)", marginBottom:4 }}>
-                    Option 1 — claude.ai <span style={{ fontWeight:400, color:"rgba(167,139,250,0.45)" }}>(uses your Pro plan)</span>
+                    claude.ai <span style={{ fontWeight:400, color:"rgba(167,139,250,0.45)" }}>— uses your Pro plan</span>
                   </p>
                   <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:10, lineHeight:1.5 }}>
-                    Copy a pre-built prompt with live market data already filled in. Paste into claude.ai, then paste Claude's JSON response back here.
+                    Copy the prompt (live data pre-filled), paste into claude.ai, then paste the JSON response back in Step 2 below.
                   </p>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                     <button className="btn" onClick={copyMarketPulsePrompt} disabled={pulseCopyLoading}
                       style={{ fontSize:11, padding:"6px 14px",
                         background: pulseCopied ? "rgba(34,197,94,0.15)" : "rgba(167,139,250,0.1)",
@@ -2684,50 +2684,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         Open claude.ai →
                       </a>
                     )}
-                    <button className="btn" onClick={() => { setPulsePasteOpen(o => !o); setPulsePasteError(null); }}
-                      style={{ fontSize:11, padding:"6px 14px",
-                        background: pulsePasteOpen ? "rgba(34,211,238,0.1)" : "rgba(255,255,255,0.03)",
-                        borderColor: pulsePasteOpen ? "rgba(34,211,238,0.25)" : "rgba(255,255,255,0.08)",
-                        color: pulsePasteOpen ? "#22d3ee" : "rgba(255,255,255,0.4)" }}>
-                      {pulsePasteOpen ? "▲ Close" : "⬇ Paste response"}
-                    </button>
                   </div>
-
-                  {pulsePasteOpen && (
-                    <div style={{ marginTop:10 }}>
-                      <textarea
-                        value={pulsePasteText}
-                        onChange={e => setPulsePasteText(e.target.value)}
-                        placeholder="Paste Claude's JSON response here…"
-                        rows={6}
-                        style={{ width:"100%", fontSize:10, fontFamily:"'JetBrains Mono',monospace",
-                          background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
-                          borderRadius:6, padding:"8px 10px", color:"rgba(255,255,255,0.6)",
-                          resize:"vertical", boxSizing:"border-box" }}
-                      />
-                      <button className="btn btn-primary" onClick={applyPastedPulse}
-                        disabled={!pulsePasteText.trim()}
-                        style={{ marginTop:6, fontSize:11, padding:"6px 14px",
-                          background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.3)",
-                          color:"#a78bfa", opacity: pulsePasteText.trim() ? 1 : 0.4 }}>
-                        Apply
-                      </button>
-                      {pulsePasteError && (
-                        <p style={{ fontSize:10, color:"#ef4444", marginTop:6, lineHeight:1.4 }}>⚠ {pulsePasteError}</p>
-                      )}
-                    </div>
-                  )}
                 </div>
 
-                {/* Option 2 — API key */}
+                {/* Option B — API key */}
                 <div style={{ border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"12px 14px",
                   background:"rgba(255,255,255,0.02)" }}>
                   <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.45)", marginBottom:4 }}>
-                    Option 2 — API key <span style={{ fontWeight:400, color:"rgba(255,255,255,0.25)" }}>(one-click, pay-per-use)</span>
+                    API key <span style={{ fontWeight:400, color:"rgba(255,255,255,0.25)" }}>— one-click, ~$0.004/refresh</span>
                   </p>
                   <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:10, lineHeight:1.5 }}>
-                    Fully automated. Fetches live data and calls Claude directly. ~$0.004 per refresh.
-                    Get a key at <span style={{ color:"rgba(255,255,255,0.4)" }}>console.anthropic.com</span>
+                    Fully automated — no copy/paste needed. Get a free key at console.anthropic.com
                   </p>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                     <input type="password" value={claudeApiKey}
@@ -2747,6 +2714,61 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               </div>
 
+              {/* Step 2 — paste area, full width, always visible when pulsePasteOpen */}
+              <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.35)", textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                    Step 2 — Paste Claude's response
+                    <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:"rgba(255,255,255,0.2)", marginLeft:6 }}>
+                      (claude.ai option only)
+                    </span>
+                  </p>
+                  <button className="btn" onClick={() => { setPulsePasteOpen(o => !o); setPulsePasteError(null); }}
+                    style={{ fontSize:10, padding:"4px 10px",
+                      background:"rgba(255,255,255,0.03)", borderColor:"rgba(255,255,255,0.08)",
+                      color:"rgba(255,255,255,0.35)" }}>
+                    {pulsePasteOpen ? "▲ Hide" : "▼ Show"}
+                  </button>
+                </div>
+
+                {pulsePasteOpen && (
+                  <div>
+                    <textarea
+                      value={pulsePasteText}
+                      onChange={e => { setPulsePasteText(e.target.value); setPulsePasteError(null); }}
+                      placeholder="Paste Claude's full response here — the app will extract the JSON automatically even if there is text around it…"
+                      rows={8}
+                      style={{ width:"100%", fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                        background:"rgba(255,255,255,0.03)", border:"1px solid rgba(167,139,250,0.2)",
+                        borderRadius:8, padding:"10px 12px", color:"rgba(255,255,255,0.65)",
+                        resize:"vertical", boxSizing:"border-box", lineHeight:1.5 }}
+                    />
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:8 }}>
+                      <button className="btn btn-primary" onClick={applyPastedPulse}
+                        disabled={!pulsePasteText.trim()}
+                        style={{ fontSize:11, padding:"7px 20px",
+                          background:"rgba(167,139,250,0.2)", borderColor:"rgba(167,139,250,0.4)",
+                          color:"#a78bfa", opacity: pulsePasteText.trim() ? 1 : 0.4 }}>
+                        Apply &amp; Refresh Dashboard
+                      </button>
+                      {pulsePasteText.trim() && (
+                        <button className="btn" onClick={() => { setPulsePasteText(""); setPulsePasteError(null); }}
+                          style={{ fontSize:10, padding:"7px 14px", color:"rgba(255,255,255,0.3)",
+                            borderColor:"rgba(255,255,255,0.07)" }}>
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {pulsePasteError && (
+                      <p style={{ fontSize:10, color:"#ef4444", marginTop:8, padding:"6px 10px",
+                        background:"rgba(239,68,68,0.07)", borderRadius:6, border:"1px solid rgba(239,68,68,0.2)" }}>
+                        ⚠ {pulsePasteError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {pulseError && (
                 <p style={{ fontSize:10, color:"#ef4444", marginTop:10, padding:"6px 10px",
                   background:"rgba(239,68,68,0.07)", borderRadius:6, border:"1px solid rgba(239,68,68,0.2)" }}>
@@ -2754,9 +2776,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </p>
               )}
               {pulseApplyDone && (
-                <p style={{ fontSize:10, color:"#22c55e", marginTop:10, padding:"6px 10px",
+                <p style={{ fontSize:10, color:"#22c55e", marginTop:10, padding:"8px 12px",
                   background:"rgba(34,197,94,0.07)", borderRadius:6, border:"1px solid rgba(34,197,94,0.2)" }}>
-                  ✓ Market Pulse updated — dashboard refreshed below.
+                  ✓ Market Pulse updated — scroll down to see the refreshed dashboard.
                 </p>
               )}
             </div>

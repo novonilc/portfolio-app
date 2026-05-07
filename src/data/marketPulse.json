@@ -90,4 +90,183 @@
         {
           "label": "US CPI (YoY)",
           "value": "3.3%",
-          "
+          "trend": "sideways",
+          "status": "caution",
+          "note": "Inflation re-accelerated in Q1 on oil spike; now fading as energy prices pull back but services inflation remains sticky above 4%."
+        },
+        {
+          "label": "US Unemployment",
+          "value": "~4.1%",
+          "trend": "sideways",
+          "status": "neutral",
+          "note": "Labour market resilient despite rate pressure; no meaningful deterioration yet — key Fed watchpoint for any pivot signal."
+        },
+        {
+          "label": "Oil (WTI)",
+          "value": "~$91",
+          "trend": "down",
+          "status": "caution",
+          "note": "Pulled back from ~$118 April peak on Iran ceasefire signals; still elevated vs. $67 pre-conflict. Direction of final deal is the key variable."
+        },
+        {
+          "label": "Gold",
+          "value": "~$3,310",
+          "trend": "sideways",
+          "status": "bullish",
+          "note": "Holding near all-time highs; geopolitical uncertainty and central bank buying providing structural floor."
+        },
+        {
+          "label": "USD/CAD",
+          "value": "~1.385",
+          "trend": "sideways",
+          "status": "neutral",
+          "note": "CAD supported by oil but capped by BoC hold and weak domestic growth. Range-bound until oil direction clarifies."
+        }
+      ]
+    },
+    {
+      "category": "Sentiment",
+      "icon": "🧠",
+      "signals": [
+        {
+          "label": "Fear & Greed",
+          "value": "47 — Neutral",
+          "trend": "up",
+          "status": "neutral",
+          "note": "Recovered from Extreme Fear (18) in late March; Neutral reading reflects ceasefire optimism offsetting macro uncertainty."
+        },
+        {
+          "label": "AAII Bull/Bear",
+          "value": "Mildly Bullish",
+          "trend": "up",
+          "status": "neutral",
+          "note": "Retail sentiment improving on equity recovery; not yet at levels associated with contrarian sell signals."
+        },
+        {
+          "label": "Put/Call Ratio",
+          "value": "~0.88",
+          "trend": "down",
+          "status": "neutral",
+          "note": "Declining from elevated March levels; near-neutral hedging demand confirms market is not in panic mode."
+        },
+        {
+          "label": "Earnings Revisions",
+          "value": "Flat to slightly up",
+          "trend": "up",
+          "status": "neutral",
+          "note": "Q1 earnings broadly beat low bar set by oil-shock fears; FY2026 estimates stabilizing after earlier downgrades."
+        }
+      ]
+    }
+  ],
+  "outlooks": [
+    {
+      "horizon": "3 months",
+      "period": "Aug 2026",
+      "scenarios": [
+        {
+          "label": "Bull case",
+          "probability": 32,
+          "color": "#22c55e",
+          "icon": "🟢",
+          "trigger": "Iran deal finalised; oil falls to $70–75; CPI drops toward 2.8% — unlocking a Fed cut in September",
+          "marketTarget": "S&P 7,800–8,100",
+          "canadianAngle": "TSX 35,000+; CAD weakens as oil slides but equities outperform on rate optimism; ENB, XIU benefit",
+          "positioning": "Add quality growth (NVDA, AMZN, SHOP); deploy cash that was held back during oil-shock uncertainty"
+        },
+        {
+          "label": "Base case",
+          "probability": 45,
+          "color": "#fbbf24",
+          "icon": "🟡",
+          "trigger": "Ceasefire holds but no final deal; oil stays $85–95; Fed stays on hold; AI earnings carry the index",
+          "marketTarget": "S&P 7,200–7,600",
+          "canadianAngle": "TSX 32,500–34,500; CAD range-bound 1.37–1.40; energy names volatile around oil headlines",
+          "positioning": "Hold diversified portfolio; DCA into weakness; keep 10–15% cash for H2 deployment window"
+        },
+        {
+          "label": "Bear case",
+          "probability": 23,
+          "color": "#ef4444",
+          "icon": "🔴",
+          "trigger": "Ceasefire collapses; oil spikes back above $110; CPI re-accelerates; Fed forced to hike",
+          "marketTarget": "S&P 6,400–6,900",
+          "canadianAngle": "TSX 29,000–31,000 — energy rallies but financials and rate-sensitives sold heavily",
+          "positioning": "Lean into defensives (BRK.B, GOLD, RTX); increase ZAG.TO; trim speculative tech positions"
+        }
+      ],
+      "keyEvents": [
+        { "date": "June 11–12", "event": "FOMC meeting — rate decision and updated dot plot" },
+        { "date": "June 2026",  "event": "Iran nuclear deal negotiation deadline window" },
+        { "date": "July 2026",  "event": "Q2 earnings season — energy and tech sector readthrough" }
+      ]
+    },
+    {
+      "horizon": "6 months",
+      "period": "Nov 2026",
+      "scenarios": [
+        {
+          "label": "Bull case",
+          "probability": 28,
+          "color": "#22c55e",
+          "icon": "🟢",
+          "trigger": "Oil normalises below $75; 1–2 Fed cuts by year-end; AI investment super-cycle intact; new Fed Chair credible",
+          "marketTarget": "S&P 8,200–8,700",
+          "canadianAngle": "TSX 36,000+; BoC resumes cuts; housing stabilises; SHOP and Canadian tech rebound",
+          "positioning": "Increase equity allocation; add INDA, MELI for EM exposure; rotate some fixed income into equities"
+        },
+        {
+          "label": "Base case",
+          "probability": 42,
+          "color": "#fbbf24",
+          "icon": "🟡",
+          "trigger": "Geopolitical fog persists; Fed holds all year; growth moderate at 1.5–2%; margins hold on AI productivity",
+          "marketTarget": "S&P 7,100–7,700",
+          "canadianAngle": "TSX 32,000–35,000; CAD stable; XRE.TO and ZAG.TO outperform as BoC eventually pivots",
+          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; add XRE.TO on weakness"
+        },
+        {
+          "label": "Bear case",
+          "probability": 30,
+          "color": "#ef4444",
+          "icon": "🔴",
+          "trigger": "New Fed Chair loses credibility; stagflation entrenches; credit spreads widen; corporate earnings fall 10%+",
+          "marketTarget": "S&P 5,800–6,500",
+          "canadianAngle": "TSX 26,000–29,000; housing correction accelerates; BoC forced into emergency cuts",
+          "positioning": "Max defensives; raise TLT + ZAG.TO to 20% of RRSP; hold GOLD ETF; reduce leverage entirely"
+        }
+      ],
+      "keyEvents": [
+        { "date": "Sept 2026",   "event": "FOMC — potential first cut window if CPI cooperates" },
+        { "date": "Oct 2026",    "event": "Q3 earnings — critical AI infrastructure capex readthrough" },
+        { "date": "Nov 4, 2026", "event": "US midterm elections — fiscal policy uncertainty" }
+      ]
+    }
+  ],
+  "catalysts": {
+    "bullish": [
+      { "icon": "🕊️", "label": "Iran ceasefire deal finalised — oil drops to $70–75, CPI falls, clearing path for Fed cuts" },
+      { "icon": "🤖", "label": "AI capex super-cycle driving NVDA, MSFT, AMZN, GOOG earnings above consensus" },
+      { "icon": "🛡️", "label": "Defense supercycle locked in by NATO 2% mandate regardless of Middle East outcome" },
+      { "icon": "🥇", "label": "Gold and CAD energy providing structural safe-haven ballast independent of rate cycle" },
+      { "icon": "💊", "label": "GLP-1 and healthcare demographics driving secular demand for NVO, ISRG, LLY" }
+    ],
+    "bearish": [
+      { "icon": "🔥", "label": "Iran ceasefire collapse — oil back above $110 forces Fed to hike, crushing equity multiples" },
+      { "icon": "🏛️", "label": "Fed Chair transition — new appointment seen as politically influenced, triggering bond sell-off" },
+      { "icon": "📈", "label": "Services inflation re-entrenching above 4% — last-mile problem proves unsolvable without recession" },
+      { "icon": "🏢", "label": "Commercial real estate stress spreading to regional bank loan books — credit event risk" },
+      { "icon": "💳", "label": "US consumer credit card delinquencies at 10-year highs — spending slowdown accelerating" }
+    ]
+  },
+  "portfolioImplication": {
+    "summary": "The Iran de-escalation is the single biggest variable — a confirmed deal unlocks a Fed pivot and a strong H2 rally. Until it's signed, maintain a cautious posture: hold your core positions, keep 10–15% cash, and DCA rather than deploy lump sums. Your GOLD and energy exposure (CNQ, ENB) is working as intended — these are the right hedges for this regime.",
+    "actions": [
+      { "priority": "High",   "action": "Hold GOLD and ENB — both performing their hedge function; do not trim until oil direction is clear" },
+      { "priority": "High",   "action": "DCA into NVDA and AMZN on any 5–8% dips — AI capex is the one consensus trade that's still intact" },
+      { "priority": "Medium", "action": "Consider adding ZAG.TO in RRSP if bear case probability rises above 35% — rate cut optionality" },
+      { "priority": "Medium", "action": "Review any TFSA position paying US dividends above 1.5% — WHT drag compounds painfully in a flat market" },
+      { "priority": "Low",    "action": "Watch SHOP and XRE.TO for entry points — both are cheap on a BoC-cut scenario but don't force it yet" }
+    ]
+  }
+}
