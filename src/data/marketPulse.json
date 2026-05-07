@@ -1,176 +1,93 @@
 {
-  "lastUpdated": "2026-05-06",
+  "lastUpdated": "2026-05-07",
   "period": "May 2026",
-
   "regime": {
-    "label": "Cautious Bull",
-    "sublabel": "Recovery Mode",
+    "label": "Geopolitical Pivot",
+    "sublabel": "Energy Shock Fading, Policy Fog Thickening",
     "color": "#fbbf24",
-    "description": "Equities recovering from April tariff shock. S&P 500 bouncing off lows but breadth remains narrow. Macro data mixed — inflation declining but growth concerns rising. Defense and energy sectors outperforming. Tech bifurcated on AI spend vs margin compression.",
-    "score": 48
+    "description": "Markets are navigating a sharp de-escalation in the Iran conflict, which drove oil from ~$67 to near $120 before pulling back toward $91–95 on ceasefire signals. Equity indices have recovered strongly from their late-March lows, but the macro backdrop remains cloudy: US CPI is sticky at 3.3%, the Fed is frozen at 3.50–3.75% with a hawkish split on its board, and a Fed Chair transition adds a new layer of institutional uncertainty. The CNN Fear & Greed Index at 47 (Neutral) and VIX at ~17 confirm markets are neither complacent nor panicked — a tentative equilibrium that could break decisively in either direction.",
+    "score": 52
   },
-
   "riskMeter": {
-    "score": 48,
-    "label": "Mildly Risk-Off",
-    "sublabel": "Tariff uncertainty + geopolitical stress keeping allocators defensive",
-    "color": "#f97316"
+    "score": 44,
+    "label": "Cautiously Neutral",
+    "sublabel": "Oil pullback and Iran deal hopes are lifting sentiment, but sticky inflation and Fed Chair uncertainty keep a ceiling on risk appetite.",
+    "color": "#fbbf24"
   },
-
   "macroSignals": [
     {
       "category": "Equities",
       "icon": "📈",
       "signals": [
-        { "label": "S&P 500",        "value": "~5,600",       "trend": "up",       "status": "neutral",  "note": "Recovering from ~5,100 April lows; resistance at 5,700" },
-        { "label": "TSX Composite",  "value": "~24,600",      "trend": "up",       "status": "bullish",  "note": "Energy + financials leading; outperforming S&P YTD" },
-        { "label": "VIX",            "value": "~20",          "trend": "down",     "status": "caution",  "note": "Off April spike (~35); still elevated vs 2024 baseline" },
-        { "label": "Nasdaq / Tech",  "value": "At resistance","trend": "sideways", "status": "caution",  "note": "AI names holding; hardware/semis pressured by trade war" }
+        {
+          "label": "S&P 500",
+          "value": "~7,362",
+          "trend": "up",
+          "status": "bullish",
+          "note": "S&P had its best month since 2020 in April, recovering from Iran-shock lows; AI capex cycle and mega-cap earnings are the primary driver."
+        },
+        {
+          "label": "TSX Composite",
+          "value": "~33,933",
+          "trend": "up",
+          "status": "bullish",
+          "note": "TSX benefiting from elevated (though falling) oil prices; energy sector strength offsets financials drag. Outperforming EM but lagging S&P YTD."
+        },
+        {
+          "label": "VIX",
+          "value": "~17.3",
+          "trend": "down",
+          "status": "neutral",
+          "note": "Pulled back sharply from 28 peak in April as Iran ceasefire signals emerged; still above pre-conflict lows of ~13–14, reflecting residual uncertainty."
+        },
+        {
+          "label": "Nasdaq / Tech",
+          "value": "~25,870",
+          "trend": "up",
+          "status": "bullish",
+          "note": "AI infrastructure theme intact; mega-caps (NVDA, META, AMZN) reported solid Q1. Russell 2000 lagging, confirming large-cap quality bias."
+        }
       ]
     },
     {
       "category": "Rates & Bonds",
       "icon": "🏦",
       "signals": [
-        { "label": "Fed Funds Rate",     "value": "4.25–4.50%",          "trend": "flat",  "status": "neutral", "note": "Fed on hold — inflation sticky near 3%; watching tariff impact" },
-        { "label": "10Y US Treasury",    "value": "~4.2%",               "trend": "down",  "status": "neutral", "note": "Falling on growth fears; flight to safety bid supporting bonds" },
-        { "label": "Yield Curve (2s10s)","value": "Flat / slight invert","trend": "flat",  "status": "caution", "note": "Historical recession precursor — watch for steepening" },
-        { "label": "BoC Rate",           "value": "2.75%",               "trend": "down",  "status": "bullish", "note": "Cutting faster than Fed; further cuts expected H2 2026" }
+        {
+          "label": "Fed Funds Rate",
+          "value": "3.50–3.75%",
+          "trend": "sideways",
+          "status": "caution",
+          "note": "Fed held for 3rd consecutive meeting on April 29; 8-4 vote split — most divisive decision since 1992. Markets pricing near-zero chance of cuts in 2026 as oil/inflation risks persist."
+        },
+        {
+          "label": "10Y US Treasury",
+          "value": "~4.35%",
+          "trend": "down",
+          "status": "caution",
+          "note": "Pulled back from 9-month high of ~4.45% as Iran deal hopes crushed oil; still elevated and keeping valuation multiples under pressure."
+        },
+        {
+          "label": "Yield Curve (2s10s)",
+          "value": "~+30 bps",
+          "trend": "up",
+          "status": "neutral",
+          "note": "Curve has been gradually steepening from deeply inverted levels; near-normal slope suggests growth expectations intact but not exuberant."
+        },
+        {
+          "label": "BoC Rate",
+          "value": "2.25%",
+          "trend": "sideways",
+          "status": "neutral",
+          "note": "BoC held April 29; projecting 1.2% GDP growth in 2026. CPI climbed to 2.4% in March on gasoline prices; core remains just above 2%. No cuts expected through 2026."
+        }
       ]
     },
     {
       "category": "Macro",
       "icon": "🌐",
       "signals": [
-        { "label": "US CPI (YoY)",   "value": "~3.0%",  "trend": "down",     "status": "neutral", "note": "Declining but last mile sticky; tariffs add re-inflation risk" },
-        { "label": "US Unemployment","value": "~4.2%",  "trend": "up",       "status": "caution", "note": "Gradual softening; tech + manufacturing layoffs filtering through" },
-        { "label": "Oil (WTI)",      "value": "~$62",   "trend": "down",     "status": "neutral", "note": "Off $90+ highs; OPEC+ production + global demand concerns" },
-        { "label": "Gold",           "value": "~$3,300","trend": "up",       "status": "bullish", "note": "Near all-time highs; safe-haven demand from geopolitical risk" },
-        { "label": "USD/CAD",        "value": "~1.38",  "trend": "sideways", "status": "neutral", "note": "BoC cutting faster than Fed offsets commodity support for CAD" }
-      ]
-    },
-    {
-      "category": "Sentiment",
-      "icon": "🧠",
-      "signals": [
-        { "label": "Fear & Greed",    "value": "45 — Fear",      "trend": "up",   "status": "caution", "note": "Recovering from Extreme Fear (18) in April; not yet neutral" },
-        { "label": "AAII Bull/Bear",  "value": "Bearish tilt",   "trend": "up",   "status": "caution", "note": "Retail sentiment still negative; often a contrarian buy signal" },
-        { "label": "Put/Call Ratio",  "value": "~0.95",          "trend": "down", "status": "caution", "note": "Elevated hedging demand; above 1.0 = peak fear" },
-        { "label": "Earnings Revisions","value": "Downward bias","trend": "flat", "status": "caution", "note": "Analysts cutting FY2026 EPS estimates on tariff margin impact" }
-      ]
-    }
-  ],
-
-  "outlooks": [
-    {
-      "horizon": "3 months",
-      "period": "Aug 2026",
-      "scenarios": [
         {
-          "label": "Bull case",
-          "probability": 30,
-          "color": "#22c55e",
-          "icon": "🟢",
-          "trigger": "US-China trade truce; Fed signals July cut; Q2 earnings beat low bar",
-          "marketTarget": "S&P 5,900–6,100",
-          "canadianAngle": "TSX 25,500+; oil rebounds on demand recovery; CAD strengthens",
-          "positioning": "Add quality growth (NVDA, AMZN, SHOP); add TFSA tech on dips; reduce cash drag"
-        },
-        {
-          "label": "Base case",
-          "probability": 45,
-          "color": "#fbbf24",
-          "icon": "🟡",
-          "trigger": "Tariff uncertainty persists; soft landing holds; 1 Fed cut by Sept",
-          "marketTarget": "S&P 5,400–5,750",
-          "canadianAngle": "TSX sideways 24,000–25,000; energy mixed; CAD range-bound ~1.37–1.40",
-          "positioning": "Hold diversified portfolio; DCA weekly into weakness; keep 10–15% cash buffer"
-        },
-        {
-          "label": "Bear case",
-          "probability": 25,
-          "color": "#ef4444",
-          "icon": "🔴",
-          "trigger": "Tariff escalation deepens recession fear; credit stress in CRE; Fed holds",
-          "marketTarget": "S&P 4,900–5,200",
-          "canadianAngle": "TSX 22,000–23,500; oil back to $55; housing corrections in major cities",
-          "positioning": "Lean into defensives (BRK.B, ENB, RTX); increase ZAG.TO and TLT; hold GOLD"
-        }
-      ],
-      "keyEvents": [
-        { "date": "June 11–12", "event": "FOMC meeting — rate decision + dot plot update" },
-        { "date": "July 2026",  "event": "Q2 earnings season — major tech and energy reports" },
-        { "date": "July–Aug",   "event": "US-China trade negotiation deadline window" }
-      ]
-    },
-    {
-      "horizon": "6 months",
-      "period": "Nov 2026",
-      "scenarios": [
-        {
-          "label": "Bull case",
-          "probability": 28,
-          "color": "#22c55e",
-          "icon": "🟢",
-          "trigger": "2–3 Fed cuts; AI capex super-cycle intact; trade war de-escalates",
-          "marketTarget": "S&P 6,200–6,600",
-          "canadianAngle": "TSX 26,000+; oil $70+; strong Canadian bank earnings; SHOP recovery",
-          "positioning": "Increase equity allocation; rotate into small/mid cap; add INDA, MELI for emerging exposure"
-        },
-        {
-          "label": "Base case",
-          "probability": 42,
-          "color": "#fbbf24",
-          "icon": "🟡",
-          "trigger": "1–2 Fed cuts; growth moderates to 1.5–2%; corporate margins hold",
-          "marketTarget": "S&P 5,500–5,900",
-          "canadianAngle": "TSX 24,000–25,500; CAD stable; REITs recover as BoC cuts accelerate",
-          "positioning": "Stay the course; reinvest dividends; optimize TFSA/RRSP tax placement; add XRE.TO"
-        },
-        {
-          "label": "Bear case",
-          "probability": 30,
-          "color": "#ef4444",
-          "icon": "🔴",
-          "trigger": "Recession materializes; credit spreads widen to 500bps; earnings decline 15%+",
-          "marketTarget": "S&P 4,400–5,000",
-          "canadianAngle": "TSX 20,000–22,000; housing correction accelerates; BoC emergency cuts",
-          "positioning": "Max defensives; increase TLT + ZAG.TO to 20%; hold physical gold via GOLD ETF; reduce leverage"
-        }
-      ],
-      "keyEvents": [
-        { "date": "Sept 2026",   "event": "FOMC — potential 2nd cut window if data cooperates" },
-        { "date": "Oct 2026",    "event": "Q3 earnings — critical AI infrastructure readthrough" },
-        { "date": "Nov 4, 2026", "event": "US midterm elections — fiscal policy uncertainty" }
-      ]
-    }
-  ],
-
-  "catalysts": {
-    "bullish": [
-      { "icon": "✂️", "label": "Fed rate cuts reducing equity discount rates and boosting bond/REIT valuations" },
-      { "icon": "🤖", "label": "AI capex super-cycle driving NVDA, MSFT, AMZN, GOOG earnings above consensus" },
-      { "icon": "🛡️", "label": "NATO 2% mandate + Middle East conflict locking in multi-year defense orders (RTX, LMT, NOC)" },
-      { "icon": "🥇", "label": "Gold and CAD energy as structural safe-haven plays independent of rate cycle" },
-      { "icon": "💊", "label": "GLP-1 drugs expanding healthcare TAM — NVO, ISRG, LLY benefiting from secular demand" }
-    ],
-    "bearish": [
-      { "icon": "🚧", "label": "US-China tariffs at 145%/125% squeezing corporate margins, particularly tech hardware and retail" },
-      { "icon": "📉", "label": "Yield curve inversion persisting — historically predicts recession 12–18 months forward" },
-      { "icon": "🏢", "label": "Commercial real estate stress — office vacancy rates at 20%+ with regional bank loan book exposure" },
-      { "icon": "💳", "label": "US consumer credit card delinquencies at 10-year highs; spending slowdown emerging" },
-      { "icon": "🔥", "label": "Middle East escalation risk — Strait of Hormuz closure would spike oil and shatter supply chains" }
-    ]
-  },
-
-  "portfolioImplication": {
-    "summary": "In this environment, your TFSA/RRSP structure is a significant advantage — defensives, gold, and energy in tax-sheltered accounts outperform in a slow-growth regime. Prioritize DCA over lump-sum deployment. Maintain 10–15% cash optionality for a potential H2 dip-buying window.",
-    "actions": [
-      { "priority": "High",   "action": "Hold GOLD and ENB as portfolio shock absorbers through the uncertainty window" },
-      { "priority": "High",   "action": "DCA into quality tech (NVDA, AMZN) — don't try to time the bottom" },
-      { "priority": "Medium", "action": "Consider adding ZAG.TO or TLT in RRSP if bear case probability rises above 35%" },
-      { "priority": "Medium", "action": "Reduce overweight to any single tariff-exposed name >20% of either account" },
-      { "priority": "Low",    "action": "Review INDA / MELI exposure if US-China trade war accelerates Asia supply chain shift" }
-    ]
-  }
-}
+          "label": "US CPI (YoY)",
+          "value": "3.3%",
+          "
