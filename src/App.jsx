@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import portfolioIdeas from "./data/recommendations.json";
+import marketPulseData from "./data/marketPulse.json";
 const RECOMMENDATIONS = portfolioIdeas.recommendations;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1129,7 +1130,7 @@ export default function App() {
       <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
         borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-          ["recommend","💡 Ideas"],["search","🔍 Search"]].map(([v,l]) => (
+          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`}
             onClick={() => setTab(v)}
             style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
@@ -2335,6 +2336,230 @@ export default function App() {
           </p>
         </div>
       )}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: MARKET PULSE
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "pulse" && (() => {
+        const mp = marketPulseData;
+        const regime = mp.regime;
+        const risk = mp.riskMeter;
+
+        const trendIcon = t => t === "up" ? "↑" : t === "down" ? "↓" : "→";
+        const trendColor = (t, status) => {
+          if (status === "bullish") return "#22c55e";
+          if (status === "bearish") return "#ef4444";
+          if (status === "caution") return "#fbbf24";
+          if (t === "up") return "#22c55e";
+          if (t === "down") return "#ef4444";
+          return "rgba(255,255,255,0.45)";
+        };
+
+        return (
+          <div style={{ padding:"22px 28px" }}>
+
+            {/* Header + regime */}
+            <div className="card" style={{ marginBottom:16, padding:"16px 20px",
+              background:"rgba(34,211,238,0.03)", borderColor:"rgba(34,211,238,0.12)" }}>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+                <div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
+                    <p className="sec" style={{ margin:0, color:"#22d3ee88" }}>Market Pulse — {mp.period}</p>
+                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
+                      updated {mp.lastUpdated}
+                    </span>
+                  </div>
+                  <p style={{ fontSize:13, fontWeight:600, color:"rgba(255,255,255,0.85)", marginBottom:4 }}>
+                    <span style={{ color: regime.color }}>{regime.label}</span>
+                    <span style={{ color:"rgba(255,255,255,0.3)", marginLeft:8, fontWeight:400, fontSize:11 }}>{regime.sublabel}</span>
+                  </p>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, maxWidth:680 }}>
+                    {regime.description}
+                  </p>
+                </div>
+
+                {/* Risk-On / Risk-Off gauge */}
+                <div style={{ minWidth:200, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+                  borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase" }}>
+                    Risk-On / Risk-Off
+                  </p>
+                  <div style={{ position:"relative", height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, marginBottom:8, overflow:"hidden" }}>
+                    <div style={{ position:"absolute", left:0, top:0, bottom:0, width:"50%",
+                      background:"linear-gradient(90deg, #ef4444, #fbbf24)", borderRadius:4 }} />
+                    <div style={{ position:"absolute", left:"50%", top:0, bottom:0, width:"50%",
+                      background:"linear-gradient(90deg, #fbbf24, #22c55e)", borderRadius:4 }} />
+                    <div style={{ position:"absolute", top:"50%", transform:"translate(-50%,-50%)",
+                      left:`${risk.score}%`, width:12, height:12, borderRadius:"50%",
+                      background:"#fff", boxShadow:"0 0 6px rgba(0,0,0,0.8)", border:"2px solid rgba(0,0,0,0.4)" }} />
+                  </div>
+                  <p style={{ fontSize:14, fontWeight:700, color: risk.color, marginBottom:2 }}>{risk.label}</p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", lineHeight:1.4 }}>{risk.sublabel}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Macro signals grid */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:12, marginBottom:16 }}>
+              {mp.macroSignals.map(cat => (
+                <div key={cat.category} className="card" style={{ padding:"14px 16px" }}>
+                  <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.55)", marginBottom:10,
+                    display:"flex", alignItems:"center", gap:6 }}>
+                    <span>{cat.icon}</span>{cat.category}
+                  </p>
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {cat.signals.map(sig => (
+                      <div key={sig.label} style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+                        <div style={{ flex:1 }}>
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>{sig.label}</p>
+                          <p style={{ fontSize:12, fontWeight:600, fontFamily:"'JetBrains Mono',monospace",
+                            color: trendColor(sig.trend, sig.status), marginTop:1 }}>
+                            {trendIcon(sig.trend)} {sig.value}
+                          </p>
+                        </div>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", lineHeight:1.4,
+                          maxWidth:130, textAlign:"right", marginTop:2 }}>{sig.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 3-month and 6-month outlooks */}
+            {mp.outlooks.map(outlook => (
+              <div key={outlook.horizon} className="card" style={{ marginBottom:16, padding:"16px 20px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+                  <p className="sec" style={{ margin:0 }}>
+                    {outlook.horizon} outlook
+                  </p>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontFamily:"'JetBrains Mono',monospace" }}>
+                    target: {outlook.period}
+                  </span>
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:10, marginBottom:14 }}>
+                  {outlook.scenarios.map(sc => (
+                    <div key={sc.label} style={{ border:`1px solid ${sc.color}25`,
+                      borderLeft:`3px solid ${sc.color}`,
+                      background:`${sc.color}08`,
+                      borderRadius:8, padding:"12px 14px" }}>
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
+                        <p style={{ fontSize:12, fontWeight:600, color: sc.color }}>
+                          {sc.icon} {sc.label}
+                        </p>
+                        <span style={{ fontSize:13, fontWeight:700, color: sc.color,
+                          fontFamily:"'JetBrains Mono',monospace" }}>
+                          {sc.probability}%
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                        <div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>Trigger</p>
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.4 }}>{sc.trigger}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>Market target</p>
+                          <p style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color: sc.color, fontWeight:600 }}>{sc.marketTarget}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>CAD angle</p>
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)", lineHeight:1.4 }}>{sc.canadianAngle}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>Positioning</p>
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.6)", lineHeight:1.4 }}>{sc.positioning}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Key events */}
+                <div>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                    Key events to watch
+                  </p>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {outlook.keyEvents.map(ev => (
+                      <div key={ev.date} style={{ display:"flex", gap:6, alignItems:"center",
+                        background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+                        borderRadius:6, padding:"5px 10px" }}>
+                        <span style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace",
+                          color:"#22d3ee", fontWeight:600, whiteSpace:"nowrap" }}>{ev.date}</span>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>{ev.event}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {/* Catalysts: bull vs bear */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+              <div className="card" style={{ padding:"14px 16px",
+                background:"rgba(34,197,94,0.03)", borderColor:"rgba(34,197,94,0.1)" }}>
+                <p style={{ fontSize:11, fontWeight:600, color:"#22c55e", marginBottom:10 }}>
+                  🟢 Bull catalysts
+                </p>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {mp.catalysts.bullish.map(c => (
+                    <div key={c.label} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+                      <span style={{ fontSize:13, flexShrink:0 }}>{c.icon}</span>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.5)", lineHeight:1.5 }}>{c.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="card" style={{ padding:"14px 16px",
+                background:"rgba(239,68,68,0.03)", borderColor:"rgba(239,68,68,0.1)" }}>
+                <p style={{ fontSize:11, fontWeight:600, color:"#ef4444", marginBottom:10 }}>
+                  🔴 Bear risks
+                </p>
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {mp.catalysts.bearish.map(c => (
+                    <div key={c.label} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
+                      <span style={{ fontSize:13, flexShrink:0 }}>{c.icon}</span>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.5)", lineHeight:1.5 }}>{c.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Portfolio implication */}
+            <div className="card" style={{ marginBottom:16, padding:"14px 18px",
+              background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
+              <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa", marginBottom:8 }}>
+                🎯 Portfolio implication for your TFSA / RRSP
+              </p>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.6, marginBottom:12 }}>
+                {mp.portfolioImplication.summary}
+              </p>
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {mp.portfolioImplication.actions.map(a => {
+                  const pColor = a.priority === "High" ? "#ef4444" : a.priority === "Medium" ? "#fbbf24" : "#64748b";
+                  return (
+                    <div key={a.action} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                      <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
+                        whiteSpace:"nowrap", marginTop:1,
+                        background:`${pColor}18`, color: pColor,
+                        border:`1px solid ${pColor}30` }}>
+                        {a.priority}
+                      </span>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5 }}>{a.action}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", lineHeight:1.5 }}>
+              ⚠ Not financial advice. Market signals and outlooks are curated manually and may not reflect current conditions. Last updated {mp.lastUpdated}. Consult a licensed financial advisor before making investment decisions.
+            </p>
+          </div>
+        );
+      })()}
 
       {/* ════════════════════════════════════════════════════════════════════
           TAB: DASHBOARD

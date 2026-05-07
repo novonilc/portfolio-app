@@ -27,11 +27,12 @@ Then open `http://localhost:5173`.
 - [Troubleshooting](#troubleshooting)
 - [File Structure](#file-structure)
 - [Customizing for Your Portfolio](#customizing-for-your-portfolio)
+- [Updating Curated Data](#updating-curated-data)
 - [Data Backup and Portability](#data-backup-and-portability)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
-> **New in this version:** a full-portfolio **Dashboard** tab gives you a combined TFSA + RRSP snapshot — capital allocation in USD and CAD, currency exposure donut charts, ranked top holdings, WHT drag, dividend income breakdown, and portfolio health indicators — all without switching accounts.
+> **New in this version:** a **Market Pulse** tab provides a structured, manually-curated market dashboard — current market regime, macro signal grid, Risk-On/Risk-Off meter, and 3 + 6-month scenario outlooks (bull/base/bear) with Canadian-specific positioning guidance. Also: a full-portfolio **Dashboard** tab gives you a combined TFSA + RRSP snapshot — capital allocation in USD and CAD, currency exposure donut charts, ranked top holdings, WHT drag, dividend income breakdown, and portfolio health indicators — all without switching accounts.
 
 ---
 
@@ -145,7 +146,7 @@ Your portfolio editor. Every holding is a row with editable fields.
 - **Remove ticker**: Inline confirmation (no browser popups) to remove any position.
 
 ### Ideas Tab (Recommendations)
-A curated set of 20 stock and ETF recommendations written specifically for Canadian investors in April 2026, with full investment theses.
+A curated set of 20+ stock and ETF recommendations written specifically for Canadian investors, with full investment theses. Content lives in `src/data/recommendations.json` — see [Updating Curated Data](#updating-curated-data) to add or edit recommendations without touching app code.
 
 Each recommendation card shows:
 - Ticker, company name, sector, conviction level (High/Medium)
@@ -170,6 +171,42 @@ Look up any ticker symbol against the curated database.
 - **Unknown tickers**: If the ticker isn't in the database, the app gives you a ready-to-paste prompt formatted for Claude AI (claude.ai) — asking for a Canadian investor analysis covering business model, fair value, dividend treatment, TFSA vs RRSP placement, and CAGR estimate.
 - **Add to any portfolio**: From a search result, add the security directly to any of your portfolios.
 - **Browse view**: When no search is active, shows all 20 curated tickers as a scannable grid.
+
+### Market Pulse Tab
+A curated, manually-maintained market dashboard that answers two questions: where is the market right now, and where is it likely heading over the next 3–6 months?
+
+**Regime header + Risk-On/Risk-Off gauge:**
+- Current market regime label (e.g. "Cautious Bull — Recovery Mode") with a one-paragraph description
+- A colour-gradient needle gauge (0 = full Risk-Off, 100 = full Risk-On) with a plain-English label and context line
+
+**Macro signals grid (4 panels):**
+
+| Panel | What it covers |
+|---|---|
+| Equities | S&P 500, TSX Composite, VIX, Nasdaq — with values, trend arrows (↑↓→), and one-line notes |
+| Rates & Bonds | Fed funds rate, 10Y Treasury, yield curve shape, BoC rate |
+| Macro | US CPI, unemployment, oil (WTI), gold, USD/CAD |
+| Sentiment | Fear & Greed index, AAII bull/bear survey, put/call ratio, earnings revision direction |
+
+Each signal is colour-coded: green = bullish, yellow = caution, red = bearish, white = neutral.
+
+**3-month and 6-month outlook panels:**
+
+Each horizon has three scenario cards — Bull, Base, Bear — each showing:
+- Probability weight (e.g. 30/45/25%)
+- Trigger condition (what has to happen for this scenario to materialise)
+- Market target (S&P 500 range)
+- Canadian angle (TSX, oil, CAD implications)
+- Portfolio positioning action (what to do in your TFSA/RRSP)
+- Key calendar events to watch (FOMC dates, earnings seasons, political events)
+
+**Bull catalysts vs Bear risks:** Two side-by-side panels listing the main arguments on each side.
+
+**Portfolio implication panel:** A plain-English summary of what the current environment means for a Canadian TFSA/RRSP investor, followed by a prioritised action list (High/Medium/Low) with specific ticker guidance.
+
+> All content in this tab is curated in `src/data/marketPulse.json`. No API calls are made — it reflects the state of the market as of the `lastUpdated` date. See [Updating Curated Data](#updating-curated-data) for how to refresh it.
+
+---
 
 ### Custom Portfolios
 Beyond TFSA and RRSP, create portfolios for any account type.
@@ -204,14 +241,26 @@ Always-visible at the top of the screen:
 The app has six tabs that work best in a specific order. Follow this loop each time you sit down to manage your portfolio:
 
 ```
-Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
+Market Pulse → Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
 ```
 
-**Start on the Dashboard.** Before touching any numbers, the Dashboard gives you a full-portfolio snapshot: combined value in CAD and USD, how your TFSA and RRSP are splitting your wealth, whether WHT is leaking money from TFSA, and whether any positions are too concentrated. This context makes every decision in the other tabs more informed.
+**Start on Market Pulse.** Check the regime label and Risk-On/Risk-Off score before doing anything else. If the outlook is "Cautious Bull" or "Risk-Off", bias toward a longer DCA window and keep more cash in reserve. If the outlook is "Bull" and the 3-month base case looks constructive, you can deploy more aggressively.
 
 ---
 
-### Step 0 — Get the big picture first (Dashboard tab)
+### Step 0 — Read the market environment (Market Pulse tab)
+
+Before touching any portfolio numbers, check Market Pulse:
+
+1. **What is the regime?** — "Cautious Bull", "Risk-Off", or "Bull" sets the tone for how aggressively you deploy cash this session.
+2. **What does the base-case scenario say?** — If the 3-month base case targets a range below current levels, spread your deployment with a 12–16 week DCA window rather than deploying all at once.
+3. **What are the bear risks?** — If the top bear risk is directly relevant to your largest holding (e.g. tariff drag for a tech-heavy TFSA), check whether your target allocation still makes sense.
+
+This tab doesn't require any interaction — just read it. It takes 2 minutes and frames every decision that follows.
+
+---
+
+### Step 1 — Get the portfolio picture (Dashboard tab)
 
 Open the Dashboard before making any changes. It answers the three questions that should drive every portfolio decision:
 
@@ -223,7 +272,7 @@ Only after checking these three points should you proceed to the other tabs.
 
 ---
 
-### Step 1 — Set up your holdings (Edit Targets tab)
+### Step 2 — Set up your holdings (Edit Targets tab)
 
 This is the foundation. Bad inputs here make every other tab unreliable.
 
@@ -239,7 +288,7 @@ This is the foundation. Bad inputs here make every other tab unreliable.
 
 ---
 
-### Step 2 — Model your rebalance (Rebalance tab)
+### Step 3 — Model your rebalance (Rebalance tab)
 
 **Choose your mode:**
 - **Cash-only** (default, recommended): Enter how much new cash you're deploying. The app tells you exactly what to buy without selling anything. This is optimal for registered accounts where you want to avoid realizing gains or triggering unnecessary transactions.
@@ -256,7 +305,7 @@ This is the foundation. Bad inputs here make every other tab unreliable.
 
 ---
 
-### Step 3 — Schedule your purchases (DCA Plan tab)
+### Step 4 — Schedule your purchases (DCA Plan tab)
 
 Once you know your total buy amount from the Rebalance tab, switch to DCA Plan.
 
@@ -276,7 +325,7 @@ Once you know your total buy amount from the Rebalance tab, switch to DCA Plan.
 
 ---
 
-### Step 4 — Optimize account placement (Ideas tab)
+### Step 5 — Optimize account placement (Ideas tab)
 
 Use this tab when you're adding a new position or reviewing whether your existing holdings are in the right accounts.
 
@@ -292,7 +341,7 @@ Use this tab when you're adding a new position or reviewing whether your existin
 
 ---
 
-### Step 5 — Research unknown tickers (Search tab)
+### Step 6 — Research unknown tickers (Search tab)
 
 When you encounter a ticker that isn't in the curated list:
 1. Type the ticker and press Enter
@@ -540,10 +589,13 @@ portfolio-app/
 ├── vite.config.js        # Vite configuration
 └── src/
     ├── main.jsx          # React root mount
-    └── App.jsx           # Entire application (~3,100 lines)
+    ├── App.jsx           # Entire application (~3,400 lines)
+    └── data/
+        ├── recommendations.json   # Ideas tab — curated stock/ETF analysis
+        └── marketPulse.json       # Market Pulse tab — regime, signals, outlooks
 ```
 
-The app is intentionally monolithic — no component splitting, no separate data files, no API layer. This makes it easy to fork, customize, and understand.
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code.
 
 ---
 
@@ -581,6 +633,199 @@ const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","ZAG.TO","XRE.TO",
 The Dashboard tab reads `holdings["TFSA"]` and `holdings["RRSP"]` directly — it always reflects the latest values you've entered in Edit Targets and respects the USD/CAD rate you've set in the header. No additional configuration is needed. The top-holdings limit (8 per account, 12 combined) can be changed by adjusting the `.slice()` calls inside the `tab === "dashboard"` IIFE, around line ~2460.
 
 After changing defaults, run `npm run dev` to see the changes. The app automatically saves to localStorage on any edit, so default data only loads on first use (or after a reset).
+
+---
+
+## Updating Curated Data
+
+The Ideas tab and Market Pulse tab are both driven by JSON files in `src/data/`. You can update either file in any text editor — no code changes required. After saving, the dev server hot-reloads instantly, or rebuild with `npm run build` for production.
+
+---
+
+### Updating `src/data/recommendations.json`
+
+This file powers the **Ideas tab** and the **Ticker Search** quick-access grid.
+
+#### File structure overview
+
+```json
+{
+  "lastUpdated": "2026-04-29",
+  "marketContext": { ... },
+  "recommendations": [ ... ]
+}
+```
+
+#### Adding a new stock/ETF
+
+Add an object to the `recommendations` array:
+
+```json
+{
+  "ticker":    "COST",
+  "name":      "Costco Wholesale",
+  "sector":    "Consumer Staples",
+  "bestFor":   "TFSA",
+  "conviction":"High",
+  "divYield":  0.6,
+  "cagr":      12,
+  "thesis":    "Membership moat insulates Costco from tariff/recession cycles. Volume pricing power means margins hold even as consumers trade down.",
+  "tags":      ["Retail", "Defensive", "Consumer"],
+  "fills":     ["consumer"]
+}
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `ticker` | string | Uppercase. Used for search lookup and gap detection |
+| `name` | string | Full company name shown on the card |
+| `sector` | string | Shown on card and search grid |
+| `bestFor` | `"TFSA"` \| `"RRSP"` \| `"Either"` | Drives the filter bar and WHT placement badge |
+| `conviction` | `"High"` \| `"Medium"` | High = core position sizing; Medium = satellite |
+| `divYield` | number | Annual dividend yield as a percentage (e.g. `0.6` = 0.6%). Use `0` for no dividend |
+| `cagr` | number | Your estimated annual growth rate — used in compound projections |
+| `thesis` | string | 3–5 sentence investment case. Be specific: why now, what's the edge, what's the risk |
+| `tags` | string[] | Used for display only (shown as chips on the card) |
+| `fills` | string[] | Sector gap identifiers. Must match the gap categories the app tracks: `"healthcare"`, `"financials"`, `"defense"`, `"fixed income"`, `"real estate"`, `"international"`, `"energy"` |
+
+> **Which account to recommend?** Use `"RRSP"` for any US-listed security paying a dividend above ~1% — the Canada-US treaty eliminates the 15% IRS withholding tax in RRSP. Use `"TFSA"` for growth stocks with zero or near-zero dividends, and for Canadian-listed securities where no WHT applies regardless of account.
+
+#### Removing a stock
+
+Delete its object from the `recommendations` array. The ticker is automatically removed from the quick-access grid.
+
+#### Updating the market context panel
+
+The `marketContext` object powers the banner at the top of the Ideas tab:
+
+```json
+"marketContext": {
+  "period":           "May 2026",
+  "conflictAlert":    "ACTIVE CONFLICT — Middle East",
+  "conflictInsights": [
+    { "label": "Defense supercycle", "desc": "Explanation of portfolio impact..." }
+  ],
+  "themes": [
+    { "icon": "🛡️", "label": "Defense supercycle", "color": "#f97316", "desc": "One-line context..." }
+  ]
+}
+```
+
+- Remove `conflictAlert` and `conflictInsights` entirely when there is no active conflict
+- `themes` should reflect the 6–8 macro drivers most relevant to the current quarter
+- `color` accepts any CSS hex colour — use red shades for risks, yellow/orange for caution, green for tailwinds, purple for growth themes
+
+---
+
+### Updating `src/data/marketPulse.json`
+
+This file powers the entire **Market Pulse tab**. Update it whenever the market regime, key data points, or your 3/6-month view changes materially — typically monthly or after significant macro events (FOMC meetings, major earnings seasons, geopolitical shifts).
+
+#### File structure overview
+
+```
+marketPulse.json
+├── lastUpdated          string    — ISO date shown in the tab header
+├── period               string    — Human label, e.g. "May 2026"
+├── regime               object    — Current market regime assessment
+├── riskMeter            object    — Risk-On / Risk-Off score and label
+├── macroSignals         array     — 4 signal panels (Equities, Rates, Macro, Sentiment)
+├── outlooks             array     — 3-month and 6-month scenario panels
+├── catalysts            object    — Bull and bear factor lists
+└── portfolioImplication object    — Summary + prioritised action list
+```
+
+#### Updating the regime
+
+```json
+"regime": {
+  "label":       "Cautious Bull",
+  "sublabel":    "Recovery Mode",
+  "color":       "#fbbf24",
+  "description": "One paragraph. What's the key tension in markets right now? What's driving the regime?",
+  "score":       48
+}
+```
+
+- `score` is 0–100 and only used internally to derive the Risk-On/Risk-Off needle position — set it consistently with `riskMeter.score`
+- `color` sets the regime label colour: `#22c55e` (green, bull), `#fbbf24` (amber, caution), `#ef4444` (red, bear/risk-off)
+
+#### Updating the Risk-On/Risk-Off meter
+
+```json
+"riskMeter": {
+  "score":    48,
+  "label":    "Mildly Risk-Off",
+  "sublabel": "One sentence explaining the score.",
+  "color":    "#f97316"
+}
+```
+
+- `score` 0–100: `< 35` = Risk-Off, `35–50` = Mildly Risk-Off, `50–65` = Mildly Risk-On, `> 65` = Risk-On
+- The needle on the gauge moves linearly with this score
+
+#### Updating macro signals
+
+Each signal inside a `macroSignals` category has this shape:
+
+```json
+{ "label": "VIX", "value": "~20", "trend": "down", "status": "caution", "note": "Off April spike; still elevated" }
+```
+
+| Field | Options | Notes |
+|---|---|---|
+| `label` | string | Indicator name |
+| `value` | string | Current value as a formatted string — be human-readable (e.g. `"~4.2%"` not `"0.042"`) |
+| `trend` | `"up"` \| `"down"` \| `"sideways"` | Drives the ↑↓→ trend arrow |
+| `status` | `"bullish"` \| `"bearish"` \| `"caution"` \| `"neutral"` | Overrides the colour. If omitted, colour is derived from `trend` |
+| `note` | string | One short sentence of context — shown as the small grey annotation |
+
+#### Updating 3-month and 6-month scenarios
+
+Each entry in `outlooks` has `horizon` (`"3 months"` or `"6 months"`), `period` (target date label), `scenarios` (array of 3), and `keyEvents` (array of calendar items).
+
+```json
+{
+  "label":          "Base case",
+  "probability":    45,
+  "color":          "#fbbf24",
+  "icon":           "🟡",
+  "trigger":        "What has to happen for this scenario to play out.",
+  "marketTarget":   "S&P 5,400–5,750",
+  "canadianAngle":  "TSX, oil, CAD implications for a Canadian investor.",
+  "positioning":    "What to do in your TFSA/RRSP if this scenario materialises."
+}
+```
+
+- The three probabilities across Bull/Base/Bear should sum to 100
+- `color` conventions: `#22c55e` = bull, `#fbbf24` = base, `#ef4444` = bear
+- Keep `canadianAngle` specific — mention TSX level, oil direction, or CAD rate
+
+#### Updating the portfolio implication
+
+```json
+"portfolioImplication": {
+  "summary": "2–3 sentence plain-English takeaway for a Canadian TFSA/RRSP investor.",
+  "actions": [
+    { "priority": "High",   "action": "Specific thing to do or watch." },
+    { "priority": "Medium", "action": "..." },
+    { "priority": "Low",    "action": "..." }
+  ]
+}
+```
+
+- `priority` accepts `"High"`, `"Medium"`, or `"Low"` — rendered as a colour-coded badge (red/amber/grey)
+- Actions should be concrete (mention tickers or ETFs), not generic ("stay diversified")
+
+#### Recommended update cadence
+
+| Event | What to update |
+|---|---|
+| Monthly | `lastUpdated`, `period`, macro signal values and notes |
+| After FOMC meeting | Fed funds rate signal, Risk-On/Risk-Off score, 3-month scenario probabilities |
+| After major earnings season | Regime description, sentiment signals, catalysts list |
+| Significant geopolitical shift | `regime`, `riskMeter`, bear catalysts, portfolio implication actions |
+| Quarterly | Full review of 6-month outlook scenarios and probabilities |
 
 ---
 
@@ -654,7 +899,7 @@ This application is for **personal financial planning and educational purposes o
 
 Always verify your allocation and trade calculations with your brokerage before executing any transaction. Consult a licensed **Certified Financial Planner (CFP)** or **Investment Advisor** before making significant investment decisions.
 
-Tax rules, contribution limits, and withholding tax treaties are subject to change. This app reflects rules as understood at the time of development (April 2026).
+Tax rules, contribution limits, and withholding tax treaties are subject to change. This app reflects rules as understood at the time of development (May 2026).
 
 ---
 
