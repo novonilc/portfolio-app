@@ -255,6 +255,7 @@ export default function App() {
   const [pulsePasteOpen,   setPulsePasteOpen]  = useState(false);
   const [pulsePasteText,   setPulsePasteText]  = useState("");
   const [pulsePasteError,  setPulsePasteError] = useState(null);
+  const [pulseApplyDone,   setPulseApplyDone]  = useState(false);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -844,7 +845,7 @@ ${lines.length ? lines.join("\n") : "(fetch failed — use your best current kno
 
 Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators. Weight the live numbers heavily; they override your training data.
 
-Generate a complete market pulse JSON for ${monthLabel}. Return ONLY raw JSON — no markdown fences, no explanation, nothing before or after the opening brace.
+Generate a complete market pulse JSON for ${monthLabel}. Return the JSON inside a single \`\`\`json code block. No explanation before or after the code block — only the code block.
 
 Required schema (fill every field; scenario probabilities within each outlook must sum to exactly 100):
 
@@ -1011,8 +1012,20 @@ Required schema (fill every field; scenario probabilities within each outlook mu
   function applyPastedPulse() {
     setPulsePasteError(null);
     try {
-      const stripped = pulsePasteText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      const parsed = JSON.parse(stripped);
+      // 1. Try to pull JSON out of a ```json ... ``` fence
+      // 2. Fall back to finding the outermost { ... } in the text
+      // 3. Last resort: parse the whole pasted text as-is
+      let jsonStr = pulsePasteText;
+      const fenceMatch = pulsePasteText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (fenceMatch) {
+        jsonStr = fenceMatch[1].trim();
+      } else {
+        const start = pulsePasteText.indexOf("{");
+        const end   = pulsePasteText.lastIndexOf("}");
+        if (start !== -1 && end > start) jsonStr = pulsePasteText.slice(start, end + 1);
+      }
+
+      const parsed = JSON.parse(jsonStr);
       if (!parsed.regime || !parsed.macroSignals || !parsed.outlooks) {
         throw new Error("Missing required fields — make sure you pasted the full JSON response.");
       }
@@ -1023,6 +1036,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       localStorage.setItem("pulse:refreshedAt", ts);
       setPulsePasteText("");
       setPulsePasteOpen(false);
+      setPulseApplyDone(true);
+      setTimeout(() => setPulseApplyDone(false), 4000);
     } catch (e) {
       setPulsePasteError(e.message);
     }
@@ -2736,6 +2751,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <p style={{ fontSize:10, color:"#ef4444", marginTop:10, padding:"6px 10px",
                   background:"rgba(239,68,68,0.07)", borderRadius:6, border:"1px solid rgba(239,68,68,0.2)" }}>
                   ⚠ {pulseError}
+                </p>
+              )}
+              {pulseApplyDone && (
+                <p style={{ fontSize:10, color:"#22c55e", marginTop:10, padding:"6px 10px",
+                  background:"rgba(34,197,94,0.07)", borderRadius:6, border:"1px solid rgba(34,197,94,0.2)" }}>
+                  ✓ Market Pulse updated — dashboard refreshed below.
                 </p>
               )}
             </div>
