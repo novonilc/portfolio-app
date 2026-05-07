@@ -243,6 +243,13 @@ export default function App() {
   });
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
   const [targetsFilter,    setTargetsFilter]   = useState("all");
+  const [claudeApiKey,     setClaudeApiKey]    = useState(() => localStorage.getItem("pulse:apiKey") || "");
+  const [marketPulse,      setMarketPulse]     = useState(() => {
+    try { const c = localStorage.getItem("pulse:cache"); return c ? JSON.parse(c) : marketPulseData; } catch { return marketPulseData; }
+  });
+  const [pulseLoading,     setPulseLoading]    = useState(false);
+  const [pulseError,       setPulseError]      = useState(null);
+  const [pulseRefreshedAt, setPulseRefreshedAt]= useState(() => localStorage.getItem("pulse:refreshedAt") || null);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -766,6 +773,218 @@ export default function App() {
     ? current.filter(h => !!h.currencyOverride)
     : current
   ).map((h, idx) => ({ h, idx: current.indexOf(h) }));
+
+  // ── Market Pulse — live data fetch ────────────────────────────────────
+  async function fetchLiveSignals() {
+    const live = {};
+    const tryFetch = async (url, timeout = 5000) => {
+      const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    };
+
+    await Promise.allSettled([
+      tryFetch("https://api.alternative.me/fng/?limit=1").then(d => {
+        live.fearGreedValue = Number(d.data[0].value);
+        live.fearGreedLabel = d.data[0].value_classification;
+      }),
+      tryFetch("https://open.er-api.com/v6/latest/USD").then(d => {
+        live.usdCad = d.rates?.CAD;
+      }),
+      ...[
+        ["sp500",        "^GSPC"],
+        ["tsx",          "^GSPTSE"],
+        ["vix",          "^VIX"],
+        ["gold",         "GC=F"],
+        ["oil",          "CL=F"],
+        ["treasury10y",  "^TNX"],
+      ].map(([key, sym]) =>
+        tryFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`, 6000)
+          .then(d => {
+            const closes = d.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+            const last = closes?.filter(Boolean).pop();
+            if (last) live[key] = last;
+          })
+      ),
+    ]);
+    return live;
+  }
+
+  function buildMarketPulsePrompt(live) {
+    const today = new Date().toISOString().split("T")[0];
+    const monthLabel = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+    const threeMonths = new Date(); threeMonths.setMonth(threeMonths.getMonth() + 3);
+    const sixMonths   = new Date(); sixMonths.setMonth(sixMonths.getMonth() + 6);
+    const fmt3 = threeMonths.toLocaleString("default", { month: "short", year: "numeric" });
+    const fmt6 = sixMonths.toLocaleString("default",   { month: "short", year: "numeric" });
+
+    const lines = [];
+    if (live.fearGreedValue != null) lines.push(`- CNN Fear & Greed Index: ${live.fearGreedValue}/100 (${live.fearGreedLabel})`);
+    if (live.usdCad)       lines.push(`- USD/CAD: ${live.usdCad.toFixed(4)}`);
+    if (live.sp500)        lines.push(`- S&P 500: ${live.sp500.toFixed(0)}`);
+    if (live.tsx)          lines.push(`- TSX Composite: ${live.tsx.toFixed(0)}`);
+    if (live.vix)          lines.push(`- VIX: ${live.vix.toFixed(1)}`);
+    if (live.gold)         lines.push(`- Gold (front-month futures): $${live.gold.toFixed(0)}/oz`);
+    if (live.oil)          lines.push(`- WTI Crude (front-month futures): $${live.oil.toFixed(1)}/barrel`);
+    if (live.treasury10y)  lines.push(`- 10Y US Treasury yield: ${live.treasury10y.toFixed(2)}%`);
+
+    return `You are a senior macro analyst writing a monthly market pulse briefing for a Canadian investor managing a TFSA and RRSP portfolio.
+
+Today's date: ${today}
+3-month target period: ${fmt3}
+6-month target period: ${fmt6}
+
+Live market data fetched right now:
+${lines.length ? lines.join("\n") : "(fetch failed — use your best current knowledge)"}
+
+Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators. Weight the live numbers heavily; they override your training data.
+
+Generate a complete market pulse JSON for ${monthLabel}. Return ONLY raw JSON — no markdown fences, no explanation, nothing before or after the opening brace.
+
+Required schema (fill every field; scenario probabilities within each outlook must sum to exactly 100):
+
+{
+  "lastUpdated": "${today}",
+  "period": "${monthLabel}",
+  "regime": {
+    "label": "short label e.g. Cautious Bull",
+    "sublabel": "short sub-label e.g. Recovery Mode",
+    "color": "#22c55e or #fbbf24 or #ef4444",
+    "description": "2-3 sentences on the current macro environment",
+    "score": 0-100
+  },
+  "riskMeter": {
+    "score": 0-100,
+    "label": "e.g. Mildly Risk-Off",
+    "sublabel": "one sentence context",
+    "color": "#hex"
+  },
+  "macroSignals": [
+    { "category": "Equities",     "icon": "📈", "signals": [
+        { "label": "S&P 500",       "value": "~X,XXX", "trend": "up|down|sideways", "status": "bullish|bearish|caution|neutral", "note": "one line" },
+        { "label": "TSX Composite", "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "VIX",           "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Nasdaq / Tech", "value": "...", "trend": "...", "status": "...", "note": "..." }
+    ]},
+    { "category": "Rates & Bonds", "icon": "🏦", "signals": [
+        { "label": "Fed Funds Rate",      "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "10Y US Treasury",     "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Yield Curve (2s10s)", "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "BoC Rate",            "value": "...", "trend": "...", "status": "...", "note": "..." }
+    ]},
+    { "category": "Macro", "icon": "🌐", "signals": [
+        { "label": "US CPI (YoY)",    "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "US Unemployment", "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Oil (WTI)",       "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Gold",            "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "USD/CAD",         "value": "...", "trend": "...", "status": "...", "note": "..." }
+    ]},
+    { "category": "Sentiment", "icon": "🧠", "signals": [
+        { "label": "Fear & Greed",       "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "AAII Bull/Bear",     "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Put/Call Ratio",     "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Earnings Revisions", "value": "...", "trend": "...", "status": "...", "note": "..." }
+    ]}
+  ],
+  "outlooks": [
+    {
+      "horizon": "3 months", "period": "${fmt3}",
+      "scenarios": [
+        { "label": "Bull case",  "probability": 30, "color": "#22c55e", "icon": "🟢",
+          "trigger": "...", "marketTarget": "S&P X,XXX–X,XXX", "canadianAngle": "TSX/CAD/oil implications", "positioning": "TFSA/RRSP action" },
+        { "label": "Base case",  "probability": 45, "color": "#fbbf24", "icon": "🟡",
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+        { "label": "Bear case",  "probability": 25, "color": "#ef4444", "icon": "🔴",
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." }
+      ],
+      "keyEvents": [
+        { "date": "Mon DD", "event": "description" }
+      ]
+    },
+    {
+      "horizon": "6 months", "period": "${fmt6}",
+      "scenarios": [
+        { "label": "Bull case",  "probability": 28, "color": "#22c55e", "icon": "🟢",
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+        { "label": "Base case",  "probability": 42, "color": "#fbbf24", "icon": "🟡",
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+        { "label": "Bear case",  "probability": 30, "color": "#ef4444", "icon": "🔴",
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." }
+      ],
+      "keyEvents": [
+        { "date": "Mon YYYY", "event": "description" }
+      ]
+    }
+  ],
+  "catalysts": {
+    "bullish": [
+      { "icon": "emoji", "label": "specific catalyst relevant to current environment" }
+    ],
+    "bearish": [
+      { "icon": "emoji", "label": "specific risk relevant to current environment" }
+    ]
+  },
+  "portfolioImplication": {
+    "summary": "2-3 sentences specific to a Canadian TFSA/RRSP investor given the current regime",
+    "actions": [
+      { "priority": "High",   "action": "Specific actionable guidance — name tickers (e.g. GOLD, ENB, ZAG.TO)" },
+      { "priority": "Medium", "action": "..." },
+      { "priority": "Low",    "action": "..." }
+    ]
+  }
+}`;
+  }
+
+  async function refreshMarketPulse() {
+    if (!claudeApiKey.trim()) { setPulseError("Enter your Anthropic API key first."); return; }
+    setPulseLoading(true);
+    setPulseError(null);
+    try {
+      const live = await fetchLiveSignals();
+      const prompt = buildMarketPulsePrompt(live);
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": claudeApiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${res.status}`);
+      }
+
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "";
+
+      // Strip optional markdown fences then parse
+      const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed = JSON.parse(stripped);
+
+      if (!parsed.regime || !parsed.macroSignals || !parsed.outlooks) {
+        throw new Error("Response is missing required fields — try again.");
+      }
+
+      const ts = new Date().toISOString();
+      setMarketPulse(parsed);
+      setPulseRefreshedAt(ts);
+      localStorage.setItem("pulse:cache", JSON.stringify(parsed));
+      localStorage.setItem("pulse:refreshedAt", ts);
+    } catch (e) {
+      setPulseError(e.message);
+    } finally {
+      setPulseLoading(false);
+    }
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -2341,7 +2560,7 @@ export default function App() {
           TAB: MARKET PULSE
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "pulse" && (() => {
-        const mp = marketPulseData;
+        const mp = marketPulse;
         const regime = mp.regime;
         const risk = mp.riskMeter;
 
@@ -2358,6 +2577,53 @@ export default function App() {
         return (
           <div style={{ padding:"22px 28px" }}>
 
+            {/* ── Claude AI refresh panel ── */}
+            <div className="card" style={{ marginBottom:16, padding:"14px 18px",
+              background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:14 }}>✨</span>
+                  <div>
+                    <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa" }}>Refresh with Claude AI</p>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:1 }}>
+                      Fetches live signals (Fear &amp; Greed, FX, prices) then asks Claude to interpret and generate a fresh market pulse.
+                      {pulseRefreshedAt && (
+                        <span style={{ color:"rgba(167,139,250,0.5)", marginLeft:6 }}>
+                          Last refreshed {new Date(pulseRefreshedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                  <input
+                    type="password"
+                    value={claudeApiKey}
+                    onChange={e => { setClaudeApiKey(e.target.value); localStorage.setItem("pulse:apiKey", e.target.value); }}
+                    placeholder="sk-ant-… Anthropic API key"
+                    style={{ fontSize:11, width:220, fontFamily:"'JetBrains Mono',monospace",
+                      background:"rgba(255,255,255,0.04)", border:"1px solid rgba(167,139,250,0.2)",
+                      borderRadius:6, padding:"6px 10px", color:"rgba(255,255,255,0.7)" }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    onClick={refreshMarketPulse}
+                    disabled={pulseLoading}
+                    style={{ fontSize:11, padding:"7px 16px", opacity: pulseLoading ? 0.6 : 1,
+                      background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.3)",
+                      color:"#a78bfa" }}>
+                    {pulseLoading ? "Refreshing…" : "⟳ Refresh"}
+                  </button>
+                </div>
+              </div>
+              {pulseError && (
+                <p style={{ fontSize:10, color:"#ef4444", marginTop:8, padding:"6px 10px",
+                  background:"rgba(239,68,68,0.07)", borderRadius:6, border:"1px solid rgba(239,68,68,0.2)" }}>
+                  ⚠ {pulseError}
+                </p>
+              )}
+            </div>
+
             {/* Header + regime */}
             <div className="card" style={{ marginBottom:16, padding:"16px 20px",
               background:"rgba(34,211,238,0.03)", borderColor:"rgba(34,211,238,0.12)" }}>
@@ -2365,9 +2631,14 @@ export default function App() {
                 <div>
                   <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:4 }}>
                     <p className="sec" style={{ margin:0, color:"#22d3ee88" }}>Market Pulse — {mp.period}</p>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
-                      updated {mp.lastUpdated}
-                    </span>
+                    {pulseRefreshedAt
+                      ? <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontFamily:"'JetBrains Mono',monospace",
+                          background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.6)",
+                          border:"1px solid rgba(167,139,250,0.2)" }}>✨ AI-refreshed {mp.lastUpdated}</span>
+                      : <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
+                          updated {mp.lastUpdated}
+                        </span>
+                    }
                   </div>
                   <p style={{ fontSize:13, fontWeight:600, color:"rgba(255,255,255,0.85)", marginBottom:4 }}>
                     <span style={{ color: regime.color }}>{regime.label}</span>
