@@ -250,6 +250,11 @@ export default function App() {
   const [pulseLoading,     setPulseLoading]    = useState(false);
   const [pulseError,       setPulseError]      = useState(null);
   const [pulseRefreshedAt, setPulseRefreshedAt]= useState(() => localStorage.getItem("pulse:refreshedAt") || null);
+  const [pulseCopyLoading, setPulseCopyLoading]= useState(false);
+  const [pulseCopied,      setPulseCopied]     = useState(false);
+  const [pulsePasteOpen,   setPulsePasteOpen]  = useState(false);
+  const [pulsePasteText,   setPulsePasteText]  = useState("");
+  const [pulsePasteError,  setPulsePasteError] = useState(null);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -983,6 +988,43 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       setPulseError(e.message);
     } finally {
       setPulseLoading(false);
+    }
+  }
+
+  async function copyMarketPulsePrompt() {
+    setPulseCopyLoading(true);
+    setPulseCopied(false);
+    setPulsePasteError(null);
+    try {
+      const live = await fetchLiveSignals();
+      const prompt = buildMarketPulsePrompt(live);
+      await navigator.clipboard.writeText(prompt);
+      setPulseCopied(true);
+      setTimeout(() => setPulseCopied(false), 4000);
+    } catch (e) {
+      setPulseError("Could not copy: " + e.message);
+    } finally {
+      setPulseCopyLoading(false);
+    }
+  }
+
+  function applyPastedPulse() {
+    setPulsePasteError(null);
+    try {
+      const stripped = pulsePasteText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed = JSON.parse(stripped);
+      if (!parsed.regime || !parsed.macroSignals || !parsed.outlooks) {
+        throw new Error("Missing required fields — make sure you pasted the full JSON response.");
+      }
+      const ts = new Date().toISOString();
+      setMarketPulse(parsed);
+      setPulseRefreshedAt(ts);
+      localStorage.setItem("pulse:cache", JSON.stringify(parsed));
+      localStorage.setItem("pulse:refreshedAt", ts);
+      setPulsePasteText("");
+      setPulsePasteOpen(false);
+    } catch (e) {
+      setPulsePasteError(e.message);
     }
   }
 
@@ -2580,44 +2622,118 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             {/* ── Claude AI refresh panel ── */}
             <div className="card" style={{ marginBottom:16, padding:"14px 18px",
               background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:14 }}>✨</span>
-                  <div>
-                    <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa" }}>Refresh with Claude AI</p>
-                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:1 }}>
-                      Fetches live signals (Fear &amp; Greed, FX, prices) then asks Claude to interpret and generate a fresh market pulse.
-                      {pulseRefreshedAt && (
-                        <span style={{ color:"rgba(167,139,250,0.5)", marginLeft:6 }}>
-                          Last refreshed {new Date(pulseRefreshedAt).toLocaleString()}
-                        </span>
+
+              {/* Header row */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, flexWrap:"wrap", gap:6 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ fontSize:13 }}>✨</span>
+                  <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa" }}>Refresh with Claude AI</p>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>—</span>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                    Fetches live signals then asks Claude to generate a fresh market pulse
+                  </p>
+                </div>
+                {pulseRefreshedAt && (
+                  <span style={{ fontSize:9, color:"rgba(167,139,250,0.5)", fontFamily:"'JetBrains Mono',monospace" }}>
+                    last refreshed {new Date(pulseRefreshedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+
+              {/* Two options */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+
+                {/* Option 1 — claude.ai (Pro) */}
+                <div style={{ border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 14px",
+                  background:"rgba(167,139,250,0.05)" }}>
+                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(167,139,250,0.8)", marginBottom:4 }}>
+                    Option 1 — claude.ai <span style={{ fontWeight:400, color:"rgba(167,139,250,0.45)" }}>(uses your Pro plan)</span>
+                  </p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:10, lineHeight:1.5 }}>
+                    Copy a pre-built prompt with live market data already filled in. Paste into claude.ai, then paste Claude's JSON response back here.
+                  </p>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                    <button className="btn" onClick={copyMarketPulsePrompt} disabled={pulseCopyLoading}
+                      style={{ fontSize:11, padding:"6px 14px",
+                        background: pulseCopied ? "rgba(34,197,94,0.15)" : "rgba(167,139,250,0.1)",
+                        borderColor: pulseCopied ? "rgba(34,197,94,0.3)" : "rgba(167,139,250,0.25)",
+                        color: pulseCopied ? "#22c55e" : "#a78bfa",
+                        opacity: pulseCopyLoading ? 0.6 : 1 }}>
+                      {pulseCopyLoading ? "Fetching signals…" : pulseCopied ? "✓ Copied!" : "📋 Copy prompt"}
+                    </button>
+                    {pulseCopied && (
+                      <a href="https://claude.ai" target="_blank" rel="noreferrer"
+                        style={{ fontSize:11, padding:"6px 14px", borderRadius:6, textDecoration:"none",
+                          background:"rgba(34,197,94,0.1)", border:"1px solid rgba(34,197,94,0.25)",
+                          color:"#22c55e" }}>
+                        Open claude.ai →
+                      </a>
+                    )}
+                    <button className="btn" onClick={() => { setPulsePasteOpen(o => !o); setPulsePasteError(null); }}
+                      style={{ fontSize:11, padding:"6px 14px",
+                        background: pulsePasteOpen ? "rgba(34,211,238,0.1)" : "rgba(255,255,255,0.03)",
+                        borderColor: pulsePasteOpen ? "rgba(34,211,238,0.25)" : "rgba(255,255,255,0.08)",
+                        color: pulsePasteOpen ? "#22d3ee" : "rgba(255,255,255,0.4)" }}>
+                      {pulsePasteOpen ? "▲ Close" : "⬇ Paste response"}
+                    </button>
+                  </div>
+
+                  {pulsePasteOpen && (
+                    <div style={{ marginTop:10 }}>
+                      <textarea
+                        value={pulsePasteText}
+                        onChange={e => setPulsePasteText(e.target.value)}
+                        placeholder="Paste Claude's JSON response here…"
+                        rows={6}
+                        style={{ width:"100%", fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                          background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                          borderRadius:6, padding:"8px 10px", color:"rgba(255,255,255,0.6)",
+                          resize:"vertical", boxSizing:"border-box" }}
+                      />
+                      <button className="btn btn-primary" onClick={applyPastedPulse}
+                        disabled={!pulsePasteText.trim()}
+                        style={{ marginTop:6, fontSize:11, padding:"6px 14px",
+                          background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.3)",
+                          color:"#a78bfa", opacity: pulsePasteText.trim() ? 1 : 0.4 }}>
+                        Apply
+                      </button>
+                      {pulsePasteError && (
+                        <p style={{ fontSize:10, color:"#ef4444", marginTop:6, lineHeight:1.4 }}>⚠ {pulsePasteError}</p>
                       )}
-                    </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Option 2 — API key */}
+                <div style={{ border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"12px 14px",
+                  background:"rgba(255,255,255,0.02)" }}>
+                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.45)", marginBottom:4 }}>
+                    Option 2 — API key <span style={{ fontWeight:400, color:"rgba(255,255,255,0.25)" }}>(one-click, pay-per-use)</span>
+                  </p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:10, lineHeight:1.5 }}>
+                    Fully automated. Fetches live data and calls Claude directly. ~$0.004 per refresh.
+                    Get a key at <span style={{ color:"rgba(255,255,255,0.4)" }}>console.anthropic.com</span>
+                  </p>
+                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                    <input type="password" value={claudeApiKey}
+                      onChange={e => { setClaudeApiKey(e.target.value); localStorage.setItem("pulse:apiKey", e.target.value); }}
+                      placeholder="sk-ant-…"
+                      style={{ fontSize:11, flex:"1 1 140px", minWidth:0, fontFamily:"'JetBrains Mono',monospace",
+                        background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                        borderRadius:6, padding:"6px 10px", color:"rgba(255,255,255,0.55)" }}
+                    />
+                    <button className="btn" onClick={refreshMarketPulse} disabled={pulseLoading}
+                      style={{ fontSize:11, padding:"6px 14px", opacity: pulseLoading ? 0.6 : 1,
+                        background:"rgba(255,255,255,0.04)", borderColor:"rgba(255,255,255,0.1)",
+                        color:"rgba(255,255,255,0.45)" }}>
+                      {pulseLoading ? "Refreshing…" : "⟳ Refresh"}
+                    </button>
                   </div>
                 </div>
-                <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
-                  <input
-                    type="password"
-                    value={claudeApiKey}
-                    onChange={e => { setClaudeApiKey(e.target.value); localStorage.setItem("pulse:apiKey", e.target.value); }}
-                    placeholder="sk-ant-… Anthropic API key"
-                    style={{ fontSize:11, width:220, fontFamily:"'JetBrains Mono',monospace",
-                      background:"rgba(255,255,255,0.04)", border:"1px solid rgba(167,139,250,0.2)",
-                      borderRadius:6, padding:"6px 10px", color:"rgba(255,255,255,0.7)" }}
-                  />
-                  <button
-                    className="btn btn-primary"
-                    onClick={refreshMarketPulse}
-                    disabled={pulseLoading}
-                    style={{ fontSize:11, padding:"7px 16px", opacity: pulseLoading ? 0.6 : 1,
-                      background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.3)",
-                      color:"#a78bfa" }}>
-                    {pulseLoading ? "Refreshing…" : "⟳ Refresh"}
-                  </button>
-                </div>
               </div>
+
               {pulseError && (
-                <p style={{ fontSize:10, color:"#ef4444", marginTop:8, padding:"6px 10px",
+                <p style={{ fontSize:10, color:"#ef4444", marginTop:10, padding:"6px 10px",
                   background:"rgba(239,68,68,0.07)", borderRadius:6, border:"1px solid rgba(239,68,68,0.2)" }}>
                   ⚠ {pulseError}
                 </p>
