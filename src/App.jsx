@@ -788,6 +788,16 @@ export default function App() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       return r.json();
     };
+    // FRED public CSV — may fail due to CORS; silently ignored via allSettled
+    const tryFetchFredCSV = async (seriesId, timeout = 6000) => {
+      const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${seriesId}`, { signal: AbortSignal.timeout(timeout) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const text = await r.text();
+      const rows = text.trim().split("\n").filter(l => !l.startsWith("DATE") && l.trim());
+      const last = rows[rows.length - 1]?.split(",");
+      if (!last || isNaN(last[1])) throw new Error("no data");
+      return parseFloat(last[1]);
+    };
 
     await Promise.allSettled([
       tryFetch("https://api.alternative.me/fng/?limit=1").then(d => {
@@ -797,13 +807,18 @@ export default function App() {
       tryFetch("https://open.er-api.com/v6/latest/USD").then(d => {
         live.usdCad = d.rates?.CAD;
       }),
+      tryFetchFredCSV("T10YIE").then(v => { live.breakeven10y = v; }),
+      tryFetchFredCSV("DFII10").then(v => { live.realYield10y = v; }),
       ...[
         ["sp500",        "^GSPC"],
         ["tsx",          "^GSPTSE"],
         ["vix",          "^VIX"],
         ["gold",         "GC=F"],
         ["oil",          "CL=F"],
+        ["treasury3m",   "^IRX"],
+        ["treasury5y",   "^FVX"],
         ["treasury10y",  "^TNX"],
+        ["treasury30y",  "^TYX"],
       ].map(([key, sym]) =>
         tryFetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`, 6000)
           .then(d => {
@@ -832,7 +847,26 @@ export default function App() {
     if (live.vix)          lines.push(`- VIX: ${live.vix.toFixed(1)}`);
     if (live.gold)         lines.push(`- Gold (front-month futures): $${live.gold.toFixed(0)}/oz`);
     if (live.oil)          lines.push(`- WTI Crude (front-month futures): $${live.oil.toFixed(1)}/barrel`);
+    if (live.treasury3m)   lines.push(`- 3M US Treasury yield: ${live.treasury3m.toFixed(2)}%`);
     if (live.treasury10y)  lines.push(`- 10Y US Treasury yield: ${live.treasury10y.toFixed(2)}%`);
+    if (live.treasury5y)   lines.push(`- 5Y US Treasury yield: ${live.treasury5y.toFixed(2)}%`);
+    if (live.treasury30y)  lines.push(`- 30Y US Treasury yield: ${live.treasury30y.toFixed(2)}%`);
+    if (live.breakeven10y) lines.push(`- 10Y Breakeven Inflation (FRED T10YIE): ${live.breakeven10y.toFixed(2)}%`);
+    // Compute real yield from TIPS directly, or fall back to nominal minus breakeven
+    if (live.realYield10y != null) {
+      lines.push(`- 10Y Real Yield (FRED DFII10 TIPS): ${live.realYield10y.toFixed(2)}%`);
+    } else if (live.treasury10y && live.breakeven10y) {
+      lines.push(`- 10Y Real Yield (computed nominal−breakeven): ${(live.treasury10y - live.breakeven10y).toFixed(2)}%`);
+    }
+
+    // Compute key yield curve spreads (in bps) when data is available
+    const spreadLines = [];
+    if (live.treasury3m && live.treasury10y)
+      spreadLines.push(`- 3M–10Y spread: ${Math.round((live.treasury10y - live.treasury3m) * 100)} bps (${live.treasury10y - live.treasury3m >= 0 ? "normal" : "INVERTED — recession signal"})`);
+    if (live.treasury5y && live.treasury30y)
+      spreadLines.push(`- 5Y–30Y spread: ${Math.round((live.treasury30y - live.treasury5y) * 100)} bps`);
+    if (live.treasury10y && live.treasury3m && live.treasury30y)
+      spreadLines.push(`- Curve shape: ${live.treasury10y - live.treasury3m < -0.20 ? "Deeply inverted" : live.treasury10y - live.treasury3m < 0 ? "Mildly inverted" : live.treasury10y - live.treasury3m < 0.30 ? "Flat to slightly positive" : "Normal/Steepening"}`);
 
     return `You are a senior macro analyst writing a monthly market pulse briefing for a Canadian investor managing a TFSA and RRSP portfolio.
 
@@ -842,8 +876,11 @@ Today's date: ${today}
 
 Live market data fetched right now:
 ${lines.length ? lines.join("\n") : "(fetch failed — use your best current knowledge)"}
+${spreadLines.length ? "\nComputed yield curve spreads:\n" + spreadLines.join("\n") : ""}
 
-Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators. Weight the live numbers heavily; they override your training data.
+Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators. Weight the live numbers heavily; they override your training data.
+
+For the yieldCurve section: classify the curve shape (normal, flat, inverted, bear-steepening, bull-flattening, bull-steepening), report all five benchmark yields, compute spreads in bps, estimate the NY Fed 12-month recession probability, describe the inversion history, and give a trajectory outlook. If the 2Y yield is not in the live data above, estimate it from current Fed policy and the live 3M/5Y/10Y anchors.
 
 Generate a complete market pulse JSON for ${monthLabel}. Return the JSON inside a single \`\`\`json code block. No explanation before or after the code block — only the code block.
 
@@ -865,6 +902,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
     "sublabel": "one sentence context",
     "color": "#hex"
   },
+  "yieldCurve": {
+    "shapeLabel": "Normal | Flat | Inverted | Bear-Steepening | Bull-Flattening | Bull-Steepening | Bear-Flattening",
+    "shapeColor": "#22c55e (normal/steepening) or #fbbf24 (flat) or #ef4444 (inverted)",
+    "currentYields": [
+      { "maturity": "3M",  "yield": 0.00 },
+      { "maturity": "2Y",  "yield": 0.00 },
+      { "maturity": "5Y",  "yield": 0.00 },
+      { "maturity": "10Y", "yield": 0.00 },
+      { "maturity": "30Y", "yield": 0.00 }
+    ],
+    "spreads": [
+      { "label": "3M–10Y", "description": "NY Fed recession predictor", "bps": 0, "status": "normal|warning|inverted", "note": "one-line interpretation" },
+      { "label": "2Y–10Y", "description": "Classic 2s10s",              "bps": 0, "status": "normal|warning|inverted", "note": "one-line interpretation" },
+      { "label": "5Y–30Y", "description": "Long-end slope",              "bps": 0, "status": "normal|warning|inverted", "note": "one-line interpretation" }
+    ],
+    "inversionStatus": "e.g. Dis-inverted Apr 2026 after 22-month inversion | Currently inverted X months",
+    "recessionProbability": "~X% (NY Fed 12-month model)",
+    "recessionProbabilityScore": 15,
+    "trajectory": "One sentence on where the curve is heading and why",
+    "canadianCurve": "One sentence on BoC curve dynamics relevant to a Canadian TFSA/RRSP investor"
+  },
   "macroSignals": [
     { "category": "Equities",     "icon": "📈", "signals": [
         { "label": "S&P 500",       "value": "~X,XXX", "trend": "up|down|sideways", "status": "bullish|bearish|caution|neutral", "note": "one line" },
@@ -873,10 +931,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         { "label": "Nasdaq / Tech", "value": "...", "trend": "...", "status": "...", "note": "..." }
     ]},
     { "category": "Rates & Bonds", "icon": "🏦", "signals": [
-        { "label": "Fed Funds Rate",      "value": "...", "trend": "...", "status": "...", "note": "..." },
-        { "label": "10Y US Treasury",     "value": "...", "trend": "...", "status": "...", "note": "..." },
-        { "label": "Yield Curve (2s10s)", "value": "...", "trend": "...", "status": "...", "note": "..." },
-        { "label": "BoC Rate",            "value": "...", "trend": "...", "status": "...", "note": "..." }
+        { "label": "Fed Funds Rate",           "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "10Y US Treasury",          "value": "...", "trend": "...", "status": "...", "note": "..." },
+        { "label": "Yield Curve (2s10s)",      "value": "+/- XX bps", "trend": "...", "status": "...", "note": "..." },
+        { "label": "10Y Real Yield",           "value": "X.XX%", "trend": "...", "status": "bullish (negative real rate) | caution (low positive) | bearish (high positive, restricts credit)", "note": "one line — high real yields compress equity P/E and pressure gold" },
+        { "label": "10Y Breakeven Inflation",  "value": "X.XX%", "trend": "...", "status": "...", "note": "one line — market's 10-year inflation expectation; rising = Fed more constrained" },
+        { "label": "BoC Rate",                 "value": "...", "trend": "...", "status": "...", "note": "..." }
     ]},
     { "category": "Macro", "icon": "🌐", "signals": [
         { "label": "US CPI (YoY)",    "value": "...", "trend": "...", "status": "...", "note": "..." },
@@ -897,11 +957,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       "horizon": "3 months", "period": "${fmt3}",
       "scenarios": [
         { "label": "Bull case",  "probability": 30, "color": "#22c55e", "icon": "🟢",
-          "trigger": "...", "marketTarget": "S&P X,XXX–X,XXX", "canadianAngle": "TSX/CAD/oil implications", "positioning": "TFSA/RRSP action" },
+          "trigger": "...", "marketTarget": "S&P X,XXX–X,XXX", "canadianAngle": "TSX/CAD/oil implications",
+          "positioning": "TFSA/RRSP action",
+          "sectorRotation": "e.g. Overweight Financials + Tech; underweight Utilities" },
         { "label": "Base case",  "probability": 45, "color": "#fbbf24", "icon": "🟡",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
+          "sectorRotation": "..." },
         { "label": "Bear case",  "probability": 25, "color": "#ef4444", "icon": "🔴",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." }
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
+          "sectorRotation": "e.g. Rotate to Staples, Healthcare, Gold — avoid rate-sensitives" }
       ],
       "keyEvents": [
         { "date": "Mon DD", "event": "description" }
@@ -911,11 +975,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       "horizon": "6 months", "period": "${fmt6}",
       "scenarios": [
         { "label": "Bull case",  "probability": 28, "color": "#22c55e", "icon": "🟢",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
+          "sectorRotation": "..." },
         { "label": "Base case",  "probability": 42, "color": "#fbbf24", "icon": "🟡",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
+          "sectorRotation": "..." },
         { "label": "Bear case",  "probability": 30, "color": "#ef4444", "icon": "🔴",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "..." }
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
+          "sectorRotation": "..." }
       ],
       "keyEvents": [
         { "date": "Mon YYYY", "event": "description" }
@@ -2856,6 +2923,179 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               ))}
             </div>
 
+            {/* ── Yield Curve Panel ── */}
+            {mp.yieldCurve && (() => {
+              const yc = mp.yieldCurve;
+
+              // SVG chart helpers
+              const maturityX = { "3M": 18, "2Y": 68, "5Y": 130, "10Y": 210, "30Y": 290 };
+              const yields = (yc.currentYields || []).filter(y => maturityX[y.maturity] !== undefined);
+              const yVals  = yields.map(y => y.yield);
+              const yMin   = Math.max(0, Math.min(...yVals) - 0.3);
+              const yMax   = Math.max(...yVals) + 0.3;
+              const yRange = yMax - yMin || 1;
+              const toSvgY = v => 8 + (1 - (v - yMin) / yRange) * 74; // maps yield → SVG y (8–82)
+
+              const spreadStatusColor = s =>
+                s === "inverted" ? "#ef4444" : s === "warning" ? "#fbbf24" : "#22c55e";
+
+              const points = yields.map(y => `${maturityX[y.maturity]},${toSvgY(y.yield).toFixed(1)}`).join(" ");
+
+              return (
+                <div className="card" style={{ marginBottom:16, padding:"16px 20px",
+                  background:"rgba(34,211,238,0.02)", borderColor:"rgba(34,211,238,0.1)" }}>
+
+                  {/* Header row */}
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+                    <p className="sec" style={{ margin:0, color:"#22d3ee88" }}>Yield Curve</p>
+                    <span style={{ fontSize:11, fontWeight:600, padding:"2px 9px", borderRadius:4,
+                      background: `${yc.shapeColor || "#fbbf24"}18`,
+                      color: yc.shapeColor || "#fbbf24",
+                      border: `1px solid ${yc.shapeColor || "#fbbf24"}35` }}>
+                      {yc.shapeLabel}
+                    </span>
+                    {yc.inversionStatus && (
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
+                        fontFamily:"'JetBrains Mono',monospace" }}>
+                        {yc.inversionStatus}
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ display:"grid", gridTemplateColumns:"auto 1fr", gap:20, alignItems:"start" }}>
+
+                    {/* Left: SVG curve chart */}
+                    <div style={{ minWidth:200 }}>
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginBottom:4,
+                        textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                        US Treasury Yield Curve
+                      </p>
+                      <svg viewBox="0 0 310 100" style={{ width:"100%", maxWidth:310, display:"block",
+                        background:"rgba(255,255,255,0.02)", borderRadius:6, border:"1px solid rgba(255,255,255,0.06)" }}>
+                        {/* Horizontal grid lines */}
+                        {[0.25, 0.5, 0.75].map(f => (
+                          <line key={f} x1="12" x2="298" y1={8 + f * 74} y2={8 + f * 74}
+                            stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+                        ))}
+                        {/* Zero-spread reference (horizontal at mid) */}
+                        {yields.length >= 2 && (
+                          <line x1="12" x2="298"
+                            y1={toSvgY((yMax + yMin) / 2).toFixed(1)}
+                            y2={toSvgY((yMax + yMin) / 2).toFixed(1)}
+                            stroke="rgba(255,255,255,0.08)" strokeWidth="0.5" strokeDasharray="3,3" />
+                        )}
+                        {/* Yield curve path */}
+                        {yields.length >= 2 && (
+                          <polyline points={points} fill="none"
+                            stroke={yc.shapeColor || "#22d3ee"} strokeWidth="2"
+                            strokeLinejoin="round" strokeLinecap="round" />
+                        )}
+                        {/* Dots + labels */}
+                        {yields.map(y => {
+                          const cx = maturityX[y.maturity];
+                          const cy = toSvgY(y.yield);
+                          return (
+                            <g key={y.maturity}>
+                              <circle cx={cx} cy={cy} r="3.5"
+                                fill={yc.shapeColor || "#22d3ee"}
+                                stroke="rgba(0,0,0,0.5)" strokeWidth="1" />
+                              <text x={cx} y={cy - 7} textAnchor="middle"
+                                style={{ fontSize:"6.5px", fill:"rgba(255,255,255,0.55)",
+                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                {y.yield.toFixed(2)}%
+                              </text>
+                              <text x={cx} y={94} textAnchor="middle"
+                                style={{ fontSize:"6px", fill:"rgba(255,255,255,0.3)",
+                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                {y.maturity}
+                              </text>
+                            </g>
+                          );
+                        })}
+                      </svg>
+                    </div>
+
+                    {/* Right: spreads + recession probability + context */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+
+                      {/* Recession probability bar */}
+                      {yc.recessionProbability && (
+                        <div style={{ background:"rgba(255,255,255,0.03)", borderRadius:8,
+                          border:"1px solid rgba(255,255,255,0.07)", padding:"10px 12px" }}>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
+                              textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                              12-Month Recession Probability
+                            </p>
+                            <span style={{ fontSize:13, fontWeight:700,
+                              fontFamily:"'JetBrains Mono',monospace",
+                              color: (yc.recessionProbabilityScore || 0) >= 50 ? "#ef4444"
+                                   : (yc.recessionProbabilityScore || 0) >= 25 ? "#fbbf24" : "#22c55e" }}>
+                              {yc.recessionProbability}
+                            </span>
+                          </div>
+                          {yc.recessionProbabilityScore != null && (
+                            <div style={{ position:"relative", height:5, background:"rgba(255,255,255,0.06)",
+                              borderRadius:3, overflow:"hidden" }}>
+                              <div style={{ position:"absolute", left:0, top:0, bottom:0,
+                                width:`${Math.min(yc.recessionProbabilityScore, 100)}%`,
+                                background: yc.recessionProbabilityScore >= 50 ? "#ef4444"
+                                          : yc.recessionProbabilityScore >= 25 ? "#fbbf24" : "#22c55e",
+                                borderRadius:3, transition:"width 0.5s" }} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Spreads */}
+                      {(yc.spreads || []).map(sp => (
+                        <div key={sp.label} style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
+                          <div style={{ flex:1 }}>
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
+                              {sp.label}
+                              <span style={{ color:"rgba(255,255,255,0.2)", marginLeft:5, fontWeight:400 }}>
+                                {sp.description}
+                              </span>
+                            </p>
+                            <p style={{ fontSize:12, fontWeight:700, marginTop:1,
+                              fontFamily:"'JetBrains Mono',monospace",
+                              color: spreadStatusColor(sp.status) }}>
+                              {sp.bps >= 0 ? "+" : ""}{sp.bps} bps
+                            </p>
+                          </div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", lineHeight:1.4,
+                            maxWidth:160, textAlign:"right", marginTop:2 }}>{sp.note}</p>
+                        </div>
+                      ))}
+
+                      {/* Trajectory + Canadian curve */}
+                      {yc.trajectory && (
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", lineHeight:1.5,
+                          borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:8 }}>
+                          <span style={{ color:"rgba(255,255,255,0.2)", fontSize:9,
+                            textTransform:"uppercase", letterSpacing:"0.05em", display:"block", marginBottom:2 }}>
+                            Trajectory
+                          </span>
+                          {yc.trajectory}
+                        </p>
+                      )}
+                      {yc.canadianCurve && (
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", lineHeight:1.5,
+                          borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:8 }}>
+                          <span style={{ color:"rgba(255,255,255,0.2)", fontSize:9,
+                            textTransform:"uppercase", letterSpacing:"0.05em", display:"block", marginBottom:2 }}>
+                            CAD curve
+                          </span>
+                          {yc.canadianCurve}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Scenario cards now also show Sector Rotation */}
             {/* 3-month and 6-month outlooks */}
             {mp.outlooks.map(outlook => (
               <div key={outlook.horizon} className="card" style={{ marginBottom:16, padding:"16px 20px" }}>
@@ -2900,6 +3140,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>Positioning</p>
                           <p style={{ fontSize:10, color:"rgba(255,255,255,0.6)", lineHeight:1.4 }}>{sc.positioning}</p>
                         </div>
+                        {sc.sectorRotation && (
+                          <div style={{ borderTop:`1px solid ${sc.color}20`, paddingTop:5 }}>
+                            <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:2 }}>Sector rotation</p>
+                            <p style={{ fontSize:10, color:`${sc.color}cc`, lineHeight:1.4 }}>{sc.sectorRotation}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

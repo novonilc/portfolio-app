@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-07",
+  "lastUpdated": "2026-05-13",
   "period": "May 2026",
   "regime": {
     "label": "Geopolitical Pivot",
@@ -13,6 +13,45 @@
     "label": "Cautiously Neutral",
     "sublabel": "Oil pullback and Iran deal hopes are lifting sentiment, but sticky inflation and Fed Chair uncertainty keep a ceiling on risk appetite.",
     "color": "#fbbf24"
+  },
+  "yieldCurve": {
+    "shapeLabel": "Dis-inverting / Bear-Steepening",
+    "shapeColor": "#fbbf24",
+    "currentYields": [
+      { "maturity": "3M",  "yield": 5.18 },
+      { "maturity": "2Y",  "yield": 4.72 },
+      { "maturity": "5Y",  "yield": 4.45 },
+      { "maturity": "10Y", "yield": 4.35 },
+      { "maturity": "30Y", "yield": 4.58 }
+    ],
+    "spreads": [
+      {
+        "label": "3M–10Y",
+        "description": "NY Fed recession predictor",
+        "bps": -83,
+        "status": "inverted",
+        "note": "Still inverted but narrowing sharply from -170 bps peak in late 2024; dis-inversion in progress."
+      },
+      {
+        "label": "2Y–10Y",
+        "description": "Classic 2s10s",
+        "bps": -37,
+        "status": "warning",
+        "note": "Mildly inverted; bear-steepening as long end rises faster on fiscal concerns than short end falls."
+      },
+      {
+        "label": "5Y–30Y",
+        "description": "Long-end slope",
+        "bps": 13,
+        "status": "normal",
+        "note": "Positive slope at the long end indicates term premium re-pricing amid elevated fiscal deficits."
+      }
+    ],
+    "inversionStatus": "3M–10Y inverted for ~22 months; 2s10s briefly un-inverted Mar 2026, re-inverted on oil shock",
+    "recessionProbability": "~28% (NY Fed 12-month model)",
+    "recessionProbabilityScore": 28,
+    "trajectory": "Curve is bear-steepening — short end anchored by Fed hold while long end drifts higher on fiscal deficit concerns and term premium normalization; full un-inversion likely within 2–3 months if ceasefire holds.",
+    "canadianCurve": "BoC curve is already positively sloped (rate at 2.25% vs. 10Y GoC ~3.65%); ZAG.TO benefits if BoC resumes cuts in H2 — duration risk is manageable here compared to the US."
   },
   "macroSignals": [
     {
@@ -69,17 +108,31 @@
         },
         {
           "label": "Yield Curve (2s10s)",
-          "value": "~+30 bps",
+          "value": "~-37 bps",
           "trend": "up",
+          "status": "caution",
+          "note": "Still inverted but narrowing; bear-steepening driven by rising long-end term premium, not Fed cuts. Full un-inversion expected in 2–3 months."
+        },
+        {
+          "label": "10Y Real Yield",
+          "value": "~2.0%",
+          "trend": "up",
+          "status": "caution",
+          "note": "Real yields at restrictive levels — compressing equity P/E multiples and capping gold upside; any Fed pivot would push real yields sharply lower."
+        },
+        {
+          "label": "10Y Breakeven Inflation",
+          "value": "~2.35%",
+          "trend": "down",
           "status": "neutral",
-          "note": "Curve has been gradually steepening from deeply inverted levels; near-normal slope suggests growth expectations intact but not exuberant."
+          "note": "Market pricing 2.35% average inflation over 10 years — slightly above Fed target but receding from 2.6% peak as oil retreats; consistent with one or two cuts by late 2026."
         },
         {
           "label": "BoC Rate",
           "value": "2.25%",
           "trend": "sideways",
           "status": "neutral",
-          "note": "BoC held April 29; projecting 1.2% GDP growth in 2026. CPI climbed to 2.4% in March on gasoline prices; core remains just above 2%. No cuts expected through 2026."
+          "note": "BoC held April 29; projecting 1.2% GDP growth in 2026. CPI climbed to 2.4% in March on gasoline prices; core remains just above 2%. No cuts expected through mid-2026."
         }
       ]
     },
@@ -169,30 +222,33 @@
           "probability": 32,
           "color": "#22c55e",
           "icon": "🟢",
-          "trigger": "Iran deal finalised; oil falls to $70–75; CPI drops toward 2.8% — unlocking a Fed cut in September",
+          "trigger": "Iran deal finalised; oil falls to $70–75; CPI drops toward 2.8% — unlocking a Fed cut in September; yield curve fully un-inverts as 2s10s turns positive",
           "marketTarget": "S&P 7,800–8,100",
-          "canadianAngle": "TSX 35,000+; CAD weakens as oil slides but equities outperform on rate optimism; ENB, XIU benefit",
-          "positioning": "Add quality growth (NVDA, AMZN, SHOP); deploy cash that was held back during oil-shock uncertainty"
+          "canadianAngle": "TSX 35,000+; CAD weakens as oil slides but equities outperform on rate optimism; ENB, XIU benefit; ZAG.TO rallies on BoC cut bets",
+          "positioning": "Add quality growth (NVDA, AMZN, SHOP); deploy cash held back during oil-shock uncertainty; add ZAG.TO in RRSP on rate cut signal",
+          "sectorRotation": "Overweight Financials (steeper curve lifts NIM), Technology, Industrials; underweight Energy (falling oil), Utilities"
         },
         {
           "label": "Base case",
           "probability": 45,
           "color": "#fbbf24",
           "icon": "🟡",
-          "trigger": "Ceasefire holds but no final deal; oil stays $85–95; Fed stays on hold; AI earnings carry the index",
+          "trigger": "Ceasefire holds but no final deal; oil stays $85–95; Fed stays on hold; AI earnings carry the index; yield curve continues gradual bear-steepening",
           "marketTarget": "S&P 7,200–7,600",
-          "canadianAngle": "TSX 32,500–34,500; CAD range-bound 1.37–1.40; energy names volatile around oil headlines",
-          "positioning": "Hold diversified portfolio; DCA into weakness; keep 10–15% cash for H2 deployment window"
+          "canadianAngle": "TSX 32,500–34,500; CAD range-bound 1.37–1.40; energy names volatile around oil headlines; curve steepening is mildly positive for Canadian banks",
+          "positioning": "Hold diversified portfolio; DCA into weakness; keep 10–15% cash for H2 deployment window; maintain gold hedge",
+          "sectorRotation": "Neutral weight across sectors; mild tilt to Quality factor (large-cap, high-margin); reduce small-cap exposure given curve inversion risk"
         },
         {
           "label": "Bear case",
           "probability": 23,
           "color": "#ef4444",
           "icon": "🔴",
-          "trigger": "Ceasefire collapses; oil spikes back above $110; CPI re-accelerates; Fed forced to hike",
+          "trigger": "Ceasefire collapses; oil spikes back above $110; CPI re-accelerates; Fed forced to hike; yield curve re-inverts deepening recession signal",
           "marketTarget": "S&P 6,400–6,900",
-          "canadianAngle": "TSX 29,000–31,000 — energy rallies but financials and rate-sensitives sold heavily",
-          "positioning": "Lean into defensives (BRK.B, GOLD, RTX); increase ZAG.TO; trim speculative tech positions"
+          "canadianAngle": "TSX 29,000–31,000 — energy rallies but financials and rate-sensitives sold heavily; CAD strengthens briefly then reverses",
+          "positioning": "Lean into defensives (BRK.B, GOLD, RTX); increase ZAG.TO (short-duration); trim speculative tech positions; reduce leverage entirely",
+          "sectorRotation": "Rotate into Consumer Staples, Healthcare, Gold miners (GOLD, ABX.TO); avoid Financials (re-inversion crushes NIM), Real Estate, small-cap growth"
         }
       ],
       "keyEvents": [
@@ -210,30 +266,33 @@
           "probability": 28,
           "color": "#22c55e",
           "icon": "🟢",
-          "trigger": "Oil normalises below $75; 1–2 Fed cuts by year-end; AI investment super-cycle intact; new Fed Chair credible",
+          "trigger": "Oil normalises below $75; 1–2 Fed cuts by year-end; AI investment super-cycle intact; new Fed Chair credible; yield curve fully normalised with 2s10s at +40–60 bps — historically bullish for equities 12 months forward",
           "marketTarget": "S&P 8,200–8,700",
-          "canadianAngle": "TSX 36,000+; BoC resumes cuts; housing stabilises; SHOP and Canadian tech rebound",
-          "positioning": "Increase equity allocation; add INDA, MELI for EM exposure; rotate some fixed income into equities"
+          "canadianAngle": "TSX 36,000+; BoC resumes cuts; housing stabilises; SHOP and Canadian tech rebound; ZAG.TO rallies 5–7%; GoC curve steepens",
+          "positioning": "Increase equity allocation to 80%+; add INDA, MELI for EM exposure; rotate some fixed income into equities; add XRE.TO as BoC pivots",
+          "sectorRotation": "Overweight Financials (steeper curve major tailwind for bank NIMs), Technology (rate-sensitive growth re-rates), Real Estate (XRE.TO); underweight Energy, Utilities"
         },
         {
           "label": "Base case",
           "probability": 42,
           "color": "#fbbf24",
           "icon": "🟡",
-          "trigger": "Geopolitical fog persists; Fed holds all year; growth moderate at 1.5–2%; margins hold on AI productivity",
+          "trigger": "Geopolitical fog persists; Fed holds all year; growth moderate at 1.5–2%; margins hold on AI productivity; yield curve flat-to-slight-positive with 2s10s near 0–20 bps",
           "marketTarget": "S&P 7,100–7,700",
-          "canadianAngle": "TSX 32,000–35,000; CAD stable; XRE.TO and ZAG.TO outperform as BoC eventually pivots",
-          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; add XRE.TO on weakness"
+          "canadianAngle": "TSX 32,000–35,000; CAD stable; XRE.TO and ZAG.TO outperform modestly as BoC eventually pivots; Canadian bank dividends provide buffer",
+          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; add XRE.TO on weakness; maintain 10% gold allocation",
+          "sectorRotation": "Barbell strategy: Quality growth (NVDA, MSFT) + Defensives (staples, healthcare); underweight rate-sensitive cyclicals pending curve clarity"
         },
         {
           "label": "Bear case",
           "probability": 30,
           "color": "#ef4444",
           "icon": "🔴",
-          "trigger": "New Fed Chair loses credibility; stagflation entrenches; credit spreads widen; corporate earnings fall 10%+",
+          "trigger": "New Fed Chair loses credibility; stagflation entrenches; credit spreads widen; corporate earnings fall 10%+; yield curve deepens re-inversion below -100 bps on 3M–10Y — recession probability spikes above 50%",
           "marketTarget": "S&P 5,800–6,500",
-          "canadianAngle": "TSX 26,000–29,000; housing correction accelerates; BoC forced into emergency cuts",
-          "positioning": "Max defensives; raise TLT + ZAG.TO to 20% of RRSP; hold GOLD ETF; reduce leverage entirely"
+          "canadianAngle": "TSX 26,000–29,000; housing correction accelerates; BoC forced into emergency cuts; GoC curve also inverts; CAD weakens sharply",
+          "positioning": "Max defensives; raise TLT + ZAG.TO to 20% of RRSP (cut duration plays benefit); hold GOLD ETF; reduce leverage entirely; build cash to 20%",
+          "sectorRotation": "Defensive maximum: Consumer Staples (L.TO, MRU.TO), Utilities (FTS.TO), Healthcare, Gold miners; liquidate all speculative growth, crypto, REITs"
         }
       ],
       "keyEvents": [
@@ -246,27 +305,30 @@
   "catalysts": {
     "bullish": [
       { "icon": "🕊️", "label": "Iran ceasefire deal finalised — oil drops to $70–75, CPI falls, clearing path for Fed cuts" },
+      { "icon": "📈", "label": "Yield curve fully un-inverts (2s10s goes positive) — historically the strongest 12-month equity signal when paired with soft-landing data" },
       { "icon": "🤖", "label": "AI capex super-cycle driving NVDA, MSFT, AMZN, GOOG earnings above consensus" },
       { "icon": "🛡️", "label": "Defense supercycle locked in by NATO 2% mandate regardless of Middle East outcome" },
       { "icon": "🥇", "label": "Gold and CAD energy providing structural safe-haven ballast independent of rate cycle" },
       { "icon": "💊", "label": "GLP-1 and healthcare demographics driving secular demand for NVO, ISRG, LLY" }
     ],
     "bearish": [
-      { "icon": "🔥", "label": "Iran ceasefire collapse — oil back above $110 forces Fed to hike, crushing equity multiples" },
-      { "icon": "🏛️", "label": "Fed Chair transition — new appointment seen as politically influenced, triggering bond sell-off" },
+      { "icon": "🔥", "label": "Iran ceasefire collapse — oil back above $110 forces Fed to hike, yield curve deepens inversion, crushing equity multiples" },
+      { "icon": "📉", "label": "Yield curve re-inversion below -100 bps on 3M–10Y — NY Fed recession probability spikes above 50%, triggering institutional de-risking" },
+      { "icon": "🏛️", "label": "Fed Chair transition — new appointment seen as politically influenced, triggering bond sell-off and curve steepening for wrong reasons" },
       { "icon": "📈", "label": "Services inflation re-entrenching above 4% — last-mile problem proves unsolvable without recession" },
-      { "icon": "🏢", "label": "Commercial real estate stress spreading to regional bank loan books — credit event risk" },
-      { "icon": "💳", "label": "US consumer credit card delinquencies at 10-year highs — spending slowdown accelerating" }
+      { "icon": "🏢", "label": "Commercial real estate stress spreading to regional bank loan books — credit event risk amplified by inverted curve compressing NIMs" },
+      { "icon": "💳", "label": "US consumer credit card delinquencies at 10-year highs — spending slowdown accelerating, validating the curve's recession signal" }
     ]
   },
   "portfolioImplication": {
-    "summary": "The Iran de-escalation is the single biggest variable — a confirmed deal unlocks a Fed pivot and a strong H2 rally. Until it's signed, maintain a cautious posture: hold your core positions, keep 10–15% cash, and DCA rather than deploy lump sums. Your GOLD and energy exposure (CNQ, ENB) is working as intended — these are the right hedges for this regime.",
+    "summary": "The Iran de-escalation is the single biggest variable — a confirmed deal unlocks a Fed pivot and a strong H2 rally. The yield curve's gradual bear-steepening is a cautiously positive sign (recession risk receding vs. peak inversion), but the 2s10s remains negative, warning against aggressive risk-on positioning. Until the curve fully un-inverts and CPI cooperates, maintain a cautious barbell: core quality growth + defensive hedges, with 10–15% cash ready to deploy.",
     "actions": [
-      { "priority": "High",   "action": "Hold GOLD and ENB — both performing their hedge function; do not trim until oil direction is clear" },
-      { "priority": "High",   "action": "DCA into NVDA and AMZN on any 5–8% dips — AI capex is the one consensus trade that's still intact" },
-      { "priority": "Medium", "action": "Consider adding ZAG.TO in RRSP if bear case probability rises above 35% — rate cut optionality" },
+      { "priority": "High",   "action": "Hold GOLD and ENB — both performing their hedge function; yield curve inversion historically precedes commodity outperformance by 6–12 months" },
+      { "priority": "High",   "action": "DCA into NVDA and AMZN on any 5–8% dips — AI capex is the one consensus trade that's still intact regardless of curve shape" },
+      { "priority": "Medium", "action": "Add ZAG.TO in RRSP as yield curve steepens — duration benefits if Fed eventually cuts; short-duration preferred over TLT until inversion fully resolves" },
+      { "priority": "Medium", "action": "Watch Canadian bank stocks (RY, TD) — they re-rate meaningfully when BoC curve steepens; the 2s10s un-inversion is the trigger" },
       { "priority": "Medium", "action": "Review any TFSA position paying US dividends above 1.5% — WHT drag compounds painfully in a flat market" },
-      { "priority": "Low",    "action": "Watch SHOP and XRE.TO for entry points — both are cheap on a BoC-cut scenario but don't force it yet" }
+      { "priority": "Low",    "action": "Watch SHOP and XRE.TO for entry points — both are cheap on a BoC-cut scenario but don't force it until curve fully normalises" }
     ]
   }
 }
