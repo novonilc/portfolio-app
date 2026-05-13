@@ -762,9 +762,19 @@ export default function App() {
   const targetSum = current.reduce((s, h) => s + h.target, 0);
 
   const filteredRecs = RECOMMENDATIONS.filter(r => {
-    if (recFilter === "tfsa") return r.bestFor === "TFSA" || r.bestFor === "both";
-    if (recFilter === "rrsp") return r.bestFor === "RRSP" || r.bestFor === "both";
-    if (recFilter === "gaps") return r.fills.some(f => gaps.includes(f));
+    if (recFilter === "tfsa")  return r.bestFor === "TFSA" || r.bestFor === "both";
+    if (recFilter === "rrsp")  return r.bestFor === "RRSP" || r.bestFor === "both";
+    if (recFilter === "gaps")  return r.fills.some(f => gaps.includes(f));
+    if (recFilter === "pulse") {
+      // Keep ideas whose sector is explicitly aligned with the base-case 3M sector rotation
+      const rotation = marketPulse?.outlooks?.[0]?.scenarios
+        ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+      const sectorWord = (r.sector || "").toLowerCase().split(" ")[0];
+      return ["overweight", "add", "rotate into", "favor", "tilt to"].some(term => {
+        const idx = rotation.indexOf(term);
+        return idx !== -1 && rotation.slice(idx, idx + 90).includes(sectorWord);
+      });
+    }
     return true;
   }).filter(r => {
     const allTickers = new Set([...holdings.TFSA, ...holdings.RRSP].map(h => h.ticker));
@@ -2279,53 +2289,96 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
           )}
 
-          {/* Market context card — data from src/data/recommendations.json */}
+          {/* ── Market context card — live from Market Pulse ── */}
           {(() => {
+            const mp  = marketPulse;
             const ctx = portfolioIdeas.marketContext;
+            const regime   = mp.regime;
+            const risk     = mp.riskMeter;
+            const outlook3m = mp.outlooks?.[0];
+            const baseCase  = outlook3m?.scenarios?.find(s => s.label === "Base case");
+            const yc        = mp.yieldCurve;
+
             return (
               <div className="card" style={{ marginBottom:16, padding:"14px 18px",
                 background:"rgba(34,211,238,0.03)", borderColor:"rgba(34,211,238,0.1)" }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10, flexWrap:"wrap", gap:6 }}>
+
+                {/* Header */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                  marginBottom:12, flexWrap:"wrap", gap:6 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                     <p className="sec" style={{ margin:0, color:"#22d3ee88" }}>
-                      Market context — {ctx.period}
+                      Market context — {mp.period}
                     </p>
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
-                      updated {portfolioIdeas.lastUpdated}
-                    </span>
+                    {pulseRefreshedAt
+                      ? <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                          background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.6)",
+                          border:"1px solid rgba(167,139,250,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
+                          ✨ AI live
+                        </span>
+                      : <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", fontFamily:"'JetBrains Mono',monospace" }}>
+                          updated {mp.lastUpdated}
+                        </span>
+                    }
                   </div>
-                  {ctx.conflictAlert && (
-                    <span style={{ fontSize:10, padding:"2px 9px", borderRadius:4,
-                      background:"rgba(239,68,68,0.1)", color:"#ef4444",
-                      border:"1px solid rgba(239,68,68,0.25)", fontWeight:600, letterSpacing:"0.04em" }}>
-                      ⚠ {ctx.conflictAlert}
+                  {/* Regime + risk meter pills */}
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+                    <span style={{ fontSize:10, fontWeight:600, padding:"2px 9px", borderRadius:4,
+                      background:`${regime.color}18`, color: regime.color,
+                      border:`1px solid ${regime.color}35` }}>
+                      {regime.label}
                     </span>
-                  )}
+                    <span style={{ fontSize:10, padding:"2px 9px", borderRadius:4,
+                      background:`${risk.color}12`, color: risk.color,
+                      border:`1px solid ${risk.color}25` }}>
+                      Risk {risk.score}/100 — {risk.label}
+                    </span>
+                    {yc && (
+                      <span style={{ fontSize:10, padding:"2px 9px", borderRadius:4,
+                        background:`${yc.shapeColor || "#fbbf24"}12`,
+                        color: yc.shapeColor || "#fbbf24",
+                        border:`1px solid ${yc.shapeColor || "#fbbf24"}25` }}>
+                        Curve: {yc.shapeLabel}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {ctx.conflictInsights && ctx.conflictInsights.length > 0 && (
-                  <div style={{ background:"rgba(239,68,68,0.05)", border:"1px solid rgba(239,68,68,0.2)",
-                    borderLeft:"3px solid #ef4444", borderRadius:8, padding:"10px 14px", marginBottom:12 }}>
-                    <p style={{ fontSize:11, fontWeight:600, color:"#ef4444", marginBottom:5 }}>
-                      {ctx.conflictAlert} — direct portfolio implications
-                    </p>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:6 }}>
-                      {ctx.conflictInsights.map(c => (
-                        <div key={c.label} style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                          <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.65)" }}>{c.label}</p>
-                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.32)", lineHeight:1.4 }}>{c.desc}</p>
-                        </div>
-                      ))}
+                {/* Base-case 3-month snapshot + sector rotation */}
+                {baseCase && (
+                  <div style={{ background:"rgba(251,191,36,0.05)", border:"1px solid rgba(251,191,36,0.15)",
+                    borderLeft:"3px solid #fbbf24", borderRadius:8, padding:"10px 14px", marginBottom:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      marginBottom:6, flexWrap:"wrap", gap:4 }}>
+                      <p style={{ fontSize:10, fontWeight:600, color:"#fbbf24" }}>
+                        🟡 Base case ({outlook3m.horizon}) — {baseCase.probability}% probability
+                      </p>
+                      <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                        color:"#fbbf24" }}>{baseCase.marketTarget}</span>
                     </div>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)", lineHeight:1.5, marginBottom:6 }}>
+                      {baseCase.trigger}
+                    </p>
+                    {baseCase.sectorRotation && (
+                      <div style={{ display:"flex", gap:6, alignItems:"flex-start" }}>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase",
+                          letterSpacing:"0.05em", whiteSpace:"nowrap", marginTop:1 }}>Sector rotation</span>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.4 }}>
+                          {baseCase.sectorRotation}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
+                {/* Investment themes from recommendations.json (curated) */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:8 }}>
                   {ctx.themes.map(c => (
                     <div key={c.label} style={{ display:"flex", gap:8, alignItems:"flex-start" }}>
                       <span style={{ fontSize:15, flexShrink:0 }}>{c.icon}</span>
                       <div>
-                        <p style={{ fontSize:11, fontWeight:500, color: c.color || "rgba(255,255,255,0.7)", marginBottom:2 }}>{c.label}</p>
+                        <p style={{ fontSize:11, fontWeight:500,
+                          color: c.color || "rgba(255,255,255,0.7)", marginBottom:2 }}>{c.label}</p>
                         <p style={{ fontSize:10, color:"rgba(255,255,255,0.33)", lineHeight:1.4 }}>{c.desc}</p>
                       </div>
                     </div>
@@ -2335,12 +2388,89 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             );
           })()}
 
+          {/* ── Signal → Trade panel (from Market Pulse portfolioImplication) ── */}
+          {(() => {
+            const actions = marketPulse?.portfolioImplication?.actions || [];
+            if (!actions.length) return null;
+
+            // Extract known tickers from action text
+            const knownTickers = new Set(RECOMMENDATIONS.map(r => r.ticker));
+            const extractTickers = txt =>
+              [...new Set((txt.match(/\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b/g) || [])
+                .filter(t => knownTickers.has(t)))];
+
+            const pColor = p => p === "High" ? "#ef4444" : p === "Medium" ? "#fbbf24" : "#64748b";
+
+            return (
+              <div className="card" style={{ marginBottom:16, padding:"14px 18px",
+                background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+                  <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa" }}>
+                    🎯 Pulse signals → trade actions
+                  </p>
+                  <span style={{ fontSize:9, color:"rgba(167,139,250,0.4)" }}>
+                    from current Market Pulse · click tickers to filter Ideas
+                  </span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {actions.map((a, i) => {
+                    const tickers = extractTickers(a.action);
+                    const pc = pColor(a.priority);
+                    return (
+                      <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start",
+                        padding:"8px 12px", borderRadius:8,
+                        background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)" }}>
+                        <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                          whiteSpace:"nowrap", marginTop:1, fontWeight:600,
+                          background:`${pc}18`, color: pc, border:`1px solid ${pc}30` }}>
+                          {a.priority}
+                        </span>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)",
+                          lineHeight:1.5, flex:1 }}>{a.action}</p>
+                        {tickers.length > 0 && (
+                          <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap",
+                            alignItems:"center" }}>
+                            {tickers.map(t => {
+                              const rec = RECOMMENDATIONS.find(r => r.ticker === t);
+                              return (
+                                <button key={t}
+                                  onClick={() => addRecommendedTicker(rec, rec?.bestFor === "RRSP" ? "RRSP" : "TFSA")}
+                                  title={`Add ${t} to ${rec?.bestFor === "RRSP" ? "RRSP" : "TFSA"}`}
+                                  style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                                    fontWeight:600, padding:"3px 8px", borderRadius:4, cursor:"pointer",
+                                    background:"rgba(167,139,250,0.12)",
+                                    border:"1px solid rgba(167,139,250,0.3)",
+                                    color:"#a78bfa" }}>
+                                  + {t}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Filter bar */}
           <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap", alignItems:"center" }}>
             <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginRight:4 }}>Filter:</span>
-            {[["all","All ideas"],["tfsa","Best for TFSA"],["rrsp","Best for RRSP"],["gaps","Fills Gaps"]].map(([v,l]) => (
+            {[
+              ["all",   "All ideas"],
+              ["tfsa",  "Best for TFSA"],
+              ["rrsp",  "Best for RRSP"],
+              ["gaps",  "Fills Gaps"],
+              ["pulse", "✨ Pulse aligned"],
+            ].map(([v,l]) => (
               <button key={v} className={`tab-btn ${recFilter===v?"on":""}`}
-                onClick={() => setRecFilter(v)} style={{ padding:"5px 12px", fontSize:11 }}>
+                onClick={() => setRecFilter(v)}
+                style={{ padding:"5px 12px", fontSize:11,
+                  ...(v === "pulse" && recFilter !== "pulse"
+                    ? { borderColor:"rgba(167,139,250,0.3)", color:"rgba(167,139,250,0.7)" }
+                    : {}) }}>
                 {l}
               </button>
             ))}
@@ -2358,7 +2488,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
           ) : (
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12 }}>
-              {filteredRecs.map(rec => (
+              {filteredRecs.map(rec => {
+                // Compute regime alignment from base-case 3M sector rotation
+                const rotation = marketPulse?.outlooks?.[0]?.scenarios
+                  ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+                const sectorWord = (rec.sector || "").toLowerCase().split(" ")[0];
+                let alignment = null;
+                if (rotation) {
+                  const isAligned = ["overweight","add","rotate into","favor","tilt to"]
+                    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+                  const isAvoid = ["underweight","avoid","reduce","trim","rotate out"]
+                    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+                  if (isAligned) alignment = { label:"Regime aligned", color:"#22c55e" };
+                  else if (isAvoid) alignment = { label:"Regime avoid", color:"#ef4444" };
+                }
+
+                return (
                 <div key={rec.ticker} className="rec-card">
                   {/* Card header */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -2375,6 +2520,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           border: `1px solid ${rec.conviction === "High" ? "rgba(52,211,153,0.3)" : "rgba(148,163,184,0.2)"}` }}>
                           {rec.conviction}
                         </span>
+                        {alignment && (
+                          <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
+                            background:`${alignment.color}15`, color: alignment.color,
+                            border:`1px solid ${alignment.color}35` }}>
+                            {alignment.label === "Regime aligned" ? "✓" : "✗"} {alignment.label}
+                          </span>
+                        )}
                       </div>
                       <p style={{ fontSize:11, color:"rgba(255,255,255,0.45)" }}>{rec.name}</p>
                     </div>
@@ -2396,7 +2548,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </div>
                   </div>
 
-                  {/* Sector */}
+                  {/* Sector + tags */}
                   <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                     <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
                       background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.4)",
@@ -2436,7 +2588,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
