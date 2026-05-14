@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import portfolioIdeas from "./data/recommendations.json";
 import marketPulseData from "./data/marketPulse.json";
 const RECOMMENDATIONS = portfolioIdeas.recommendations;
@@ -229,6 +229,8 @@ export default function App() {
   const [holdings,         setHoldings]        = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
   const [saveStatus,       setSaveStatus]      = useState("");
   const [backupStatus,     setBackupStatus]    = useState("");
+  const [autoSaveAt,       setAutoSaveAt]      = useState(() => localStorage.getItem("portfolio:autosave:ts") || null);
+  const autoSaveRef = useRef(null);
   const [tab,              setTab]             = useState("rebalance");
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
@@ -293,6 +295,39 @@ export default function App() {
       if (fxData) setUsdCadRate(Number(fxData) || 1.38);
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
+
+  // Keep the ref pointing at the latest state on every render — lets the
+  // interval fire without needing to re-mount when state changes.
+  autoSaveRef.current = () => {
+    try {
+      const snapshot = JSON.stringify({
+        backupVersion: 2,
+        exportedAt: new Date().toISOString(),
+        portfolios,
+        holdings,
+        cashHolding,
+        contribPlan,
+        usdCadRate,
+        pulse: { cache: marketPulse, refreshedAt: pulseRefreshedAt },
+      });
+      localStorage.setItem("portfolio:autosave", snapshot);
+      const ts = new Date().toISOString();
+      localStorage.setItem("portfolio:autosave:ts", ts);
+      setAutoSaveAt(ts);
+    } catch (e) { console.warn("Auto-save failed:", e); }
+  };
+
+  // Periodic auto-save every 5 minutes
+  useEffect(() => {
+    const id = setInterval(() => autoSaveRef.current?.(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Debounced auto-save — 10 s after the last meaningful data change
+  useEffect(() => {
+    const t = setTimeout(() => autoSaveRef.current?.(), 10_000);
+    return () => clearTimeout(t);
+  }, [holdings, cashHolding, contribPlan, usdCadRate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist helpers ────────────────────────────────────────────────────
   function persist(acct, data) {
@@ -456,6 +491,16 @@ export default function App() {
     setHoldings(next);
     persist(account, next[account]);
     setShowReset(false);
+  }
+
+  function relTime(ts) {
+    if (!ts) return null;
+    const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+    if (mins < 1)  return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24)  return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
   }
 
   function exportData() {
@@ -1311,12 +1356,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             )}
 
             {/* Backup / Restore */}
-            {backupStatus && (
+            {backupStatus ? (
               <span style={{ fontSize:11, fontWeight:600, marginRight:4,
                 color: backupStatus.startsWith("⚠") ? "#ef4444" : "#22c55e" }}>
                 {backupStatus}
               </span>
-            )}
+            ) : autoSaveAt ? (
+              <span title={`Auto-saved at ${new Date(autoSaveAt).toLocaleTimeString()}`}
+                style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginRight:2,
+                  display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ width:6, height:6, borderRadius:"50%", flexShrink:0,
+                  background: (Date.now() - new Date(autoSaveAt).getTime()) < 2 * 60 * 1000
+                    ? "#22c55e" : "rgba(255,255,255,0.2)" }} />
+                {relTime(autoSaveAt)}
+              </span>
+            ) : null}
             <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}
               title="Download a full backup — holdings, cash, contrib plan, FX rate, and Market Pulse cache">
               💾 Backup
