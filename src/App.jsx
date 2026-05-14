@@ -228,6 +228,7 @@ export default function App() {
   const [dcaWeeks,         setDcaWeeks]        = useState(20);
   const [holdings,         setHoldings]        = useState({ TFSA: INITIAL_TFSA, RRSP: INITIAL_RRSP });
   const [saveStatus,       setSaveStatus]      = useState("");
+  const [backupStatus,     setBackupStatus]    = useState("");
   const [tab,              setTab]             = useState("rebalance");
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
@@ -458,14 +459,29 @@ export default function App() {
   }
 
   function exportData() {
-    const data = JSON.stringify({ holdings, cashHolding, contribPlan, portfolios }, null, 2);
+    const today = new Date().toISOString().split("T")[0];
+    const data = JSON.stringify({
+      backupVersion: 2,
+      exportedAt: new Date().toISOString(),
+      portfolios,
+      holdings,
+      cashHolding,
+      contribPlan,
+      usdCadRate,
+      pulse: {
+        cache:       marketPulse,
+        refreshedAt: pulseRefreshedAt,
+      },
+    }, null, 2);
     const blob = new Blob([data], { type:"application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `portfolio-backup-${new Date().toISOString().split("T")[0]}.json`;
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `portfolio-backup-${today}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    setBackupStatus("✓ Backup saved");
+    setTimeout(() => setBackupStatus(""), 3000);
   }
 
   function normalizeCsvHeader(header = "") {
@@ -592,42 +608,66 @@ export default function App() {
         if (ext === "csv") {
           const rows = parseCsvText(text);
           applyCsvImport(rows);
-          alert(`✅ Imported ${rows.length} holding${rows.length === 1 ? "" : "s"} from CSV.`);
+          setBackupStatus(`✓ Imported ${rows.length} holding${rows.length === 1 ? "" : "s"} from CSV`);
+          setTimeout(() => setBackupStatus(""), 4000);
           event.target.value = "";
           return;
         }
 
         const data = JSON.parse(text);
         const h = data.holdings || data;
-        if (!(h.TFSA && h.RRSP)) throw new Error("Invalid JSON format");
+        if (!(h.TFSA && h.RRSP)) throw new Error("Invalid backup — missing TFSA/RRSP holdings");
         const pList = data.portfolios || ["TFSA","RRSP"];
+
+        // Restore portfolios + holdings
         setPortfolios(pList);
         localStorage.setItem("portfolio:list", JSON.stringify(pList));
         setHoldings(h);
         for (const p of pList) { if (h[p]) persist(p, h[p]); }
+
+        // Restore cash
         if (data.cashHolding) { setCashHolding(data.cashHolding); persistCash(data.cashHolding); }
+
+        // Restore contrib plan (with frequency validation)
         if (data.contribPlan) {
           const nextContrib = Object.fromEntries(pList.map(p => {
             const existing = data.contribPlan?.[p];
             const freq = CONTRIB_FREQUENCY_OPTIONS.some(o => o.value === existing?.frequency)
-              ? existing.frequency
-              : "monthly";
+              ? existing.frequency : "monthly";
             return [p, { amount: Number(existing?.amount) || 0, frequency: freq }];
           }));
           setContribPlan(nextContrib);
           persistContrib(nextContrib);
         } else if (data.monthlyContrib) {
-          // Backward-compatible import support
           const nextContrib = Object.fromEntries(pList.map(p => [
-            p,
-            { amount: Number(data.monthlyContrib[p]) || 0, frequency:"monthly" },
+            p, { amount: Number(data.monthlyContrib[p]) || 0, frequency:"monthly" },
           ]));
           setContribPlan(nextContrib);
           persistContrib(nextContrib);
         }
-        alert("✅ Portfolio imported successfully!");
+
+        // Restore FX rate
+        if (data.usdCadRate) {
+          setUsdCadRate(Number(data.usdCadRate));
+          persistFxRate(Number(data.usdCadRate));
+        }
+
+        // Restore Market Pulse cache (v2 backup format)
+        if (data.pulse?.cache?.regime) {
+          setMarketPulse(data.pulse.cache);
+          localStorage.setItem("pulse:cache", JSON.stringify(data.pulse.cache));
+          if (data.pulse.refreshedAt) {
+            setPulseRefreshedAt(data.pulse.refreshedAt);
+            localStorage.setItem("pulse:refreshedAt", data.pulse.refreshedAt);
+          }
+        }
+
+        const isFullBackup = !!data.backupVersion;
+        setBackupStatus(isFullBackup ? "✓ Full backup restored" : "✓ Portfolio imported");
+        setTimeout(() => setBackupStatus(""), 4000);
       } catch (err) {
-        alert(`⚠ Import failed: ${err?.message || "Could not read file"}`);
+        setBackupStatus(`⚠ ${err?.message || "Could not read file"}`);
+        setTimeout(() => setBackupStatus(""), 5000);
       }
       event.target.value = "";
     };
@@ -1270,14 +1310,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </span>
             )}
 
-            {/* Utility */}
-            <label className="btn" style={{ cursor:"pointer", fontSize:11, padding:"6px 12px" }} title="Import JSON backup or CSV holdings">
-              ⬇ Import (JSON/CSV)
+            {/* Backup / Restore */}
+            {backupStatus && (
+              <span style={{ fontSize:11, fontWeight:600, marginRight:4,
+                color: backupStatus.startsWith("⚠") ? "#ef4444" : "#22c55e" }}>
+                {backupStatus}
+              </span>
+            )}
+            <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}
+              title="Download a full backup — holdings, cash, contrib plan, FX rate, and Market Pulse cache">
+              💾 Backup
+            </button>
+            <label className="btn" style={{ cursor:"pointer", fontSize:11, padding:"6px 12px" }}
+              title="Restore from a JSON backup, or import holdings from CSV">
+              📂 Restore / Import
               <input type="file" accept=".json,.csv,text/csv,application/json" style={{ display:"none" }} onChange={importData}/>
             </label>
-            <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}>
-              ⬆ Export
-            </button>
             {showReset ? (
               <>
                 <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11, padding:"6px 12px" }}>
