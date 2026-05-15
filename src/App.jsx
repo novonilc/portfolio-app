@@ -260,6 +260,8 @@ export default function App() {
   const [optionSubTab,        setOptionSubTab]       = useState("cc");
   const [optionNewTrade,      setOptionNewTrade]     = useState(null);
   const [optionClosing,       setOptionClosing]      = useState(null);
+  const [optionWatchlist,     setOptionWatchlist]    = useState(() => JSON.parse(localStorage.getItem("portfolio:options:watchlist") || "[]"));
+  const [optionWatchInput,    setOptionWatchInput]   = useState("");
   const [tab,              setTab]             = useState("rebalance");
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
@@ -387,12 +389,32 @@ export default function App() {
     localStorage.setItem("portfolio:options", JSON.stringify(next));
   }
 
+  function persistWatchlist(next) {
+    localStorage.setItem("portfolio:options:watchlist", JSON.stringify(next));
+  }
+
+  function addWatchlistTicker(raw) {
+    const sym = raw.trim().toUpperCase().replace(/[^A-Z0-9.^-]/g, "");
+    if (!sym || optionWatchlist.includes(sym)) return;
+    const next = [...optionWatchlist, sym];
+    setOptionWatchlist(next);
+    persistWatchlist(next);
+    setOptionWatchInput("");
+  }
+
+  function removeWatchlistTicker(sym) {
+    const next = optionWatchlist.filter(s => s !== sym);
+    setOptionWatchlist(next);
+    persistWatchlist(next);
+  }
+
   async function fetchOptionPrices() {
     setOptionPricesLoading(true);
     setOptionPriceError(null);
     const tickers = [...new Set(
       portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker))
         .concat(RECOMMENDATIONS.map(r => r.ticker))
+        .concat(optionWatchlist)
     )];
     const prices = {};
     await Promise.allSettled(tickers.map(async sym => {
@@ -4507,24 +4529,38 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const fmt2 = n => Number(n).toFixed(2);
         const fmtK = n => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${Number(n).toFixed(0)}`;
 
-        // ─ Covered call candidates (held positions with enough value for ≥1 contract estimate)
-        const ccCandidates = portfolios.flatMap(acct =>
+        // ─ Covered call candidates: held positions + any watchlist tickers
+        const heldTickers = new Set(
+          portfolios.flatMap(acct => (holdings[acct] || []).map(h => h.ticker))
+        );
+        const ccFromHoldings = portfolios.flatMap(acct =>
           (holdings[acct] || []).map(h => {
-            const price  = optionPrices[h.ticker];
-            const estShares   = price ? Math.round(h.current / price) : null;
-            const contracts   = estShares ? Math.floor(estShares / 100) : null;
-            const iv          = estimateIV(h.ticker, vix);
-            const sectorWord  = (TICKER_DB[h.ticker]?.sector || "").toLowerCase().split(" ")[0];
+            const price      = optionPrices[h.ticker];
+            const estShares  = price ? Math.round(h.current / price) : null;
+            const contracts  = estShares ? Math.floor(estShares / 100) : null;
+            const iv         = estimateIV(h.ticker, vix);
+            const sectorWord = (TICKER_DB[h.ticker]?.sector || "").toLowerCase().split(" ")[0];
             const ccSuggested = !baseRotation || !["underweight","avoid"].some(t => {
               const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+80).includes(sectorWord);
             });
-            return { ...h, acct, price, estShares, contracts, iv, ccSuggested };
+            return { ticker: h.ticker, name: TICKER_DB[h.ticker]?.name || h.ticker, acct, price, estShares, contracts, iv, ccSuggested, fromHolding: true };
           })
-        ).filter((h, idx, arr) => arr.findIndex(x => x.ticker === h.ticker) === idx)
-         .sort((a, b) => (b.contracts||0) - (a.contracts||0));
+        ).filter((h, idx, arr) => arr.findIndex(x => x.ticker === h.ticker) === idx);
 
-        // ─ CSP candidates (from recommendations, filtered by regime alignment)
-        const cspCandidates = RECOMMENDATIONS.filter(r => {
+        const ccFromWatchlist = optionWatchlist
+          .filter(sym => !heldTickers.has(sym))
+          .map(sym => {
+            const price      = optionPrices[sym];
+            const iv         = estimateIV(sym, vix);
+            const ccSuggested = true;
+            return { ticker: sym, name: TICKER_DB[sym]?.name || sym, acct: "—", price, estShares: null, contracts: null, iv, ccSuggested, fromHolding: false };
+          });
+
+        const ccCandidates = [...ccFromHoldings, ...ccFromWatchlist]
+          .sort((a, b) => (b.contracts||0) - (a.contracts||0));
+
+        // ─ CSP candidates: recommendations aligned with regime + watchlist tickers
+        const cspFromRecs = RECOMMENDATIONS.filter(r => {
           const sectorWord = (r.sector || "").toLowerCase().split(" ")[0];
           const isAligned  = !baseRotation || ["overweight","add","rotate into","favor","tilt to"].some(t => {
             const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+90).includes(sectorWord);
@@ -4534,7 +4570,23 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           ...r,
           price: optionPrices[r.ticker],
           iv: estimateIV(r.ticker, vix),
+          fromWatchlist: false,
         })).slice(0, 12);
+
+        const cspRecTickers = new Set(cspFromRecs.map(r => r.ticker));
+        const cspFromWatchlist = optionWatchlist
+          .filter(sym => !cspRecTickers.has(sym))
+          .map(sym => ({
+            ticker: sym, name: TICKER_DB[sym]?.name || sym,
+            sector: TICKER_DB[sym]?.sector || "—",
+            thesis: "Custom watchlist ticker.",
+            bestFor: "TFSA",
+            price: optionPrices[sym],
+            iv: estimateIV(sym, vix),
+            fromWatchlist: true,
+          }));
+
+        const cspCandidates = [...cspFromRecs, ...cspFromWatchlist];
 
         // ─ Trade log stats
         const openTrades   = optionTrades.filter(t => t.status === "open");
@@ -4548,13 +4600,44 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const winCount  = closedTrades.filter(t => ["expired","closed_profit","assigned"].includes(t.status)).length;
         const winRate   = closedTrades.length ? Math.round(winCount / closedTrades.length * 100) : null;
 
+        // ─ Shared watchlist ticker input (used by both CC and CSP)
+        const renderWatchlistInput = (accentColor = "#22d3ee") => (
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+            <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)", whiteSpace:"nowrap" }}>+ Add any ticker:</span>
+            <input
+              value={optionWatchInput}
+              onChange={e => setOptionWatchInput(e.target.value.toUpperCase())}
+              onKeyDown={e => e.key === "Enter" && addWatchlistTicker(optionWatchInput)}
+              placeholder="e.g. NVDA, SPY, PLTR"
+              style={{ fontSize:11, padding:"5px 10px", borderRadius:6, border:"1px solid rgba(255,255,255,0.12)",
+                background:"rgba(255,255,255,0.04)", color:"#fff", width:160, fontFamily:"'JetBrains Mono',monospace" }}
+            />
+            <button className="btn" onClick={() => addWatchlistTicker(optionWatchInput)}
+              style={{ fontSize:10, padding:"5px 12px", color:accentColor, borderColor:`rgba(${accentColor==="a78bfa"?"167,139,250":"34,211,238"},0.3)` }}>
+              Add
+            </button>
+            {optionWatchlist.map(sym => (
+              <span key={sym} style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:10,
+                padding:"3px 8px", borderRadius:5, background:"rgba(255,255,255,0.05)",
+                border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.65)",
+                fontFamily:"'JetBrains Mono',monospace" }}>
+                {sym}
+                <button onClick={() => removeWatchlistTicker(sym)}
+                  style={{ background:"none", border:"none", color:"rgba(255,255,255,0.3)", cursor:"pointer", fontSize:11, padding:"0 0 0 4px", lineHeight:1 }}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        );
+
         // Sub-tab: Covered Calls
         const renderCC = () => (
           <div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, flexWrap:"wrap" }}>
               <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, flex:"1 1 400px" }}>
-                Sell call options on stocks you already own. You collect premium upfront; if the stock stays below your strike at expiry,
-                you keep the premium and the shares. Ideal in neutral-to-mildly-bullish markets.
+                Sell call options on any stock — your holdings or any ticker you add. Collect premium upfront;
+                if the stock stays below your strike at expiry you keep the premium. Ideal in neutral-to-mildly-bullish markets.
               </p>
               <button className="btn btn-primary" onClick={fetchOptionPrices} disabled={optionPricesLoading}
                 style={{ fontSize:11, padding:"7px 16px", opacity: optionPricesLoading ? 0.6 : 1,
@@ -4562,6 +4645,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 {optionPricesLoading ? "Loading…" : optionPrices && Object.keys(optionPrices).length ? "⟳ Refresh prices" : "📡 Load live prices"}
               </button>
             </div>
+            {renderWatchlistInput("#22d3ee")}
             {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
 
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -4593,24 +4677,33 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         <p style={{ fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)" }}>
                           {h.price ? `$${fmt2(h.price)}` : "—"} /share
                         </p>
-                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
-                          ~{h.estShares ?? "?"} shares · <span style={{ fontWeight:700,
-                            color: (h.contracts||0) >= 1 ? "#22c55e" : "#ef4444" }}>
-                            {(h.contracts||0) >= 1 ? `${h.contracts} contract${h.contracts>1?"s":""}` : "< 1 contract (need 100 shares)"}
-                          </span>
-                        </p>
+                        {h.fromHolding ? (
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
+                            ~{h.estShares ?? "?"} shares · <span style={{ fontWeight:700,
+                              color: (h.contracts||0) >= 1 ? "#22c55e" : "#ef4444" }}>
+                              {(h.contracts||0) >= 1 ? `${h.contracts} contract${h.contracts>1?"s":""}` : "< 1 contract (need 100 shares)"}
+                            </span>
+                          </p>
+                        ) : (
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
+                            <span style={{ padding:"2px 6px", borderRadius:4, fontSize:9,
+                              background:"rgba(251,191,36,0.08)", color:"#fbbf24",
+                              border:"1px solid rgba(251,191,36,0.2)" }}>Watchlist</span>
+                            {" "}enter contracts when logging
+                          </p>
+                        )}
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Est. IV {Math.round(h.iv)}% · VIX×{(h.iv/vix).toFixed(1)}</p>
                       </div>
                     </div>
 
-                    {/* Strike table */}
-                    {h.price && (h.contracts||0) >= 1 ? (
+                    {/* Strike table — show for watchlist tickers regardless of share count */}
+                    {h.price && (h.fromHolding ? (h.contracts||0) >= 1 : true) ? (
                       <div style={{ overflowX:"auto" }}>
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                           <thead>
                             <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
-                              {["","Strike","OTM %","Est. premium/sh","Contract value","Monthly yield","Ann. yield","Action"].map(h => (
-                                <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                              {["","Strike","OTM %","Est. premium/sh","Per contract","Monthly yield","Ann. yield","Action"].map(col => (
+                                <th key={col} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{col}</th>
                               ))}
                             </tr>
                           </thead>
@@ -4621,13 +4714,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee", fontWeight:700 }}>${s.strike}</td>
                                 <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.5)" }}>+{s.pct}%</td>
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(s.premiumPerShare)}</td>
-                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{fmtK(s.contractPremium * (h.contracts||1))}</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${s.contractPremium}</td>
                                 <td style={{ padding:"6px 8px", color:"#fbbf24", fontWeight:600 }}>{s.monthlyYield}%</td>
                                 <td style={{ padding:"6px 8px", color:"#a78bfa", fontWeight:600 }}>{s.annualYield}%</td>
                                 <td style={{ padding:"6px 8px" }}>
                                   <button className="btn" onClick={() => setOptionNewTrade({
-                                    ...DEFAULT_OPT_TRADE, type:"cc", ticker:h.ticker, account:h.acct,
-                                    contracts: h.contracts, strike: s.strike,
+                                    ...DEFAULT_OPT_TRADE, type:"cc", ticker:h.ticker,
+                                    account: h.fromHolding ? h.acct : "TFSA",
+                                    contracts: h.fromHolding ? h.contracts : 1,
+                                    strike: s.strike,
                                     expiry: new Date(Date.now() + 30*864e5).toISOString().split("T")[0],
                                     premium: s.premiumPerShare, underlyingPrice: h.price,
                                   })}
@@ -4661,11 +4756,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         // Sub-tab: CSPs
         const renderCSP = () => (
           <div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10, flexWrap:"wrap" }}>
               <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, flex:"1 1 400px" }}>
-                Sell put options on stocks you want to own. You get paid to commit to buying at your chosen strike.
-                If the stock stays above the strike, you keep the premium. If assigned, you own shares at an effective
-                discount. Best in neutral-to-bullish markets on quality names.
+                Sell put options on any stock you want to own (or any ticker). You get paid premium upfront;
+                if the stock stays above the strike you keep it. If assigned, you own shares at an effective discount.
+                Best in neutral-to-bullish markets.
               </p>
               <button className="btn btn-primary" onClick={fetchOptionPrices} disabled={optionPricesLoading}
                 style={{ fontSize:11, padding:"7px 16px", opacity: optionPricesLoading ? 0.6 : 1,
@@ -4673,6 +4768,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 {optionPricesLoading ? "Loading…" : Object.keys(optionPrices).length ? "⟳ Refresh prices" : "📡 Load live prices"}
               </button>
             </div>
+            {renderWatchlistInput("#a78bfa")}
             {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
 
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(460px, 1fr))", gap:12 }}>
@@ -4683,16 +4779,29 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.1)" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                       <div>
-                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
                           <span style={{ fontSize:16, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa" }}>
                             {r.ticker}
                           </span>
-                          <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
-                            background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.7)",
-                            border:"1px solid rgba(167,139,250,0.2)" }}>✓ Regime aligned</span>
+                          {r.fromWatchlist ? (
+                            <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                              background:"rgba(251,191,36,0.08)", color:"#fbbf24",
+                              border:"1px solid rgba(251,191,36,0.2)" }}>Watchlist</span>
+                          ) : (
+                            <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                              background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.7)",
+                              border:"1px solid rgba(167,139,250,0.2)" }}>✓ Regime aligned</span>
+                          )}
+                          <button onClick={() => removeWatchlistTicker(r.ticker)}
+                            style={{ display: r.fromWatchlist ? "inline" : "none",
+                              background:"none", border:"none", color:"rgba(255,255,255,0.25)", cursor:"pointer", fontSize:11, padding:0 }}>
+                            ×
+                          </button>
                         </div>
                         <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{r.name} · {r.sector}</p>
-                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5, marginTop:4, maxWidth:320 }}>{r.thesis.slice(0,100)}…</p>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5, marginTop:4, maxWidth:320 }}>
+                          {r.thesis.length > 100 ? r.thesis.slice(0,100) + "…" : r.thesis}
+                        </p>
                       </div>
                       <div style={{ textAlign:"right", flexShrink:0 }}>
                         <p style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
