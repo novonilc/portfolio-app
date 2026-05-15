@@ -133,6 +133,27 @@ const EXTRA_COLORS = [
 // Quick ticker lookup for search tab
 const TICKER_DB = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 
+// Options constants
+const SECTOR_IV_MULT = {
+  "Semiconductor":3.0, "Technology":2.4, "Aerospace/Defense":1.6,
+  "Healthcare":1.7, "Financials":1.3, "Energy":2.0, "Payments":1.6,
+  "Consumer Staples":1.1, "Consumer Cyclical":1.9, "Industrials":1.6,
+  "Real Estate":1.5, "Utilities":1.2,
+};
+const OPT_EXPIRIES = [
+  { label:"21 DTE",  days:21 },
+  { label:"30 DTE",  days:30 },
+  { label:"45 DTE",  days:45 },
+];
+const OPT_STATUS_LABELS = {
+  open:"Open", expired:"Expired worthless",
+  assigned:"Assigned", closed_profit:"Closed — profit", closed_loss:"Closed — loss",
+};
+const DEFAULT_OPT_TRADE = {
+  type:"cc", ticker:"", account:"TFSA", contracts:1,
+  strike:"", expiry:"", premium:"", underlyingPrice:"", notes:"",
+};
+
 function DonutChart({ segments, size = 110, thickness = 16, centerLabel, centerSub }) {
   const cx = size / 2, cy = size / 2;
   const r = (size - thickness) / 2;
@@ -231,6 +252,14 @@ export default function App() {
   const [backupStatus,     setBackupStatus]    = useState("");
   const [autoSaveAt,       setAutoSaveAt]      = useState(() => localStorage.getItem("portfolio:autosave:ts") || null);
   const autoSaveRef = useRef(null);
+  // Options trading
+  const [optionTrades,        setOptionTrades]       = useState([]);
+  const [optionPrices,        setOptionPrices]       = useState({});
+  const [optionPricesLoading, setOptionPricesLoading]= useState(false);
+  const [optionPriceError,    setOptionPriceError]   = useState(null);
+  const [optionSubTab,        setOptionSubTab]       = useState("cc");
+  const [optionNewTrade,      setOptionNewTrade]     = useState(null);
+  const [optionClosing,       setOptionClosing]      = useState(null);
   const [tab,              setTab]             = useState("rebalance");
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
@@ -293,6 +322,8 @@ export default function App() {
       }
       const fxData = localStorage.getItem("portfolio:fxRate");
       if (fxData) setUsdCadRate(Number(fxData) || 1.38);
+      const optData = localStorage.getItem("portfolio:options");
+      if (optData) setOptionTrades(JSON.parse(optData));
     } catch (e) { console.warn("Could not load saved data:", e); }
   }, []);
 
@@ -349,6 +380,111 @@ export default function App() {
 
   function persistFxRate(rate) {
     localStorage.setItem("portfolio:fxRate", String(rate));
+  }
+
+  // ── Options trading helpers ─────────────────────────────────────────────
+  function persistOptions(next) {
+    localStorage.setItem("portfolio:options", JSON.stringify(next));
+  }
+
+  async function fetchOptionPrices() {
+    setOptionPricesLoading(true);
+    setOptionPriceError(null);
+    const tickers = [...new Set(
+      portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker))
+        .concat(RECOMMENDATIONS.map(r => r.ticker))
+    )];
+    const prices = {};
+    await Promise.allSettled(tickers.map(async sym => {
+      try {
+        const r = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`,
+          { signal: AbortSignal.timeout(7000) }
+        );
+        if (!r.ok) return;
+        const d = await r.json();
+        const closes = d.chart?.result?.[0]?.indicators?.quote?.[0]?.close;
+        const last = closes?.filter(Boolean).pop();
+        if (last) prices[sym] = last;
+      } catch { /* silent */ }
+    }));
+    setOptionPrices(prices);
+    setOptionPricesLoading(false);
+    if (!Object.keys(prices).length) setOptionPriceError("Could not fetch prices — check your connection.");
+  }
+
+  function estimateIV(ticker, vix = 17) {
+    const rec = TICKER_DB[ticker];
+    const sector = rec?.sector || "";
+    const mult = SECTOR_IV_MULT[sector] || 1.8;
+    return vix * mult;
+  }
+
+  // Simplified Black-Scholes inspired premium estimate (annualised IV in %)
+  function estimatePremium(price, strikeDistance, daysToExpiry, annualIVpct) {
+    const T = daysToExpiry / 365;
+    const IV = annualIVpct / 100;
+    const moneyness = Math.abs(strikeDistance) / price;
+    const atm = price * IV * Math.sqrt(T) * 0.4;
+    return Math.max(atm * Math.exp(-3.8 * moneyness), 0.01);
+  }
+
+  // Three strike suggestions for a given strategy direction
+  function getStrikeSuggestions(price, type, daysToExpiry, iv) {
+    const offsets = type === "cc"
+      ? [0.05, 0.08, 0.12]   // OTM call: 5%, 8%, 12% above
+      : [0.05, 0.09, 0.13];  // OTM put: 5%, 9%, 13% below
+    return offsets.map((pct, i) => {
+      const strike = type === "cc"
+        ? Math.round(price * (1 + pct) * 2) / 2   // round to $0.50
+        : Math.round(price * (1 - pct) * 2) / 2;
+      const dist = Math.abs(strike - price);
+      const premiumPerShare = estimatePremium(price, dist, daysToExpiry, iv);
+      const contractPremium = premiumPerShare * 100;
+      const collateral = type === "csp" ? strike * 100 : price * 100;
+      const monthlyYield = (contractPremium / collateral) * (30 / daysToExpiry) * 100;
+      return {
+        label: ["Conservative","Moderate","Aggressive"][i],
+        strike,
+        pct: Math.round(pct * 100),
+        premiumPerShare: Math.round(premiumPerShare * 100) / 100,
+        contractPremium: Math.round(contractPremium),
+        monthlyYield: Math.round(monthlyYield * 10) / 10,
+        annualYield:  Math.round(monthlyYield * 12 * 10) / 10,
+      };
+    });
+  }
+
+  function addOptionTrade(tradeRaw) {
+    const trade = {
+      ...tradeRaw,
+      id: Date.now().toString(),
+      openedAt: new Date().toISOString().split("T")[0],
+      status: "open",
+      closePrice: null,
+      closedAt: null,
+    };
+    const next = [trade, ...optionTrades];
+    setOptionTrades(next);
+    persistOptions(next);
+    setOptionNewTrade(null);
+  }
+
+  function closeOptionTrade(id, status, closePrice) {
+    const next = optionTrades.map(t =>
+      t.id === id
+        ? { ...t, status, closePrice: Number(closePrice) || 0, closedAt: new Date().toISOString().split("T")[0] }
+        : t
+    );
+    setOptionTrades(next);
+    persistOptions(next);
+    setOptionClosing(null);
+  }
+
+  function deleteOptionTrade(id) {
+    const next = optionTrades.filter(t => t.id !== id);
+    setOptionTrades(next);
+    persistOptions(next);
   }
 
   function handleContribAmount(val) {
@@ -1586,7 +1722,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
         borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"]].map(([v,l]) => (
+          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`}
             onClick={() => setTab(v)}
             style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
@@ -4344,6 +4480,569 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", lineHeight:1.5 }}>
               ⚠ Not financial advice. Data stored locally in your browser. Export regularly to back up. Consult a licensed CFP before trading.
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: OPTIONS TRADING
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "options" && (() => {
+        const mp       = marketPulse;
+        const vix      = Number(mp.macroSignals?.find(c => c.category === "Equities")
+          ?.signals?.find(s => s.label === "VIX")?.value?.replace(/[^0-9.]/g,"")) || 17;
+        const ivEnv    = vix >= 25 ? { label:"High IV — great for selling premium", color:"#22c55e", icon:"🔥" }
+                       : vix >= 18 ? { label:"Elevated IV — good conditions",       color:"#22c55e", icon:"✅" }
+                       : vix >= 14 ? { label:"Low IV — be selective, smaller premiums", color:"#fbbf24", icon:"⚠" }
+                       :             { label:"Very low IV — consider skipping",       color:"#ef4444", icon:"🔕" };
+        const riskScore = mp.riskMeter?.score ?? 50;
+        const regimeBias = riskScore >= 60
+          ? "Risk-On: sell CCs on extended positions to lock in gains. Be cautious on new CSPs."
+          : riskScore >= 40
+          ? "Neutral: balanced premium selling. CCs on full positions, CSPs on names you want to own."
+          : "Risk-Off: favour CSPs on quality at a discount. Avoid CCs that cap upside during recovery.";
+        const baseRotation = mp.outlooks?.[0]?.scenarios?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+
+        const fmt2 = n => Number(n).toFixed(2);
+        const fmtK = n => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${Number(n).toFixed(0)}`;
+
+        // ─ Covered call candidates (held positions with enough value for ≥1 contract estimate)
+        const ccCandidates = portfolios.flatMap(acct =>
+          (holdings[acct] || []).map(h => {
+            const price  = optionPrices[h.ticker];
+            const estShares   = price ? Math.round(h.current / price) : null;
+            const contracts   = estShares ? Math.floor(estShares / 100) : null;
+            const iv          = estimateIV(h.ticker, vix);
+            const sectorWord  = (TICKER_DB[h.ticker]?.sector || "").toLowerCase().split(" ")[0];
+            const ccSuggested = !baseRotation || !["underweight","avoid"].some(t => {
+              const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+80).includes(sectorWord);
+            });
+            return { ...h, acct, price, estShares, contracts, iv, ccSuggested };
+          })
+        ).filter((h, idx, arr) => arr.findIndex(x => x.ticker === h.ticker) === idx)
+         .sort((a, b) => (b.contracts||0) - (a.contracts||0));
+
+        // ─ CSP candidates (from recommendations, filtered by regime alignment)
+        const cspCandidates = RECOMMENDATIONS.filter(r => {
+          const sectorWord = (r.sector || "").toLowerCase().split(" ")[0];
+          const isAligned  = !baseRotation || ["overweight","add","rotate into","favor","tilt to"].some(t => {
+            const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+90).includes(sectorWord);
+          });
+          return isAligned;
+        }).map(r => ({
+          ...r,
+          price: optionPrices[r.ticker],
+          iv: estimateIV(r.ticker, vix),
+        })).slice(0, 12);
+
+        // ─ Trade log stats
+        const openTrades   = optionTrades.filter(t => t.status === "open");
+        const closedTrades = optionTrades.filter(t => t.status !== "open");
+        const totalPremiumCollected = optionTrades.reduce((s, t) => s + (Number(t.premium) * 100 * Number(t.contracts)), 0);
+        const realizedPnL = closedTrades.reduce((s, t) => {
+          const received = Number(t.premium) * 100 * Number(t.contracts);
+          const closed   = (Number(t.closePrice) || 0) * 100 * Number(t.contracts);
+          return s + (t.status === "expired" ? received : t.status === "closed_profit" ? received - closed : -(closed - received));
+        }, 0);
+        const winCount  = closedTrades.filter(t => ["expired","closed_profit","assigned"].includes(t.status)).length;
+        const winRate   = closedTrades.length ? Math.round(winCount / closedTrades.length * 100) : null;
+
+        // Sub-tab: Covered Calls
+        const renderCC = () => (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, flex:"1 1 400px" }}>
+                Sell call options on stocks you already own. You collect premium upfront; if the stock stays below your strike at expiry,
+                you keep the premium and the shares. Ideal in neutral-to-mildly-bullish markets.
+              </p>
+              <button className="btn btn-primary" onClick={fetchOptionPrices} disabled={optionPricesLoading}
+                style={{ fontSize:11, padding:"7px 16px", opacity: optionPricesLoading ? 0.6 : 1,
+                  background:"rgba(34,211,238,0.12)", borderColor:"rgba(34,211,238,0.35)", color:"#22d3ee" }}>
+                {optionPricesLoading ? "Loading…" : optionPrices && Object.keys(optionPrices).length ? "⟳ Refresh prices" : "📡 Load live prices"}
+              </button>
+            </div>
+            {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
+
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              {ccCandidates.map(h => {
+                const selectedDTE = 30;
+                const strikes = h.price ? getStrikeSuggestions(h.price, "cc", selectedDTE, h.iv) : [];
+                return (
+                  <div key={h.ticker + h.acct} className="card" style={{ padding:"14px 18px",
+                    borderColor: h.ccSuggested ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.06)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8, marginBottom:10 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
+                          {h.ticker}
+                        </span>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{h.name}</span>
+                        <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                          background:"rgba(34,211,238,0.08)", color:"rgba(34,211,238,0.7)",
+                          border:"1px solid rgba(34,211,238,0.2)" }}>{h.acct}</span>
+                        {h.ccSuggested
+                          ? <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
+                              background:"rgba(239,68,68,0.1)", color:"#ef4444",
+                              border:"1px solid rgba(239,68,68,0.25)" }}>Regime: consider selling CC</span>
+                          : <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                              background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.3)",
+                              border:"1px solid rgba(255,255,255,0.08)" }}>Regime: hold / no CC</span>
+                        }
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <p style={{ fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)" }}>
+                          {h.price ? `$${fmt2(h.price)}` : "—"} /share
+                        </p>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)" }}>
+                          ~{h.estShares ?? "?"} shares · <span style={{ fontWeight:700,
+                            color: (h.contracts||0) >= 1 ? "#22c55e" : "#ef4444" }}>
+                            {(h.contracts||0) >= 1 ? `${h.contracts} contract${h.contracts>1?"s":""}` : "< 1 contract (need 100 shares)"}
+                          </span>
+                        </p>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Est. IV {Math.round(h.iv)}% · VIX×{(h.iv/vix).toFixed(1)}</p>
+                      </div>
+                    </div>
+
+                    {/* Strike table */}
+                    {h.price && (h.contracts||0) >= 1 ? (
+                      <div style={{ overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+                          <thead>
+                            <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
+                              {["","Strike","OTM %","Est. premium/sh","Contract value","Monthly yield","Ann. yield","Action"].map(h => (
+                                <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {strikes.map(s => (
+                              <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                                <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.4)", fontWeight:600, fontSize:9 }}>{s.label}</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee", fontWeight:700 }}>${s.strike}</td>
+                                <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.5)" }}>+{s.pct}%</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(s.premiumPerShare)}</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{fmtK(s.contractPremium * (h.contracts||1))}</td>
+                                <td style={{ padding:"6px 8px", color:"#fbbf24", fontWeight:600 }}>{s.monthlyYield}%</td>
+                                <td style={{ padding:"6px 8px", color:"#a78bfa", fontWeight:600 }}>{s.annualYield}%</td>
+                                <td style={{ padding:"6px 8px" }}>
+                                  <button className="btn" onClick={() => setOptionNewTrade({
+                                    ...DEFAULT_OPT_TRADE, type:"cc", ticker:h.ticker, account:h.acct,
+                                    contracts: h.contracts, strike: s.strike,
+                                    expiry: new Date(Date.now() + 30*864e5).toISOString().split("T")[0],
+                                    premium: s.premiumPerShare, underlyingPrice: h.price,
+                                  })}
+                                    style={{ fontSize:9, padding:"3px 9px", color:"#22d3ee",
+                                      borderColor:"rgba(34,211,238,0.3)" }}>
+                                    Log
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:6, fontStyle:"italic" }}>
+                          ★ Premiums estimated from IV≈VIX×{(h.iv/vix).toFixed(1)} · 30 DTE · verify with your broker before trading
+                        </p>
+                      </div>
+                    ) : !h.price ? (
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontStyle:"italic" }}>Load live prices to see strike suggestions.</p>
+                    ) : (
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontStyle:"italic" }}>
+                        Need at least 100 shares (~{fmtK(h.price * 100)} total) for 1 covered call contract.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+
+        // Sub-tab: CSPs
+        const renderCSP = () => (
+          <div>
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, flex:"1 1 400px" }}>
+                Sell put options on stocks you want to own. You get paid to commit to buying at your chosen strike.
+                If the stock stays above the strike, you keep the premium. If assigned, you own shares at an effective
+                discount. Best in neutral-to-bullish markets on quality names.
+              </p>
+              <button className="btn btn-primary" onClick={fetchOptionPrices} disabled={optionPricesLoading}
+                style={{ fontSize:11, padding:"7px 16px", opacity: optionPricesLoading ? 0.6 : 1,
+                  background:"rgba(167,139,250,0.12)", borderColor:"rgba(167,139,250,0.35)", color:"#a78bfa" }}>
+                {optionPricesLoading ? "Loading…" : Object.keys(optionPrices).length ? "⟳ Refresh prices" : "📡 Load live prices"}
+              </button>
+            </div>
+            {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
+
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(460px, 1fr))", gap:12 }}>
+              {cspCandidates.map(r => {
+                const strikes = r.price ? getStrikeSuggestions(r.price, "csp", 30, r.iv) : [];
+                return (
+                  <div key={r.ticker} className="card" style={{ padding:"14px 18px",
+                    background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.1)" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                      <div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3 }}>
+                          <span style={{ fontSize:16, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa" }}>
+                            {r.ticker}
+                          </span>
+                          <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                            background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.7)",
+                            border:"1px solid rgba(167,139,250,0.2)" }}>✓ Regime aligned</span>
+                        </div>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{r.name} · {r.sector}</p>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5, marginTop:4, maxWidth:320 }}>{r.thesis.slice(0,100)}…</p>
+                      </div>
+                      <div style={{ textAlign:"right", flexShrink:0 }}>
+                        <p style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
+                          {r.price ? `$${fmt2(r.price)}` : "—"}
+                        </p>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Est. IV {Math.round(r.iv)}%</p>
+                        <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, display:"inline-block", marginTop:3,
+                          background: r.bestFor === "TFSA" ? "rgba(251,191,36,0.1)" : "rgba(34,211,238,0.1)",
+                          color: r.bestFor === "TFSA" ? "#fbbf24" : "#22d3ee",
+                          border:`1px solid ${r.bestFor === "TFSA" ? "rgba(251,191,36,0.25)" : "rgba(34,211,238,0.25)"}` }}>
+                          {r.bestFor === "both" ? "TFSA / RRSP" : r.bestFor}
+                        </span>
+                      </div>
+                    </div>
+
+                    {r.price ? (
+                      <>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+                          <thead>
+                            <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
+                              {["","Strike","OTM %","Premium/sh","Collateral","Monthly yield","Ann. yield","Action"].map(h => (
+                                <th key={h} style={{ padding:"4px 6px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {strikes.map(s => (
+                              <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                                <td style={{ padding:"5px 6px", fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{s.label}</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa", fontWeight:700 }}>${s.strike}</td>
+                                <td style={{ padding:"5px 6px", color:"rgba(255,255,255,0.4)" }}>-{s.pct}%</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(s.premiumPerShare)}</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.5)" }}>{fmtK(s.strike * 100)}</td>
+                                <td style={{ padding:"5px 6px", color:"#fbbf24", fontWeight:600 }}>{s.monthlyYield}%</td>
+                                <td style={{ padding:"5px 6px", color:"#a78bfa", fontWeight:600 }}>{s.annualYield}%</td>
+                                <td style={{ padding:"5px 6px" }}>
+                                  <button className="btn" onClick={() => setOptionNewTrade({
+                                    ...DEFAULT_OPT_TRADE, type:"csp", ticker:r.ticker, account: r.bestFor === "RRSP" ? "RRSP" : "TFSA",
+                                    contracts:1, strike: s.strike,
+                                    expiry: new Date(Date.now() + 30*864e5).toISOString().split("T")[0],
+                                    premium: s.premiumPerShare, underlyingPrice: r.price,
+                                  })}
+                                    style={{ fontSize:9, padding:"3px 9px", color:"#a78bfa",
+                                      borderColor:"rgba(167,139,250,0.3)" }}>
+                                    Log
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:5, fontStyle:"italic" }}>
+                          ★ Estimated premiums — confirm with your broker. Collateral = strike × 100 per contract.
+                        </p>
+                      </>
+                    ) : (
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontStyle:"italic" }}>Load live prices to see strike table.</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+
+        // Sub-tab: Trade Log
+        const renderTradeLog = () => {
+          const today = new Date().toISOString().split("T")[0];
+          const tradeColor = t => t.type === "cc" ? "#22d3ee" : "#a78bfa";
+          const statusColor = s => s === "open" ? "#fbbf24" : ["expired","closed_profit","assigned"].includes(s) ? "#22c55e" : "#ef4444";
+
+          const tradePnl = t => {
+            const received = Number(t.premium) * 100 * Number(t.contracts);
+            if (t.status === "open")         return { val: received, label:"Max", color:"#fbbf24" };
+            if (t.status === "expired")      return { val: received, label:"Realized", color:"#22c55e" };
+            if (t.status === "assigned")     return { val: received, label:"Premium kept", color:"#22c55e" };
+            const closeAmt = (Number(t.closePrice)||0) * 100 * Number(t.contracts);
+            if (t.status === "closed_profit") return { val: received - closeAmt, label:"Realized", color:"#22c55e" };
+            return { val: -(closeAmt - received), label:"Loss",    color:"#ef4444" };
+          };
+
+          return (
+            <div>
+              {/* Summary stats */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:10, marginBottom:16 }}>
+                {[
+                  { label:"Total premium collected", value: `$${Math.round(totalPremiumCollected)}`, color:"#22c55e" },
+                  { label:"Realized P&L",             value: `${realizedPnL >= 0 ? "+" : ""}$${Math.round(realizedPnL)}`, color: realizedPnL >= 0 ? "#22c55e" : "#ef4444" },
+                  { label:"Open positions",           value: openTrades.length, color:"#fbbf24" },
+                  { label:"Win rate",                 value: winRate != null ? `${winRate}%` : "—", color: winRate >= 70 ? "#22c55e" : winRate >= 50 ? "#fbbf24" : "#ef4444" },
+                ].map(s => (
+                  <div key={s.label} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+                    borderRadius:8, padding:"10px 14px" }}>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{s.label}</p>
+                    <p style={{ fontSize:18, fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color: s.color }}>{s.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Log new trade button / form */}
+              {optionNewTrade === null ? (
+                <button className="btn btn-primary" onClick={() => setOptionNewTrade({ ...DEFAULT_OPT_TRADE })}
+                  style={{ marginBottom:14, fontSize:11, padding:"7px 18px",
+                    background:"rgba(34,197,94,0.1)", borderColor:"rgba(34,197,94,0.3)", color:"#22c55e" }}>
+                  + Log new trade
+                </button>
+              ) : (
+                <div className="card" style={{ marginBottom:14, padding:"16px 20px",
+                  background:"rgba(34,197,94,0.03)", borderColor:"rgba(34,197,94,0.15)" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
+                    <p style={{ fontSize:11, fontWeight:600, color:"#22c55e" }}>Log trade</p>
+                    <button className="btn" onClick={() => setOptionNewTrade(null)}
+                      style={{ fontSize:10, padding:"3px 9px", color:"rgba(255,255,255,0.35)" }}>✕</button>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(140px, 1fr))", gap:10, marginBottom:12 }}>
+                    {[
+                      { field:"type",           label:"Type",        type:"select",  opts:[["cc","Covered Call"],["csp","Cash-Secured Put"]] },
+                      { field:"ticker",         label:"Ticker",      type:"text",    placeholder:"NVDA" },
+                      { field:"account",        label:"Account",     type:"select",  opts: portfolios.map(p => [p, p]) },
+                      { field:"contracts",      label:"Contracts",   type:"number",  placeholder:"1" },
+                      { field:"strike",         label:"Strike ($)",  type:"number",  placeholder:"800" },
+                      { field:"expiry",         label:"Expiry",      type:"date" },
+                      { field:"premium",        label:"Premium/sh ($)", type:"number", placeholder:"5.20" },
+                      { field:"underlyingPrice",label:"Stock price ($)",type:"number", placeholder:"750" },
+                    ].map(({ field, label, type, opts, placeholder }) => (
+                      <div key={field}>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:3, textTransform:"uppercase" }}>{label}</p>
+                        {type === "select" ? (
+                          <select value={optionNewTrade[field] || ""} onChange={e => setOptionNewTrade(t => ({ ...t, [field]: e.target.value }))}
+                            style={{ width:"100%", fontSize:11, padding:"6px 8px", background:"rgba(255,255,255,0.05)",
+                              border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, color:"rgba(255,255,255,0.7)" }}>
+                            {opts.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                          </select>
+                        ) : (
+                          <input type={type} value={optionNewTrade[field] || ""} placeholder={placeholder}
+                            onChange={e => setOptionNewTrade(t => ({ ...t, [field]: e.target.value }))}
+                            style={{ width:"100%", fontSize:11, padding:"6px 8px", background:"rgba(255,255,255,0.05)",
+                              border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, color:"rgba(255,255,255,0.7)",
+                              boxSizing:"border-box" }} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:3, textTransform:"uppercase" }}>Notes</p>
+                    <input type="text" value={optionNewTrade.notes || ""} placeholder="Optional — thesis, adjustment plan…"
+                      onChange={e => setOptionNewTrade(t => ({ ...t, notes: e.target.value }))}
+                      style={{ width:"100%", fontSize:11, padding:"6px 8px", background:"rgba(255,255,255,0.05)",
+                        border:"1px solid rgba(255,255,255,0.12)", borderRadius:6, color:"rgba(255,255,255,0.7)",
+                        boxSizing:"border-box", marginBottom:10 }} />
+                  </div>
+                  {/* Preview P&L */}
+                  {optionNewTrade.premium && optionNewTrade.contracts && (
+                    <div style={{ display:"flex", gap:16, marginBottom:12, padding:"8px 12px",
+                      background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.15)", borderRadius:8 }}>
+                      <div>
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>Premium collected</p>
+                        <p style={{ fontSize:14, color:"#22c55e", fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+                          ${Math.round(Number(optionNewTrade.premium) * 100 * Number(optionNewTrade.contracts))}
+                        </p>
+                      </div>
+                      {optionNewTrade.strike && (
+                        <div>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>
+                            {optionNewTrade.type === "csp" ? "Collateral req." : "Breakeven"}
+                          </p>
+                          <p style={{ fontSize:14, color:"#fbbf24", fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+                            {optionNewTrade.type === "csp"
+                              ? fmtK(Number(optionNewTrade.strike) * 100 * Number(optionNewTrade.contracts))
+                              : `$${fmt2(Number(optionNewTrade.strike) + Number(optionNewTrade.premium))}`
+                            }
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <button className="btn btn-primary" onClick={() => addOptionTrade(optionNewTrade)}
+                    disabled={!optionNewTrade.ticker || !optionNewTrade.strike || !optionNewTrade.premium || !optionNewTrade.expiry}
+                    style={{ fontSize:11, padding:"7px 20px", background:"rgba(34,197,94,0.15)",
+                      borderColor:"rgba(34,197,94,0.4)", color:"#22c55e",
+                      opacity: (!optionNewTrade.ticker || !optionNewTrade.strike || !optionNewTrade.premium || !optionNewTrade.expiry) ? 0.4 : 1 }}>
+                    Save trade
+                  </button>
+                </div>
+              )}
+
+              {/* Open positions */}
+              {openTrades.length > 0 && (
+                <div className="card" style={{ marginBottom:14, padding:"14px 18px" }}>
+                  <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.6)", marginBottom:10 }}>Open positions</p>
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+                      <thead>
+                        <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
+                          {["Type","Ticker","Acct","Contracts","Strike","Expiry","Premium/sh","Max P&L","DTE","Action"].map(h => (
+                            <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {openTrades.map(t => {
+                          const dte = Math.ceil((new Date(t.expiry) - new Date()) / 864e5);
+                          const pnl = tradePnl(t);
+                          return (
+                            <tr key={t.id} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
+                              <td style={{ padding:"7px 8px" }}>
+                                <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4, fontWeight:600,
+                                  background:`${tradeColor(t)}15`, color: tradeColor(t),
+                                  border:`1px solid ${tradeColor(t)}35` }}>
+                                  {t.type === "cc" ? "CC" : "CSP"}
+                                </span>
+                              </td>
+                              <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color:"rgba(255,255,255,0.8)" }}>{t.ticker}</td>
+                              <td style={{ padding:"7px 8px", color:"rgba(255,255,255,0.4)" }}>{t.account}</td>
+                              <td style={{ padding:"7px 8px", textAlign:"center", color:"rgba(255,255,255,0.6)" }}>{t.contracts}</td>
+                              <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace", color: tradeColor(t) }}>${t.strike}</td>
+                              <td style={{ padding:"7px 8px", color:"rgba(255,255,255,0.5)" }}>{t.expiry}</td>
+                              <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(t.premium)}</td>
+                              <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace", color: pnl.color, fontWeight:700 }}>${Math.round(pnl.val)}</td>
+                              <td style={{ padding:"7px 8px", color: dte <= 7 ? "#ef4444" : dte <= 14 ? "#fbbf24" : "rgba(255,255,255,0.5)", fontWeight: dte <= 7 ? 700 : 400 }}>{dte}d</td>
+                              <td style={{ padding:"7px 8px" }}>
+                                {optionClosing?.id === t.id ? (
+                                  <div style={{ display:"flex", gap:5, alignItems:"center", flexWrap:"wrap" }}>
+                                    <input type="number" placeholder="Close $" value={optionClosing.closePrice || ""}
+                                      onChange={e => setOptionClosing(c => ({ ...c, closePrice: e.target.value }))}
+                                      style={{ width:68, fontSize:10, padding:"3px 6px" }} />
+                                    {[["expired","Expired"],["closed_profit","Profit"],["closed_loss","Loss"],["assigned","Assigned"]].map(([s,l]) => (
+                                      <button key={s} className="btn" onClick={() => closeOptionTrade(t.id, s, optionClosing.closePrice)}
+                                        style={{ fontSize:9, padding:"3px 7px", color: statusColor(s),
+                                          borderColor:`${statusColor(s)}40` }}>{l}</button>
+                                    ))}
+                                    <button className="btn" onClick={() => setOptionClosing(null)}
+                                      style={{ fontSize:9, padding:"3px 7px" }}>✕</button>
+                                  </div>
+                                ) : (
+                                  <div style={{ display:"flex", gap:5 }}>
+                                    <button className="btn" onClick={() => setOptionClosing({ id: t.id, closePrice: "" })}
+                                      style={{ fontSize:9, padding:"3px 9px", color:"#fbbf24",
+                                        borderColor:"rgba(251,191,36,0.3)" }}>Close</button>
+                                    <button className="btn" onClick={() => deleteOptionTrade(t.id)}
+                                      style={{ fontSize:9, padding:"3px 7px", color:"rgba(239,68,68,0.6)",
+                                        borderColor:"rgba(239,68,68,0.2)" }}>✕</button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Closed trades */}
+              {closedTrades.length > 0 && (
+                <div className="card" style={{ padding:"14px 18px" }}>
+                  <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.4)", marginBottom:10 }}>Trade history</p>
+                  <div style={{ overflowX:"auto" }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
+                      <thead>
+                        <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
+                          {["Type","Ticker","Acct","Strike","Opened","Closed","Premium/sh","Outcome","P&L"].map(h => (
+                            <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {closedTrades.map(t => {
+                          const pnl = tradePnl(t);
+                          return (
+                            <tr key={t.id} style={{ borderTop:"1px solid rgba(255,255,255,0.05)", opacity:0.75 }}>
+                              <td style={{ padding:"6px 8px" }}>
+                                <span style={{ fontSize:9, padding:"2px 5px", borderRadius:4, fontWeight:600,
+                                  background:`${tradeColor(t)}12`, color: tradeColor(t) }}>
+                                  {t.type === "cc" ? "CC" : "CSP"}
+                                </span>
+                              </td>
+                              <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.6)" }}>{t.ticker}</td>
+                              <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.35)" }}>{t.account}</td>
+                              <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.5)" }}>${t.strike}</td>
+                              <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.35)" }}>{t.openedAt}</td>
+                              <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.35)" }}>{t.closedAt || "—"}</td>
+                              <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(t.premium)}</td>
+                              <td style={{ padding:"6px 8px" }}>
+                                <span style={{ fontSize:9, color: statusColor(t.status) }}>{OPT_STATUS_LABELS[t.status]}</span>
+                              </td>
+                              <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                color: pnl.color, fontWeight:600 }}>
+                                {pnl.val >= 0 ? "+" : ""}${Math.round(pnl.val)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {optionTrades.length === 0 && (
+                <div className="card" style={{ textAlign:"center", padding:"40px 20px" }}>
+                  <p style={{ fontSize:13, color:"rgba(255,255,255,0.35)", marginBottom:6 }}>No trades logged yet.</p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>Use the Covered Calls or CSP tabs to find setups, then click "Log" to track them here.</p>
+                </div>
+              )}
+            </div>
+          );
+        };
+
+        return (
+          <div style={{ padding:"22px 28px" }}>
+
+            {/* ── IV environment + regime bias strip ── */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+              <div className="card" style={{ padding:"12px 16px",
+                background:`${ivEnv.color}08`, borderColor:`${ivEnv.color}20` }}>
+                <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase",
+                  letterSpacing:"0.06em", marginBottom:4 }}>IV Environment · VIX {vix.toFixed(1)}</p>
+                <p style={{ fontSize:13, fontWeight:600, color: ivEnv.color }}>
+                  {ivEnv.icon} {ivEnv.label}
+                </p>
+              </div>
+              <div className="card" style={{ padding:"12px 16px",
+                background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.1)" }}>
+                <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase",
+                  letterSpacing:"0.06em", marginBottom:4 }}>Regime bias · {mp.regime?.label}</p>
+                <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.5 }}>{regimeBias}</p>
+              </div>
+            </div>
+
+            {/* ── Sub-tab navigation ── */}
+            <div style={{ display:"flex", gap:6, marginBottom:16 }}>
+              {[["cc","📞 Covered Calls"],["csp","🛡 Cash-Secured Puts"],["trades","📋 Trade Log"]].map(([v,l]) => (
+                <button key={v} className={`tab-btn ${optionSubTab===v?"on":""}`}
+                  onClick={() => setOptionSubTab(v)}
+                  style={{ padding:"6px 14px", fontSize:11 }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {optionSubTab === "cc"     && renderCC()}
+            {optionSubTab === "csp"    && renderCSP()}
+            {optionSubTab === "trades" && renderTradeLog()}
+
+            <p style={{ fontSize:10, color:"rgba(255,255,255,0.15)", marginTop:20, lineHeight:1.6 }}>
+              ⚠ Not financial advice. Premium estimates are mathematical approximations based on VIX-derived IV and are not live options quotes —
+              always verify with your broker before trading. Options trading involves significant risk of loss and may not be suitable for all investors.
+              Covered calls and CSPs in registered Canadian accounts (TFSA/RRSP) are generally permitted but rules vary by broker.
             </p>
           </div>
         );
