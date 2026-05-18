@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-05-13",
+  "lastUpdated": "2026-05-18",
   "period": "May 2026",
   "regime": {
     "label": "Geopolitical Pivot",
@@ -178,6 +178,74 @@
       ]
     },
     {
+      "category": "Credit & Risk",
+      "icon": "💳",
+      "signals": [
+        {
+          "label": "HY Credit Spread (CDX HY)",
+          "value": "~385 bps",
+          "trend": "down",
+          "status": "caution",
+          "note": "Spreads compressed from 460 bps April peak as equity relief rally reduced tail risk; still above 340 bps pre-conflict baseline — credit market not fully relaxed."
+        },
+        {
+          "label": "IG Credit Spread",
+          "value": "~105 bps",
+          "trend": "down",
+          "status": "neutral",
+          "note": "Investment-grade spreads near historical median; corporate balance sheets remain strong, supporting dividend payers like ENB and CNQ."
+        },
+        {
+          "label": "US HY Default Rate",
+          "value": "~3.8%",
+          "trend": "up",
+          "status": "caution",
+          "note": "Rising gradually from 2.4% 2025 trough; below recessionary threshold of ~8% but trending in the wrong direction as refinancing costs bite."
+        },
+        {
+          "label": "Bank Lending Standards",
+          "value": "Tightening",
+          "trend": "up",
+          "status": "bearish",
+          "note": "Senior Loan Officer Survey shows net 22% of banks tightened C&I loan standards in Q1 — a leading indicator of credit slowdown and GDP deceleration."
+        }
+      ]
+    },
+    {
+      "category": "Global & Commodities",
+      "icon": "🌍",
+      "signals": [
+        {
+          "label": "DXY (US Dollar Index)",
+          "value": "~103.5",
+          "trend": "down",
+          "status": "neutral",
+          "note": "Dollar softening from 106 peak as Iran ceasefire reduces safe-haven demand; mild DXY weakness supports NVDA, AMZN international revenues and gold."
+        },
+        {
+          "label": "Copper (front-month)",
+          "value": "~$4.35/lb",
+          "trend": "up",
+          "status": "bullish",
+          "note": "Copper at 5-month high driven by AI data center buildout demand; strongly correlated with NVDA supply chain and tech capex cycle."
+        },
+        {
+          "label": "China PMI",
+          "value": "50.4 (mfg)",
+          "trend": "up",
+          "status": "neutral",
+          "note": "China manufacturing PMI barely expansionary; stimulus measures providing floor but property sector drag limits upside for EM and commodity exporters."
+        },
+        {
+          "label": "Eurozone CPI",
+          "value": "2.2% YoY",
+          "trend": "down",
+          "status": "bullish",
+          "note": "ECB on track for further cuts in 2026 — positive for VGK / European equity exposure and signals a globally disinflationary trend that may eventually constrain the Fed."
+        }
+      ]
+    },
+    {
       "category": "Sentiment",
       "icon": "🧠",
       "signals": [
@@ -212,6 +280,50 @@
       ]
     }
   ],
+  "newsSignals": [
+    {
+      "source": "Bloomberg",
+      "headline": "Nvidia Revenue Guidance Tops Estimates on Surging Data Center Demand",
+      "date": "May 15, 2026",
+      "impact": "bullish",
+      "portfolioImpact": "Directly positive for NVDA (TFSA) — reinforces AI capex super-cycle thesis; also supportive of AMZN, GOOG, MSFT infrastructure plays."
+    },
+    {
+      "source": "CNBC",
+      "headline": "Fed Officials Signal No Rate Cuts Before Year-End as Services Inflation Stays Sticky",
+      "date": "May 14, 2026",
+      "impact": "bearish",
+      "portfolioImpact": "Keeps short-end yields elevated; negative for rate-sensitive positions. Validates holding ZAG.TO short-duration over long TLT; weighs on VFV.TO and QQQM valuations."
+    },
+    {
+      "source": "Reuters",
+      "headline": "Iran Nuclear Talks Enter Critical Phase; Ceasefire Holding but No Final Deal",
+      "date": "May 16, 2026",
+      "impact": "neutral",
+      "portfolioImpact": "Oil rangebound at $88–95 — supportive of CNQ (TFSA) dividends near-term; GOLD position remains relevant as geopolitical premium intact."
+    },
+    {
+      "source": "Financial Times",
+      "headline": "Amazon Web Services Announces $40B AI Infrastructure Expansion in North America",
+      "date": "May 13, 2026",
+      "impact": "bullish",
+      "portfolioImpact": "Positive for AMZN (TFSA) and AVGO (RRSP) — AWS capex drives custom ASIC demand; also supports TSM (RRSP) advanced packaging workloads."
+    },
+    {
+      "source": "WSJ",
+      "headline": "US Credit Card Delinquencies Hit 10-Year High, Signaling Consumer Stress",
+      "date": "May 12, 2026",
+      "impact": "bearish",
+      "portfolioImpact": "Macro headwind for consumer-facing positions; supports defensive tilt. Validates current GOLD and XIU (blue-chip Canada) holdings as recession buffer."
+    },
+    {
+      "source": "Bloomberg",
+      "headline": "Bank of Canada Holds Rates; Governor Cites Uncertainty as Reason for Caution",
+      "date": "May 11, 2026",
+      "impact": "neutral",
+      "portfolioImpact": "Short-term neutral for CNQ and XIU; delays ZAG.TO rate-cut rally — hold ZAG.TO in RRSP for eventual BoC pivot in H2 2026. CAD stable."
+    }
+  ],
   "outlooks": [
     {
       "horizon": "3 months",
@@ -225,7 +337,7 @@
           "trigger": "Iran deal finalised; oil falls to $70–75; CPI drops toward 2.8% — unlocking a Fed cut in September; yield curve fully un-inverts as 2s10s turns positive",
           "marketTarget": "S&P 7,800–8,100",
           "canadianAngle": "TSX 35,000+; CAD weakens as oil slides but equities outperform on rate optimism; ENB, XIU benefit; ZAG.TO rallies on BoC cut bets",
-          "positioning": "Add quality growth (NVDA, AMZN, SHOP); deploy cash held back during oil-shock uncertainty; add ZAG.TO in RRSP on rate cut signal",
+          "positioning": "Add NVDA, AMZN on any 5–8% dips; deploy cash held back during oil-shock uncertainty; add ZAG.TO in RRSP on rate cut signal",
           "sectorRotation": "Overweight Financials (steeper curve lifts NIM), Technology, Industrials; underweight Energy (falling oil), Utilities"
         },
         {
@@ -236,7 +348,7 @@
           "trigger": "Ceasefire holds but no final deal; oil stays $85–95; Fed stays on hold; AI earnings carry the index; yield curve continues gradual bear-steepening",
           "marketTarget": "S&P 7,200–7,600",
           "canadianAngle": "TSX 32,500–34,500; CAD range-bound 1.37–1.40; energy names volatile around oil headlines; curve steepening is mildly positive for Canadian banks",
-          "positioning": "Hold diversified portfolio; DCA into weakness; keep 10–15% cash for H2 deployment window; maintain gold hedge",
+          "positioning": "Hold NVDA, AMZN, NOW, PLTR — AI theme intact; DCA into VFV.TO and QQQM on weakness; maintain GOLD hedge at 5% weight",
           "sectorRotation": "Neutral weight across sectors; mild tilt to Quality factor (large-cap, high-margin); reduce small-cap exposure given curve inversion risk"
         },
         {
@@ -247,8 +359,8 @@
           "trigger": "Ceasefire collapses; oil spikes back above $110; CPI re-accelerates; Fed forced to hike; yield curve re-inverts deepening recession signal",
           "marketTarget": "S&P 6,400–6,900",
           "canadianAngle": "TSX 29,000–31,000 — energy rallies but financials and rate-sensitives sold heavily; CAD strengthens briefly then reverses",
-          "positioning": "Lean into defensives (BRK.B, GOLD, RTX); increase ZAG.TO (short-duration); trim speculative tech positions; reduce leverage entirely",
-          "sectorRotation": "Rotate into Consumer Staples, Healthcare, Gold miners (GOLD, ABX.TO); avoid Financials (re-inversion crushes NIM), Real Estate, small-cap growth"
+          "positioning": "Lean into GOLD (TFSA) and CNQ (TFSA); increase ZAG.TO (short-duration) in RRSP; trim PLTR and NOW speculative positions; reduce leverage entirely",
+          "sectorRotation": "Rotate into Consumer Staples, Healthcare, Gold miners; avoid Financials (re-inversion crushes NIM), Real Estate, small-cap growth"
         }
       ],
       "keyEvents": [
@@ -269,8 +381,8 @@
           "trigger": "Oil normalises below $75; 1–2 Fed cuts by year-end; AI investment super-cycle intact; new Fed Chair credible; yield curve fully normalised with 2s10s at +40–60 bps — historically bullish for equities 12 months forward",
           "marketTarget": "S&P 8,200–8,700",
           "canadianAngle": "TSX 36,000+; BoC resumes cuts; housing stabilises; SHOP and Canadian tech rebound; ZAG.TO rallies 5–7%; GoC curve steepens",
-          "positioning": "Increase equity allocation to 80%+; add INDA, MELI for EM exposure; rotate some fixed income into equities; add XRE.TO as BoC pivots",
-          "sectorRotation": "Overweight Financials (steeper curve major tailwind for bank NIMs), Technology (rate-sensitive growth re-rates), Real Estate (XRE.TO); underweight Energy, Utilities"
+          "positioning": "Increase equity allocation to 80%+; add LLY and AVGO (RRSP) for secular growth; rotate some RRSP fixed income into equities; VFV.TO and VTI core positions",
+          "sectorRotation": "Overweight Financials (steeper curve major tailwind for bank NIMs), Technology (rate-sensitive growth re-rates), Real Estate; underweight Energy, Utilities"
         },
         {
           "label": "Base case",
@@ -279,8 +391,8 @@
           "icon": "🟡",
           "trigger": "Geopolitical fog persists; Fed holds all year; growth moderate at 1.5–2%; margins hold on AI productivity; yield curve flat-to-slight-positive with 2s10s near 0–20 bps",
           "marketTarget": "S&P 7,100–7,700",
-          "canadianAngle": "TSX 32,000–35,000; CAD stable; XRE.TO and ZAG.TO outperform modestly as BoC eventually pivots; Canadian bank dividends provide buffer",
-          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; add XRE.TO on weakness; maintain 10% gold allocation",
+          "canadianAngle": "TSX 32,000–35,000; CAD stable; ZAG.TO and XIU outperform modestly as BoC eventually pivots; Canadian bank dividends provide buffer",
+          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; maintain 10% GOLD allocation; DCA into MSFT and AAPL (RRSP) on dips",
           "sectorRotation": "Barbell strategy: Quality growth (NVDA, MSFT) + Defensives (staples, healthcare); underweight rate-sensitive cyclicals pending curve clarity"
         },
         {
@@ -291,8 +403,8 @@
           "trigger": "New Fed Chair loses credibility; stagflation entrenches; credit spreads widen; corporate earnings fall 10%+; yield curve deepens re-inversion below -100 bps on 3M–10Y — recession probability spikes above 50%",
           "marketTarget": "S&P 5,800–6,500",
           "canadianAngle": "TSX 26,000–29,000; housing correction accelerates; BoC forced into emergency cuts; GoC curve also inverts; CAD weakens sharply",
-          "positioning": "Max defensives; raise TLT + ZAG.TO to 20% of RRSP (cut duration plays benefit); hold GOLD ETF; reduce leverage entirely; build cash to 20%",
-          "sectorRotation": "Defensive maximum: Consumer Staples (L.TO, MRU.TO), Utilities (FTS.TO), Healthcare, Gold miners; liquidate all speculative growth, crypto, REITs"
+          "positioning": "Max defensives; raise ZAG.TO to 20% of RRSP; hold GOLD ETF (TFSA); reduce PLTR, MU, NOW leverage exposure entirely; build cash to 20%",
+          "sectorRotation": "Defensive maximum: Consumer Staples, Utilities, Healthcare, Gold miners; liquidate all speculative growth, crypto (BTCC), REITs"
         }
       ],
       "keyEvents": [
@@ -323,12 +435,16 @@
   "portfolioImplication": {
     "summary": "The Iran de-escalation is the single biggest variable — a confirmed deal unlocks a Fed pivot and a strong H2 rally. The yield curve's gradual bear-steepening is a cautiously positive sign (recession risk receding vs. peak inversion), but the 2s10s remains negative, warning against aggressive risk-on positioning. Until the curve fully un-inverts and CPI cooperates, maintain a cautious barbell: core quality growth + defensive hedges, with 10–15% cash ready to deploy.",
     "actions": [
-      { "priority": "High",   "action": "Hold GOLD and ENB — both performing their hedge function; yield curve inversion historically precedes commodity outperformance by 6–12 months" },
-      { "priority": "High",   "action": "DCA into NVDA and AMZN on any 5–8% dips — AI capex is the one consensus trade that's still intact regardless of curve shape" },
-      { "priority": "Medium", "action": "Add ZAG.TO in RRSP as yield curve steepens — duration benefits if Fed eventually cuts; short-duration preferred over TLT until inversion fully resolves" },
-      { "priority": "Medium", "action": "Watch Canadian bank stocks (RY, TD) — they re-rate meaningfully when BoC curve steepens; the 2s10s un-inversion is the trigger" },
-      { "priority": "Medium", "action": "Review any TFSA position paying US dividends above 1.5% — WHT drag compounds painfully in a flat market" },
-      { "priority": "Low",    "action": "Watch SHOP and XRE.TO for entry points — both are cheap on a BoC-cut scenario but don't force it until curve fully normalises" }
+      { "priority": "High",   "type": "Hold",      "ticker": "NVDA",    "action": "Hold NVDA (TFSA) — AI capex super-cycle is intact and Nvidia's data center revenue continues to beat; only trim if position exceeds 20% of TFSA. Set a mental stop at $90." },
+      { "priority": "High",   "type": "Hold",      "ticker": "GOLD",    "action": "Hold GOLD (TFSA) — geopolitical uncertainty and central bank buying provide a structural floor near $3,200; acts as both inflation hedge and tail-risk insurance. Don't trim below 5% weight." },
+      { "priority": "High",   "type": "Buy",       "ticker": "AMZN",    "action": "DCA into AMZN on any 5–8% dips — AWS AI infrastructure capex is the one consensus trade still intact. Q2 earnings expected to re-accelerate cloud revenue growth." },
+      { "priority": "High",   "type": "Watch",     "ticker": "PLTR",    "action": "Watch PLTR (TFSA) closely — position has outperformed but is momentum-driven; a VIX spike above 25 or Fed hawkish surprise would pressure this name disproportionately. Trail a 15% stop." },
+      { "priority": "Medium", "type": "Hold",      "ticker": "CNQ",     "action": "Hold CNQ (TFSA) — oil at $88–95 keeps the 4.5% dividend fully covered; the base case of no Iran final deal means near-term energy price stability. Exit thesis triggers below $70 WTI." },
+      { "priority": "Medium", "type": "Rebalance", "ticker": "VFV.TO",  "action": "Deploy VFV.TO (TFSA) contributions systematically — this is the tax-efficient core position replacing MSFT/AAPL/META/TSM/ADI/THE. Target 15% weight by year-end via monthly DCA." },
+      { "priority": "Medium", "type": "Watch",     "ticker": "MU",      "action": "Watch MU (TFSA) — AI memory demand is structurally strong but the stock is cyclical; monitor HBM3 and DDR5 pricing trends. A 10% dip on cycle concerns is a buy opportunity." },
+      { "priority": "Medium", "type": "Buy",       "ticker": "AVGO",    "action": "Add AVGO (RRSP) on any pullback toward the target — custom ASIC demand from hyperscalers is doubling and the RRSP placement avoids the 1.2% dividend WHT drag." },
+      { "priority": "Low",    "type": "Hold",      "ticker": "BTCC",    "action": "Hold BTCC (TFSA) at 5% cap — crypto remains a high-volatility macro speculative; in a bear scenario (oil spike + Fed hike) this is the first position to cut. Don't add." },
+      { "priority": "Low",    "type": "Watch",     "ticker": "XIU",     "action": "Watch XIU (TFSA) for BoC cut signal — Canadian large-cap financials re-rate when BoC curve steepens. The TSX 60 is range-bound until oil direction clarifies; 8% target weight appropriate." }
     ]
   }
 }

@@ -1105,14 +1105,12 @@ export default function App() {
     if (live.treasury5y)   lines.push(`- 5Y US Treasury yield: ${live.treasury5y.toFixed(2)}%`);
     if (live.treasury30y)  lines.push(`- 30Y US Treasury yield: ${live.treasury30y.toFixed(2)}%`);
     if (live.breakeven10y) lines.push(`- 10Y Breakeven Inflation (FRED T10YIE): ${live.breakeven10y.toFixed(2)}%`);
-    // Compute real yield from TIPS directly, or fall back to nominal minus breakeven
     if (live.realYield10y != null) {
       lines.push(`- 10Y Real Yield (FRED DFII10 TIPS): ${live.realYield10y.toFixed(2)}%`);
     } else if (live.treasury10y && live.breakeven10y) {
       lines.push(`- 10Y Real Yield (computed nominal−breakeven): ${(live.treasury10y - live.breakeven10y).toFixed(2)}%`);
     }
 
-    // Compute key yield curve spreads (in bps) when data is available
     const spreadLines = [];
     if (live.treasury3m && live.treasury10y)
       spreadLines.push(`- 3M–10Y spread: ${Math.round((live.treasury10y - live.treasury3m) * 100)} bps (${live.treasury10y - live.treasury3m >= 0 ? "normal" : "INVERTED — recession signal"})`);
@@ -1120,6 +1118,19 @@ export default function App() {
       spreadLines.push(`- 5Y–30Y spread: ${Math.round((live.treasury30y - live.treasury5y) * 100)} bps`);
     if (live.treasury10y && live.treasury3m && live.treasury30y)
       spreadLines.push(`- Curve shape: ${live.treasury10y - live.treasury3m < -0.20 ? "Deeply inverted" : live.treasury10y - live.treasury3m < 0 ? "Mildly inverted" : live.treasury10y - live.treasury3m < 0.30 ? "Flat to slightly positive" : "Normal/Steepening"}`);
+
+    // Build a compact holdings summary for holdings-aware action generation
+    const buildHoldingSummary = (acct, hList) => {
+      if (!hList || !hList.length) return "";
+      const rows = hList
+        .filter(h => h.current > 0)
+        .map(h => `    ${h.ticker} (${h.name}): C$${Math.round(h.current).toLocaleString()} current value, ${h.divYield || 0}% div yield, target ${h.target}%`)
+        .join("\n");
+      return rows ? `  ${acct}:\n${rows}` : "";
+    };
+    const tfsaSummary = buildHoldingSummary("TFSA", holdings.TFSA || []);
+    const rrspSummary = buildHoldingSummary("RRSP", holdings.RRSP || []);
+    const holdingsBlock = [tfsaSummary, rrspSummary].filter(Boolean).join("\n");
 
     return `You are a senior macro analyst writing a monthly market pulse briefing for a Canadian investor managing a TFSA and RRSP portfolio.
 
@@ -1131,9 +1142,16 @@ Live market data fetched right now:
 ${lines.length ? lines.join("\n") : "(fetch failed — use your best current knowledge)"}
 ${spreadLines.length ? "\nComputed yield curve spreads:\n" + spreadLines.join("\n") : ""}
 
-Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators. Weight the live numbers heavily; they override your training data.
+Current portfolio holdings (use these to generate specific, personalised actions):
+${holdingsBlock || "(no holdings data available)"}
 
-For the yieldCurve section: classify the curve shape (normal, flat, inverted, bear-steepening, bull-flattening, bull-steepening), report all five benchmark yields, compute spreads in bps, estimate the NY Fed 12-month recession probability, describe the inversion history, and give a trajectory outlook. If the 2Y yield is not in the live data above, estimate it from current Fed policy and the live 3M/5Y/10Y anchors.
+Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators, credit spreads, DXY, copper, global macro. Weight the live numbers heavily; they override your training data.
+
+For the yieldCurve section: classify the curve shape, report all five benchmark yields, compute spreads in bps, estimate the NY Fed 12-month recession probability, describe the inversion history, and give a trajectory outlook.
+
+For newsSignals: provide 6 recent, specific news headlines from Bloomberg, CNBC, Reuters, Financial Times, or WSJ that are most relevant to this portfolio. Each headline must name the source and include a direct implication for the specific tickers held above.
+
+For portfolioImplication.actions: generate 8–10 specific, actionable items referencing actual tickers from the holdings above. Classify each as "Buy", "Hold", "Reduce", "Watch", or "Rebalance". Include a rationale tied to the current macro regime. At least 3 actions must be "High" priority.
 
 Generate a complete market pulse JSON for ${monthLabel}. Return the JSON inside a single \`\`\`json code block. No explanation before or after the code block — only the code block.
 
@@ -1177,7 +1195,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
     "canadianCurve": "One sentence on BoC curve dynamics relevant to a Canadian TFSA/RRSP investor"
   },
   "macroSignals": [
-    { "category": "Equities",     "icon": "📈", "signals": [
+    { "category": "Equities", "icon": "📈", "signals": [
         { "label": "S&P 500",       "value": "~X,XXX", "trend": "up|down|sideways", "status": "bullish|bearish|caution|neutral", "note": "one line" },
         { "label": "TSX Composite", "value": "...", "trend": "...", "status": "...", "note": "..." },
         { "label": "VIX",           "value": "...", "trend": "...", "status": "...", "note": "..." },
@@ -1187,8 +1205,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         { "label": "Fed Funds Rate",           "value": "...", "trend": "...", "status": "...", "note": "..." },
         { "label": "10Y US Treasury",          "value": "...", "trend": "...", "status": "...", "note": "..." },
         { "label": "Yield Curve (2s10s)",      "value": "+/- XX bps", "trend": "...", "status": "...", "note": "..." },
-        { "label": "10Y Real Yield",           "value": "X.XX%", "trend": "...", "status": "bullish (negative real rate) | caution (low positive) | bearish (high positive, restricts credit)", "note": "one line — high real yields compress equity P/E and pressure gold" },
-        { "label": "10Y Breakeven Inflation",  "value": "X.XX%", "trend": "...", "status": "...", "note": "one line — market's 10-year inflation expectation; rising = Fed more constrained" },
+        { "label": "10Y Real Yield",           "value": "X.XX%", "trend": "...", "status": "...", "note": "..." },
+        { "label": "10Y Breakeven Inflation",  "value": "X.XX%", "trend": "...", "status": "...", "note": "..." },
         { "label": "BoC Rate",                 "value": "...", "trend": "...", "status": "...", "note": "..." }
     ]},
     { "category": "Macro", "icon": "🌐", "signals": [
@@ -1198,6 +1216,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         { "label": "Gold",            "value": "...", "trend": "...", "status": "...", "note": "..." },
         { "label": "USD/CAD",         "value": "...", "trend": "...", "status": "...", "note": "..." }
     ]},
+    { "category": "Credit & Risk", "icon": "💳", "signals": [
+        { "label": "HY Credit Spread (CDX HY)", "value": "~XXX bps", "trend": "...", "status": "bullish (<350 bps) | caution (350–500) | bearish (>500)", "note": "one line — widening spreads = credit stress, risk-off signal" },
+        { "label": "IG Credit Spread",          "value": "~XX bps",  "trend": "...", "status": "...", "note": "..." },
+        { "label": "US HY Default Rate",        "value": "X.X%",     "trend": "...", "status": "...", "note": "..." },
+        { "label": "Bank Lending Standards",    "value": "...",       "trend": "...", "status": "...", "note": "..." }
+    ]},
+    { "category": "Global & Commodities", "icon": "🌍", "signals": [
+        { "label": "DXY (US Dollar Index)", "value": "~XXX",  "trend": "...", "status": "...", "note": "strong USD = headwind for EM, commodities, and CAD" },
+        { "label": "Copper (front-month)",  "value": "~$X.XX/lb", "trend": "...", "status": "bullish|bearish|neutral", "note": "copper is a leading global growth indicator" },
+        { "label": "China PMI",             "value": "...",    "trend": "...", "status": "...", "note": "..." },
+        { "label": "Eurozone CPI",          "value": "...",    "trend": "...", "status": "...", "note": "..." }
+    ]},
     { "category": "Sentiment", "icon": "🧠", "signals": [
         { "label": "Fear & Greed",       "value": "...", "trend": "...", "status": "...", "note": "..." },
         { "label": "AAII Bull/Bear",     "value": "...", "trend": "...", "status": "...", "note": "..." },
@@ -1205,57 +1235,59 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         { "label": "Earnings Revisions", "value": "...", "trend": "...", "status": "...", "note": "..." }
     ]}
   ],
+  "newsSignals": [
+    {
+      "source": "Bloomberg|CNBC|Reuters|FT|WSJ",
+      "headline": "Specific headline text — must be a real or very plausible current headline",
+      "date": "Month DD, YYYY",
+      "impact": "bullish|bearish|neutral",
+      "portfolioImpact": "One sentence: which holdings are directly affected and how (name the tickers)"
+    }
+  ],
   "outlooks": [
     {
       "horizon": "3 months", "period": "${fmt3}",
       "scenarios": [
         { "label": "Bull case",  "probability": 30, "color": "#22c55e", "icon": "🟢",
           "trigger": "...", "marketTarget": "S&P X,XXX–X,XXX", "canadianAngle": "TSX/CAD/oil implications",
-          "positioning": "TFSA/RRSP action",
+          "positioning": "TFSA/RRSP action referencing actual portfolio tickers",
           "sectorRotation": "e.g. Overweight Financials + Tech; underweight Utilities" },
         { "label": "Base case",  "probability": 45, "color": "#fbbf24", "icon": "🟡",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
-          "sectorRotation": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...", "sectorRotation": "..." },
         { "label": "Bear case",  "probability": 25, "color": "#ef4444", "icon": "🔴",
           "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
           "sectorRotation": "e.g. Rotate to Staples, Healthcare, Gold — avoid rate-sensitives" }
       ],
-      "keyEvents": [
-        { "date": "Mon DD", "event": "description" }
-      ]
+      "keyEvents": [ { "date": "Mon DD", "event": "description" } ]
     },
     {
       "horizon": "6 months", "period": "${fmt6}",
       "scenarios": [
         { "label": "Bull case",  "probability": 28, "color": "#22c55e", "icon": "🟢",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
-          "sectorRotation": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...", "sectorRotation": "..." },
         { "label": "Base case",  "probability": 42, "color": "#fbbf24", "icon": "🟡",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
-          "sectorRotation": "..." },
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...", "sectorRotation": "..." },
         { "label": "Bear case",  "probability": 30, "color": "#ef4444", "icon": "🔴",
-          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...",
-          "sectorRotation": "..." }
+          "trigger": "...", "marketTarget": "...", "canadianAngle": "...", "positioning": "...", "sectorRotation": "..." }
       ],
-      "keyEvents": [
-        { "date": "Mon YYYY", "event": "description" }
-      ]
+      "keyEvents": [ { "date": "Mon YYYY", "event": "description" } ]
     }
   ],
   "catalysts": {
-    "bullish": [
-      { "icon": "emoji", "label": "specific catalyst relevant to current environment" }
-    ],
-    "bearish": [
-      { "icon": "emoji", "label": "specific risk relevant to current environment" }
-    ]
+    "bullish": [ { "icon": "emoji", "label": "specific catalyst relevant to current environment" } ],
+    "bearish":  [ { "icon": "emoji", "label": "specific risk relevant to current environment" } ]
   },
   "portfolioImplication": {
-    "summary": "2-3 sentences specific to a Canadian TFSA/RRSP investor given the current regime",
+    "summary": "2-3 sentences specific to a Canadian TFSA/RRSP investor given the current regime and actual holdings",
     "actions": [
-      { "priority": "High",   "action": "Specific actionable guidance — name tickers (e.g. GOLD, ENB, ZAG.TO)" },
-      { "priority": "Medium", "action": "..." },
-      { "priority": "Low",    "action": "..." }
+      { "priority": "High",   "type": "Hold|Buy|Reduce|Watch|Rebalance", "ticker": "TICKER or null", "action": "Specific actionable guidance referencing actual portfolio tickers" },
+      { "priority": "High",   "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "High",   "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "Low",    "type": "...", "ticker": "...", "action": "..." },
+      { "priority": "Low",    "type": "...", "ticker": "...", "action": "..." }
     ]
   }
 }`;
@@ -3263,6 +3295,119 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               )}
             </div>
 
+            {/* ── ACTION CENTER — prominent, top of page ── */}
+            {mp.portfolioImplication?.actions?.length > 0 && (() => {
+              const knownTickers = new Set(RECOMMENDATIONS.map(r => r.ticker));
+              const allHeld = new Set([...(holdings.TFSA||[]), ...(holdings.RRSP||[])].map(h => h.ticker));
+              const typeStyles = {
+                Buy:       { bg:"rgba(34,197,94,0.12)",  border:"rgba(34,197,94,0.35)",  color:"#22c55e",  icon:"🟢" },
+                Hold:      { bg:"rgba(34,211,238,0.08)", border:"rgba(34,211,238,0.25)", color:"#22d3ee",  icon:"🔵" },
+                Reduce:    { bg:"rgba(239,68,68,0.10)",  border:"rgba(239,68,68,0.30)",  color:"#ef4444",  icon:"🔴" },
+                Watch:     { bg:"rgba(251,191,36,0.10)", border:"rgba(251,191,36,0.30)", color:"#fbbf24",  icon:"👁" },
+                Rebalance: { bg:"rgba(167,139,250,0.10)",border:"rgba(167,139,250,0.30)",color:"#a78bfa",  icon:"⚖️" },
+              };
+              const pBorder = p => p === "High" ? "#ef4444" : p === "Medium" ? "#fbbf24" : "#64748b";
+
+              return (
+                <div className="card" style={{ marginBottom:16, padding:"18px 20px",
+                  background:"rgba(167,139,250,0.04)", borderColor:"rgba(167,139,250,0.18)",
+                  borderLeft:"3px solid #a78bfa" }}>
+
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                    marginBottom:14, flexWrap:"wrap", gap:8 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <span style={{ fontSize:16 }}>🎯</span>
+                      <div>
+                        <p style={{ fontSize:13, fontWeight:700, color:"#a78bfa", margin:0 }}>
+                          Action Center
+                        </p>
+                        <p style={{ fontSize:10, color:"rgba(167,139,250,0.5)", margin:0, marginTop:1 }}>
+                          Holdings-aware actions · {mp.period} · click tickers to open ideas
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                      {["High","Medium","Low"].map(p => {
+                        const cnt = mp.portfolioImplication.actions.filter(a => a.priority === p).length;
+                        if (!cnt) return null;
+                        const c = pBorder(p);
+                        return (
+                          <span key={p} style={{ fontSize:10, padding:"3px 9px", borderRadius:12,
+                            background:`${c}15`, color: c, border:`1px solid ${c}35`, fontWeight:600 }}>
+                            {cnt} {p}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Summary */}
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.6,
+                    marginBottom:14, paddingBottom:12, borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                    {mp.portfolioImplication.summary}
+                  </p>
+
+                  {/* Action cards */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(340px, 1fr))", gap:10 }}>
+                    {mp.portfolioImplication.actions.map((a, i) => {
+                      const ts = typeStyles[a.type] || typeStyles.Watch;
+                      const pc = pBorder(a.priority);
+                      const tickerStr = a.ticker && a.ticker !== "null" ? a.ticker : null;
+                      const rec = tickerStr ? RECOMMENDATIONS.find(r => r.ticker === tickerStr) : null;
+                      const inPortfolio = tickerStr ? allHeld.has(tickerStr) : false;
+                      return (
+                        <div key={i} style={{
+                          border:`1px solid ${ts.border}`,
+                          borderLeft:`3px solid ${pc}`,
+                          background: ts.bg,
+                          borderRadius:8, padding:"12px 14px",
+                          display:"flex", flexDirection:"column", gap:6
+                        }}>
+                          {/* Card header row */}
+                          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                            <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:4,
+                              background:`${pc}18`, color: pc, border:`1px solid ${pc}30`,
+                              whiteSpace:"nowrap" }}>
+                              {a.priority}
+                            </span>
+                            <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                              background: ts.bg, color: ts.color, border:`1px solid ${ts.border}`,
+                              whiteSpace:"nowrap" }}>
+                              {ts.icon} {a.type || "Action"}
+                            </span>
+                            {tickerStr && (
+                              <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                                padding:"2px 8px", borderRadius:4,
+                                background: inPortfolio ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.05)",
+                                color: inPortfolio ? "#22d3ee" : "rgba(255,255,255,0.5)",
+                                border: inPortfolio ? "1px solid rgba(34,211,238,0.3)" : "1px solid rgba(255,255,255,0.1)" }}>
+                                {tickerStr} {inPortfolio ? "✓" : ""}
+                              </span>
+                            )}
+                          </div>
+                          {/* Action text */}
+                          <p style={{ fontSize:11, color:"rgba(255,255,255,0.7)", lineHeight:1.55, margin:0 }}>
+                            {a.action}
+                          </p>
+                          {/* Add to portfolio button if not held and in rec list */}
+                          {tickerStr && rec && !inPortfolio && (
+                            <button onClick={() => addRecommendedTicker(rec, rec?.bestFor === "RRSP" ? "RRSP" : "TFSA")}
+                              style={{ alignSelf:"flex-start", fontSize:10, padding:"4px 10px", borderRadius:4,
+                                cursor:"pointer", fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
+                                background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.3)",
+                                color:"#a78bfa" }}>
+                              + Add {tickerStr} to {rec.bestFor === "RRSP" ? "RRSP" : "TFSA"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Header + regime */}
             <div className="card" style={{ marginBottom:16, padding:"16px 20px",
               background:"rgba(34,211,238,0.03)", borderColor:"rgba(34,211,238,0.12)" }}>
@@ -3335,6 +3480,60 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               ))}
             </div>
+
+            {/* ── News Flash Panel ── */}
+            {mp.newsSignals?.length > 0 && (
+              <div className="card" style={{ marginBottom:16, padding:"16px 20px",
+                background:"rgba(34,211,238,0.02)", borderColor:"rgba(34,211,238,0.1)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+                  <span style={{ fontSize:14 }}>📰</span>
+                  <p style={{ fontSize:11, fontWeight:700, color:"#22d3ee", margin:0 }}>News Flash</p>
+                  <span style={{ fontSize:9, color:"rgba(34,211,238,0.4)", marginLeft:4 }}>
+                    Bloomberg · CNBC · Reuters · FT · WSJ — portfolio impact analysis
+                  </span>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                  {mp.newsSignals.map((n, i) => {
+                    const impactColor = n.impact === "bullish" ? "#22c55e"
+                      : n.impact === "bearish" ? "#ef4444" : "#fbbf24";
+                    const impactIcon = n.impact === "bullish" ? "▲" : n.impact === "bearish" ? "▼" : "→";
+                    return (
+                      <div key={i} style={{
+                        display:"flex", gap:12, alignItems:"flex-start",
+                        padding:"10px 14px", borderRadius:8,
+                        background:`${impactColor}08`,
+                        border:`1px solid ${impactColor}20`,
+                        borderLeft:`3px solid ${impactColor}`
+                      }}>
+                        <div style={{ flexShrink:0, paddingTop:1 }}>
+                          <span style={{ fontSize:11, fontWeight:700, color: impactColor }}>
+                            {impactIcon}
+                          </span>
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
+                            <span style={{ fontSize:9, fontWeight:700, padding:"1px 6px", borderRadius:3,
+                              background:"rgba(255,255,255,0.06)", color:"rgba(255,255,255,0.5)",
+                              border:"1px solid rgba(255,255,255,0.1)", textTransform:"uppercase",
+                              letterSpacing:"0.04em", whiteSpace:"nowrap" }}>
+                              {n.source}
+                            </span>
+                            <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)",
+                              fontFamily:"'JetBrains Mono',monospace" }}>{n.date}</span>
+                          </div>
+                          <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.8)",
+                            lineHeight:1.45, marginBottom:5 }}>{n.headline}</p>
+                          <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)", lineHeight:1.5, margin:0 }}>
+                            <span style={{ color: impactColor, fontWeight:600 }}>Portfolio impact: </span>
+                            {n.portfolioImpact}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── Yield Curve Panel ── */}
             {mp.yieldCurve && (() => {
@@ -3613,33 +3812,6 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            {/* Portfolio implication */}
-            <div className="card" style={{ marginBottom:16, padding:"14px 18px",
-              background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.12)" }}>
-              <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa", marginBottom:8 }}>
-                🎯 Portfolio implication for your TFSA / RRSP
-              </p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.6, marginBottom:12 }}>
-                {mp.portfolioImplication.summary}
-              </p>
-              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                {mp.portfolioImplication.actions.map(a => {
-                  const pColor = a.priority === "High" ? "#ef4444" : a.priority === "Medium" ? "#fbbf24" : "#64748b";
-                  return (
-                    <div key={a.action} style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
-                      <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
-                        whiteSpace:"nowrap", marginTop:1,
-                        background:`${pColor}18`, color: pColor,
-                        border:`1px solid ${pColor}30` }}>
-                        {a.priority}
-                      </span>
-                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.55)", lineHeight:1.5 }}>{a.action}</p>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
