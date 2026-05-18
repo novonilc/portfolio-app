@@ -392,7 +392,7 @@
           "trigger": "Geopolitical fog persists; Fed holds all year; growth moderate at 1.5–2%; margins hold on AI productivity; yield curve flat-to-slight-positive with 2s10s near 0–20 bps",
           "marketTarget": "S&P 7,100–7,700",
           "canadianAngle": "TSX 32,000–35,000; CAD stable; ZAG.TO and XIU outperform modestly as BoC eventually pivots; Canadian bank dividends provide buffer",
-          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; maintain 10% GOLD allocation; DCA into MSFT and AAPL (RRSP) on dips",
+          "positioning": "Stay the course; reinvest dividends; optimise TFSA/RRSP placement; maintain 10% GOLD allocation; DCA into QQQM and VTI (RRSP) on dips",
           "sectorRotation": "Barbell strategy: Quality growth (NVDA, MSFT) + Defensives (staples, healthcare); underweight rate-sensitive cyclicals pending curve clarity"
         },
         {
@@ -440,7 +440,7 @@
       { "priority": "High",   "type": "Buy",       "ticker": "AMZN",    "action": "DCA into AMZN on any 5–8% dips — AWS AI infrastructure capex is the one consensus trade still intact. Q2 earnings expected to re-accelerate cloud revenue growth." },
       { "priority": "High",   "type": "Watch",     "ticker": "PLTR",    "action": "Watch PLTR (TFSA) closely — position has outperformed but is momentum-driven; a VIX spike above 25 or Fed hawkish surprise would pressure this name disproportionately. Trail a 15% stop." },
       { "priority": "Medium", "type": "Hold",      "ticker": "CNQ",     "action": "Hold CNQ (TFSA) — oil at $88–95 keeps the 4.5% dividend fully covered; the base case of no Iran final deal means near-term energy price stability. Exit thesis triggers below $70 WTI." },
-      { "priority": "Medium", "type": "Rebalance", "ticker": "VFV.TO",  "action": "Deploy VFV.TO (TFSA) contributions systematically — this is the tax-efficient core position replacing MSFT/AAPL/META/TSM/ADI/THE. Target 15% weight by year-end via monthly DCA." },
+      { "priority": "Medium", "type": "Rebalance", "ticker": "VFV.TO",  "action": "Deploy VFV.TO (TFSA) contributions systematically — CAD-listed S&P 500 ETF with no WHT drag. Target 15% weight by year-end via monthly DCA; ideal for TFSA since all appreciation stays tax-free." },
       { "priority": "Medium", "type": "Watch",     "ticker": "MU",      "action": "Watch MU (TFSA) — AI memory demand is structurally strong but the stock is cyclical; monitor HBM3 and DDR5 pricing trends. A 10% dip on cycle concerns is a buy opportunity." },
       { "priority": "Medium", "type": "Buy",       "ticker": "AVGO",    "action": "Add AVGO (RRSP) on any pullback toward the target — custom ASIC demand from hyperscalers is doubling and the RRSP placement avoids the 1.2% dividend WHT drag." },
       { "priority": "Low",    "type": "Hold",      "ticker": "BTCC",    "action": "Hold BTCC (TFSA) at 5% cap — crypto remains a high-volatility macro speculative; in a bear scenario (oil spike + Fed hike) this is the first position to cut. Don't add." },
