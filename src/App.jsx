@@ -3440,22 +3440,56 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
 
                 {/* Risk-On / Risk-Off gauge */}
-                <div style={{ minWidth:200, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
-                  borderRadius:10, padding:"12px 16px", textAlign:"center" }}>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:6, letterSpacing:"0.06em", textTransform:"uppercase" }}>
-                    Risk-On / Risk-Off
-                  </p>
-                  <div style={{ position:"relative", height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, marginBottom:8, overflow:"hidden" }}>
-                    <div style={{ position:"absolute", left:0, top:0, bottom:0, width:"50%",
-                      background:"linear-gradient(90deg, #ef4444, #fbbf24)", borderRadius:4 }} />
-                    <div style={{ position:"absolute", left:"50%", top:0, bottom:0, width:"50%",
-                      background:"linear-gradient(90deg, #fbbf24, #22c55e)", borderRadius:4 }} />
-                    <div style={{ position:"absolute", top:"50%", transform:"translate(-50%,-50%)",
-                      left:`${risk.score}%`, width:12, height:12, borderRadius:"50%",
-                      background:"#fff", boxShadow:"0 0 6px rgba(0,0,0,0.8)", border:"2px solid rgba(0,0,0,0.4)" }} />
+                <div style={{ minWidth:220, background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+                  borderRadius:10, padding:"14px 16px" }}>
+
+                  {/* Title + numeric score */}
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", letterSpacing:"0.06em",
+                      textTransform:"uppercase", margin:0 }}>Risk Meter</p>
+                    <span style={{ fontSize:12, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color: risk.color }}>{risk.score}/100</span>
                   </div>
-                  <p style={{ fontSize:14, fontWeight:700, color: risk.color, marginBottom:2 }}>{risk.label}</p>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", lineHeight:1.4 }}>{risk.sublabel}</p>
+
+                  {/* Zone labels */}
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                    <span style={{ fontSize:8, color:"rgba(239,68,68,0.6)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Risk-Off</span>
+                    <span style={{ fontSize:8, color:"rgba(251,191,36,0.6)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Neutral</span>
+                    <span style={{ fontSize:8, color:"rgba(34,197,94,0.6)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Risk-On</span>
+                  </div>
+
+                  {/* Track + thumb — wrapper is tall enough so thumb isn't clipped */}
+                  <div style={{ position:"relative", height:22, marginBottom:10 }}>
+                    {/* 5-segment colour zones — no overflow:hidden so the thumb floats freely above */}
+                    <div style={{ position:"absolute", top:"50%", transform:"translateY(-50%)",
+                      left:0, right:0, height:8, borderRadius:4, display:"flex", overflow:"hidden" }}>
+                      <div style={{ flex:1, background:"#ef4444" }} />
+                      <div style={{ flex:1, background:"#f97316" }} />
+                      <div style={{ flex:1, background:"#eab308" }} />
+                      <div style={{ flex:1, background:"#84cc16" }} />
+                      <div style={{ flex:1, background:"#22c55e" }} />
+                    </div>
+                    {/* Tick marks at zone boundaries */}
+                    {[20,40,60,80].map(p => (
+                      <div key={p} style={{ position:"absolute", top:"50%", left:`${p}%`,
+                        transform:"translate(-50%,-50%)",
+                        width:1, height:12, background:"rgba(0,0,0,0.45)", zIndex:1 }} />
+                    ))}
+                    {/* Thumb — sibling of the track, not clipped by it */}
+                    <div style={{
+                      position:"absolute", top:"50%", left:`${Math.min(Math.max(risk.score,2),98)}%`,
+                      transform:"translate(-50%,-50%)",
+                      width:18, height:18, borderRadius:"50%", zIndex:3,
+                      background: risk.color,
+                      border:"2.5px solid rgba(255,255,255,0.95)",
+                      boxShadow:`0 0 10px ${risk.color}90, 0 0 4px rgba(0,0,0,0.7)`
+                    }} />
+                  </div>
+
+                  <p style={{ fontSize:13, fontWeight:700, color: risk.color,
+                    textAlign:"center", marginBottom:3 }}>{risk.label}</p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
+                    textAlign:"center", lineHeight:1.4 }}>{risk.sublabel}</p>
                 </div>
               </div>
             </div>
