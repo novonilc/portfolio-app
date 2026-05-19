@@ -3458,26 +3458,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <span style={{ fontSize:8, color:"rgba(34,197,94,0.6)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Risk-On</span>
                   </div>
 
-                  {/* Track + thumb — wrapper is tall enough so thumb isn't clipped */}
+                  {/* Track + thumb — wrapper tall enough for thumb to render without clipping */}
                   <div style={{ position:"relative", height:22, marginBottom:10 }}>
-                    {/* 5-segment colour zones — no overflow:hidden so the thumb floats freely above */}
+                    {/* Track: dark background, fill clips at score% so unvisited zones stay dark */}
                     <div style={{ position:"absolute", top:"50%", transform:"translateY(-50%)",
-                      left:0, right:0, height:8, borderRadius:4, display:"flex", overflow:"hidden" }}>
-                      <div style={{ flex:1, background:"#ef4444" }} />
-                      <div style={{ flex:1, background:"#f97316" }} />
-                      <div style={{ flex:1, background:"#eab308" }} />
-                      <div style={{ flex:1, background:"#84cc16" }} />
-                      <div style={{ flex:1, background:"#22c55e" }} />
+                      left:0, right:0, height:8, borderRadius:4,
+                      background:"rgba(255,255,255,0.07)", overflow:"hidden" }}>
+                      <div style={{
+                        position:"absolute", left:0, top:0, bottom:0,
+                        width:`${risk.score}%`,
+                        background:"linear-gradient(90deg, #ef4444 0%, #f97316 25%, #eab308 50%, #84cc16 75%, #22c55e 100%)"
+                      }} />
                     </div>
                     {/* Tick marks at zone boundaries */}
                     {[20,40,60,80].map(p => (
                       <div key={p} style={{ position:"absolute", top:"50%", left:`${p}%`,
                         transform:"translate(-50%,-50%)",
-                        width:1, height:12, background:"rgba(0,0,0,0.45)", zIndex:1 }} />
+                        width:1.5, height:14, background:"rgba(0,0,0,0.5)", zIndex:2 }} />
                     ))}
-                    {/* Thumb — sibling of the track, not clipped by it */}
+                    {/* Thumb — sibling of the track, NOT inside overflow:hidden */}
                     <div style={{
-                      position:"absolute", top:"50%", left:`${Math.min(Math.max(risk.score,2),98)}%`,
+                      position:"absolute", top:"50%",
+                      left:`${Math.min(Math.max(risk.score,1),99)}%`,
                       transform:"translate(-50%,-50%)",
                       width:18, height:18, borderRadius:"50%", zIndex:3,
                       background: risk.color,
