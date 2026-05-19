@@ -294,6 +294,15 @@ export default function App() {
   const [pulseCopied,      setPulseCopied]     = useState(false);
   const [pulsePasteOpen,   setPulsePasteOpen]  = useState(false);
   const [pulsePasteText,   setPulsePasteText]  = useState("");
+  // Quick-trade state for Action Center
+  const [pulseTradeOpen,   setPulseTradeOpen]  = useState(null); // actionIdx or null
+  const [pulseTradeAcct,   setPulseTradeAcct]  = useState("TFSA");
+  const [pulseTradeAmt,    setPulseTradeAmt]   = useState("");
+  const [pulseReducePct,   setPulseReducePct]  = useState(25);
+  const [pulseTradeLog,    setPulseTradeLog]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pulse:tradeLog") || "[]"); } catch { return []; }
+  });
+  const [pulseTradeFlash,  setPulseTradeFlash] = useState(null); // { msg, ok }
   const [pulsePasteError,  setPulsePasteError] = useState(null);
   const [pulseApplyDone,   setPulseApplyDone]  = useState(false);
 
@@ -601,6 +610,54 @@ export default function App() {
     persist(targetAccount, next[targetAccount]);
     setAccount(targetAccount);
     setTab("targets");
+  }
+
+  // ── Pulse Quick Trade helpers ──────────────────────────────────────────
+  function logPulseTrade(entry) {
+    const next = [entry, ...pulseTradeLog].slice(0, 50);
+    setPulseTradeLog(next);
+    localStorage.setItem("pulse:tradeLog", JSON.stringify(next));
+  }
+
+  function executePulseBuy(ticker, name, acct, amtStr) {
+    const amt = parseFloat(amtStr);
+    if (!amt || amt <= 0) { setPulseTradeFlash({ msg:"Enter a valid amount", ok:false }); return; }
+    const next = { ...holdings };
+    const idx = next[acct].findIndex(h => h.ticker === ticker);
+    if (idx >= 0) {
+      next[acct] = [...next[acct]];
+      next[acct][idx] = { ...next[acct][idx], current: next[acct][idx].current + amt };
+    } else {
+      next[acct] = [...next[acct], {
+        ticker, name: name || ticker, current: amt, costBasis: amt,
+        target: 0, divYield: 0, cagr: DEFAULT_CAGR[ticker] || 10,
+        currencyOverride: "", locked: "✅ Keep", notes: "Added from Market Pulse action.",
+      }];
+    }
+    setHoldings(next);
+    persist(acct, next[acct]);
+    logPulseTrade({ date: new Date().toISOString(), ticker, type:"Buy", account: acct, amount: amt, note:`+C$${amt.toLocaleString()}` });
+    setPulseTradeFlash({ msg:`✓ Added C$${amt.toLocaleString()} of ${ticker} to ${acct}`, ok:true });
+    setPulseTradeAmt("");
+    setPulseTradeOpen(null);
+    setTimeout(() => setPulseTradeFlash(null), 4000);
+  }
+
+  function executePulseReduce(ticker, acct, reducePct) {
+    const next = { ...holdings };
+    const idx = next[acct]?.findIndex(h => h.ticker === ticker);
+    if (idx === undefined || idx < 0) { setPulseTradeFlash({ msg:`${ticker} not found in ${acct}`, ok:false }); return; }
+    const holding = next[acct][idx];
+    const removed = holding.current * (reducePct / 100);
+    const newVal  = Math.max(0, holding.current - removed);
+    next[acct] = [...next[acct]];
+    next[acct][idx] = { ...holding, current: newVal };
+    setHoldings(next);
+    persist(acct, next[acct]);
+    logPulseTrade({ date: new Date().toISOString(), ticker, type:"Reduce", account: acct, amount: -removed, note:`-${reducePct}% → C$${Math.round(newVal).toLocaleString()} remaining` });
+    setPulseTradeFlash({ msg:`✓ Reduced ${ticker} by ${reducePct}% in ${acct} — C$${Math.round(newVal).toLocaleString()} remaining`, ok:true });
+    setPulseTradeOpen(null);
+    setTimeout(() => setPulseTradeFlash(null), 4000);
   }
 
   // ── Cash holding ───────────────────────────────────────────────────────
@@ -3301,111 +3358,261 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               )}
             </div>
 
-            {/* ── ACTION CENTER — prominent, top of page ── */}
+            {/* ── ACTION CENTER ── */}
             {mp.portfolioImplication?.actions?.length > 0 && (() => {
-              const knownTickers = new Set(RECOMMENDATIONS.map(r => r.ticker));
-              const allHeld = new Set([...(holdings.TFSA||[]), ...(holdings.RRSP||[])].map(h => h.ticker));
               const typeStyles = {
-                Buy:       { bg:"rgba(34,197,94,0.12)",  border:"rgba(34,197,94,0.35)",  color:"#22c55e",  icon:"🟢" },
-                Hold:      { bg:"rgba(34,211,238,0.08)", border:"rgba(34,211,238,0.25)", color:"#22d3ee",  icon:"🔵" },
-                Reduce:    { bg:"rgba(239,68,68,0.10)",  border:"rgba(239,68,68,0.30)",  color:"#ef4444",  icon:"🔴" },
-                Watch:     { bg:"rgba(251,191,36,0.10)", border:"rgba(251,191,36,0.30)", color:"#fbbf24",  icon:"👁" },
-                Rebalance: { bg:"rgba(167,139,250,0.10)",border:"rgba(167,139,250,0.30)",color:"#a78bfa",  icon:"⚖️" },
+                Buy:       { bg:"rgba(34,197,94,0.10)",   border:"rgba(34,197,94,0.30)",  color:"#22c55e", icon:"↑ Buy"    },
+                Hold:      { bg:"rgba(34,211,238,0.07)",  border:"rgba(34,211,238,0.20)", color:"#22d3ee", icon:"◆ Hold"   },
+                Reduce:    { bg:"rgba(239,68,68,0.10)",   border:"rgba(239,68,68,0.28)",  color:"#ef4444", icon:"↓ Reduce" },
+                Watch:     { bg:"rgba(251,191,36,0.08)",  border:"rgba(251,191,36,0.25)", color:"#fbbf24", icon:"◎ Watch"  },
+                Rebalance: { bg:"rgba(167,139,250,0.09)", border:"rgba(167,139,250,0.28)",color:"#a78bfa", icon:"⇄ Rebalance" },
               };
-              const pBorder = p => p === "High" ? "#ef4444" : p === "Medium" ? "#fbbf24" : "#64748b";
+              const pBorder = p => p==="High"?"#ef4444":p==="Medium"?"#fbbf24":"#64748b";
+
+              // For each ticker find where it's held and its current CAD value
+              const holdingInfo = ticker => {
+                if (!ticker || ticker==="null") return [];
+                return portfolios.flatMap(p =>
+                  (holdings[p]||[])
+                    .filter(h => h.ticker === ticker)
+                    .map(h => ({ acct:p, h, valCAD: toCAD(h.current, ticker, h.currencyOverride) }))
+                ).filter(x => x.valCAD > 0 || x.h.current > 0);
+              };
 
               return (
                 <div className="card" style={{ marginBottom:16, padding:"18px 20px",
-                  background:"rgba(167,139,250,0.04)", borderColor:"rgba(167,139,250,0.18)",
+                  background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.16)",
                   borderLeft:"3px solid #a78bfa" }}>
 
                   {/* Header */}
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                    marginBottom:14, flexWrap:"wrap", gap:8 }}>
+                    marginBottom:12, flexWrap:"wrap", gap:8 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                       <span style={{ fontSize:16 }}>🎯</span>
                       <div>
-                        <p style={{ fontSize:13, fontWeight:700, color:"#a78bfa", margin:0 }}>
-                          Action Center
-                        </p>
+                        <p style={{ fontSize:13, fontWeight:700, color:"#a78bfa", margin:0 }}>Action Center</p>
                         <p style={{ fontSize:10, color:"rgba(167,139,250,0.5)", margin:0, marginTop:1 }}>
-                          Holdings-aware actions · {mp.period} · click tickers to open ideas
+                          {mp.period} · click Buy / Reduce on any card to log a trade
                         </p>
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                       {["High","Medium","Low"].map(p => {
-                        const cnt = mp.portfolioImplication.actions.filter(a => a.priority === p).length;
+                        const cnt = mp.portfolioImplication.actions.filter(a => a.priority===p).length;
                         if (!cnt) return null;
                         const c = pBorder(p);
-                        return (
-                          <span key={p} style={{ fontSize:10, padding:"3px 9px", borderRadius:12,
-                            background:`${c}15`, color: c, border:`1px solid ${c}35`, fontWeight:600 }}>
-                            {cnt} {p}
-                          </span>
-                        );
+                        return <span key={p} style={{ fontSize:10, padding:"3px 9px", borderRadius:12,
+                          background:`${c}15`, color:c, border:`1px solid ${c}35`, fontWeight:600 }}>{cnt} {p}</span>;
                       })}
                     </div>
                   </div>
 
+                  {/* Global trade flash */}
+                  {pulseTradeFlash && (
+                    <div style={{ padding:"8px 12px", borderRadius:6, marginBottom:12, fontSize:11,
+                      background: pulseTradeFlash.ok ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                      border:`1px solid ${pulseTradeFlash.ok?"rgba(34,197,94,0.3)":"rgba(239,68,68,0.3)"}`,
+                      color: pulseTradeFlash.ok ? "#22c55e" : "#ef4444" }}>
+                      {pulseTradeFlash.msg}
+                    </div>
+                  )}
+
                   {/* Summary */}
-                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.6,
-                    marginBottom:14, paddingBottom:12, borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)", lineHeight:1.6,
+                    marginBottom:14, paddingBottom:12, borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
                     {mp.portfolioImplication.summary}
                   </p>
 
                   {/* Action cards */}
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(340px, 1fr))", gap:10 }}>
                     {mp.portfolioImplication.actions.map((a, i) => {
-                      const ts = typeStyles[a.type] || typeStyles.Watch;
-                      const pc = pBorder(a.priority);
-                      const tickerStr = a.ticker && a.ticker !== "null" ? a.ticker : null;
-                      const rec = tickerStr ? RECOMMENDATIONS.find(r => r.ticker === tickerStr) : null;
-                      const inPortfolio = tickerStr ? allHeld.has(tickerStr) : false;
+                      const ts      = typeStyles[a.type] || typeStyles.Watch;
+                      const pc      = pBorder(a.priority);
+                      const ticker  = a.ticker && a.ticker !== "null" ? a.ticker : null;
+                      const held    = holdingInfo(ticker);
+                      const isOpen  = pulseTradeOpen === i;
+                      const canBuy  = a.type === "Buy" || a.type === "Rebalance";
+                      const canSell = a.type === "Reduce";
+                      const showBtn = ticker && (canBuy || canSell);
+
+                      // For reduce: pick first account that holds the ticker; prefer the noted account
+                      const reduceAcct = held[0]?.acct || "TFSA";
+                      const reduceHolding = held.find(x => x.acct === reduceAcct) || held[0];
+                      const reducedNewVal = reduceHolding
+                        ? Math.max(0, reduceHolding.h.current * (1 - pulseReducePct / 100))
+                        : 0;
+
                       return (
-                        <div key={i} style={{
-                          border:`1px solid ${ts.border}`,
-                          borderLeft:`3px solid ${pc}`,
-                          background: ts.bg,
-                          borderRadius:8, padding:"12px 14px",
-                          display:"flex", flexDirection:"column", gap:6
-                        }}>
-                          {/* Card header row */}
-                          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                            <span style={{ fontSize:11, fontWeight:700, padding:"2px 8px", borderRadius:4,
-                              background:`${pc}18`, color: pc, border:`1px solid ${pc}30`,
-                              whiteSpace:"nowrap" }}>
+                        <div key={i} style={{ border:`1px solid ${ts.border}`, borderLeft:`3px solid ${pc}`,
+                          background:ts.bg, borderRadius:8, padding:"12px 14px",
+                          display:"flex", flexDirection:"column", gap:6 }}>
+
+                          {/* Card header */}
+                          <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:4,
+                              background:`${pc}18`, color:pc, border:`1px solid ${pc}30`, whiteSpace:"nowrap" }}>
                               {a.priority}
                             </span>
                             <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
-                              background: ts.bg, color: ts.color, border:`1px solid ${ts.border}`,
-                              whiteSpace:"nowrap" }}>
-                              {ts.icon} {a.type || "Action"}
+                              color:ts.color, border:`1px solid ${ts.border}`, background:ts.bg, whiteSpace:"nowrap" }}>
+                              {ts.icon}
                             </span>
-                            {tickerStr && (
+                            {ticker && (
                               <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
                                 padding:"2px 8px", borderRadius:4,
-                                background: inPortfolio ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.05)",
-                                color: inPortfolio ? "#22d3ee" : "rgba(255,255,255,0.5)",
-                                border: inPortfolio ? "1px solid rgba(34,211,238,0.3)" : "1px solid rgba(255,255,255,0.1)" }}>
-                                {tickerStr} {inPortfolio ? "✓" : ""}
+                                background: held.length ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.04)",
+                                color: held.length ? "#22d3ee" : "rgba(255,255,255,0.4)",
+                                border: held.length ? "1px solid rgba(34,211,238,0.3)" : "1px solid rgba(255,255,255,0.08)" }}>
+                                {ticker}
                               </span>
                             )}
+                            {/* Current value chips */}
+                            {held.map(x => (
+                              <span key={x.acct} style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)",
+                                color:"rgba(255,255,255,0.45)", fontFamily:"'JetBrains Mono',monospace" }}>
+                                {x.acct} C${Math.round(x.h.current).toLocaleString()}
+                              </span>
+                            ))}
                           </div>
-                          {/* Action text */}
-                          <p style={{ fontSize:11, color:"rgba(255,255,255,0.7)", lineHeight:1.55, margin:0 }}>
+
+                          {/* Rationale */}
+                          <p style={{ fontSize:11, color:"rgba(255,255,255,0.68)", lineHeight:1.55, margin:0 }}>
                             {a.action}
                           </p>
-                          {/* Add to portfolio button if not held and in rec list */}
-                          {tickerStr && rec && !inPortfolio && (
-                            <button onClick={() => addRecommendedTicker(rec, rec?.bestFor === "RRSP" ? "RRSP" : "TFSA")}
-                              style={{ alignSelf:"flex-start", fontSize:10, padding:"4px 10px", borderRadius:4,
-                                cursor:"pointer", fontFamily:"'JetBrains Mono',monospace", fontWeight:600,
-                                background:"rgba(167,139,250,0.12)", border:"1px solid rgba(167,139,250,0.3)",
-                                color:"#a78bfa" }}>
-                              + Add {tickerStr} to {rec.bestFor === "RRSP" ? "RRSP" : "TFSA"}
-                            </button>
+
+                          {/* Action button row */}
+                          {showBtn && !isOpen && (
+                            <div style={{ display:"flex", gap:6, marginTop:2 }}>
+                              {canBuy && (
+                                <button onClick={() => { setPulseTradeOpen(i); setPulseTradeAmt("");
+                                  const def = held[0]?.acct || (ticker && RECOMMENDATIONS.find(r=>r.ticker===ticker)?.bestFor) || "TFSA";
+                                  setPulseTradeAcct(def); }}
+                                  style={{ fontSize:10, fontWeight:700, padding:"5px 14px", borderRadius:5,
+                                    cursor:"pointer", background:"rgba(34,197,94,0.18)",
+                                    border:"1px solid rgba(34,197,94,0.4)", color:"#22c55e" }}>
+                                  ↑ Buy / Add
+                                </button>
+                              )}
+                              {canSell && held.length > 0 && (
+                                <button onClick={() => { setPulseTradeOpen(i); setPulseReducePct(25); }}
+                                  style={{ fontSize:10, fontWeight:700, padding:"5px 14px", borderRadius:5,
+                                    cursor:"pointer", background:"rgba(239,68,68,0.15)",
+                                    border:"1px solid rgba(239,68,68,0.35)", color:"#ef4444" }}>
+                                  ↓ Reduce
+                                </button>
+                              )}
+                              {canSell && held.length === 0 && (
+                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginTop:3 }}>
+                                  Not currently held
+                                </span>
+                              )}
+                            </div>
                           )}
+
+                          {/* ── Inline BUY panel ── */}
+                          {isOpen && canBuy && (
+                            <div style={{ marginTop:6, padding:"12px 14px", borderRadius:6,
+                              background:"rgba(34,197,94,0.06)", border:"1px solid rgba(34,197,94,0.2)" }}>
+                              <p style={{ fontSize:10, fontWeight:600, color:"#22c55e", marginBottom:10 }}>
+                                ↑ Buy / Add to position
+                              </p>
+                              <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:8 }}>
+                                <div style={{ display:"flex", gap:4 }}>
+                                  {portfolios.map(p => (
+                                    <button key={p} onClick={() => setPulseTradeAcct(p)}
+                                      style={{ fontSize:10, fontWeight:600, padding:"4px 10px", borderRadius:4,
+                                        cursor:"pointer",
+                                        background: pulseTradeAcct===p ? "rgba(34,197,94,0.25)" : "rgba(255,255,255,0.04)",
+                                        border: pulseTradeAcct===p ? "1px solid rgba(34,197,94,0.5)" : "1px solid rgba(255,255,255,0.08)",
+                                        color: pulseTradeAcct===p ? "#22c55e" : "rgba(255,255,255,0.4)" }}>
+                                      {p}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div style={{ display:"flex", alignItems:"center", gap:4, flex:"1 1 120px", minWidth:0 }}>
+                                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.35)", whiteSpace:"nowrap" }}>C$</span>
+                                  <input type="number" min="0" placeholder="Amount"
+                                    value={pulseTradeAmt}
+                                    onChange={e => setPulseTradeAmt(e.target.value)}
+                                    onKeyDown={e => e.key==="Enter" && executePulseBuy(ticker, a.action.split(" ")[0], pulseTradeAcct, pulseTradeAmt)}
+                                    style={{ flex:1, minWidth:0, fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                                      background:"rgba(255,255,255,0.05)", border:"1px solid rgba(34,197,94,0.3)",
+                                      borderRadius:4, padding:"5px 8px", color:"rgba(255,255,255,0.8)" }} />
+                                </div>
+                              </div>
+                              {held.find(x=>x.acct===pulseTradeAcct) && (
+                                <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:8 }}>
+                                  Currently C${Math.round(held.find(x=>x.acct===pulseTradeAcct).h.current).toLocaleString()} in {pulseTradeAcct}
+                                  {pulseTradeAmt && !isNaN(pulseTradeAmt) && ` → C${Math.round(held.find(x=>x.acct===pulseTradeAcct).h.current + Number(pulseTradeAmt)).toLocaleString()} after`}
+                                </p>
+                              )}
+                              <div style={{ display:"flex", gap:7 }}>
+                                <button onClick={() => executePulseBuy(ticker, ticker, pulseTradeAcct, pulseTradeAmt)}
+                                  style={{ fontSize:11, fontWeight:700, padding:"6px 18px", borderRadius:5,
+                                    cursor:"pointer", background:"rgba(34,197,94,0.22)",
+                                    border:"1px solid rgba(34,197,94,0.5)", color:"#22c55e" }}>
+                                  Confirm Buy
+                                </button>
+                                <button onClick={() => setPulseTradeOpen(null)}
+                                  style={{ fontSize:10, padding:"6px 12px", borderRadius:5, cursor:"pointer",
+                                    background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                                    color:"rgba(255,255,255,0.35)" }}>
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* ── Inline REDUCE panel ── */}
+                          {isOpen && canSell && (
+                            <div style={{ marginTop:6, padding:"12px 14px", borderRadius:6,
+                              background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.2)" }}>
+                              <p style={{ fontSize:10, fontWeight:600, color:"#ef4444", marginBottom:10 }}>
+                                ↓ Reduce position
+                              </p>
+                              {held.map(x => (
+                                <div key={x.acct} style={{ marginBottom:12 }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between",
+                                    alignItems:"center", marginBottom:6 }}>
+                                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>
+                                      {x.acct} — C${Math.round(x.h.current).toLocaleString()} held
+                                    </span>
+                                    <span style={{ fontSize:11, fontWeight:700,
+                                      fontFamily:"'JetBrains Mono',monospace", color:"#ef4444" }}>
+                                      −{pulseReducePct}%
+                                      <span style={{ color:"rgba(255,255,255,0.35)", fontWeight:400, marginLeft:6, fontSize:10 }}>
+                                        → C${Math.round(Math.max(0, x.h.current*(1-pulseReducePct/100))).toLocaleString()} remaining
+                                      </span>
+                                    </span>
+                                  </div>
+                                  <input type="range" min="5" max="100" step="5"
+                                    value={pulseReducePct}
+                                    onChange={e => setPulseReducePct(Number(e.target.value))}
+                                    style={{ width:"100%", accentColor:"#ef4444", marginBottom:8 }} />
+                                  <div style={{ display:"flex", justifyContent:"space-between",
+                                    fontSize:9, color:"rgba(255,255,255,0.25)", marginBottom:10 }}>
+                                    <span>5%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+                                  </div>
+                                  <div style={{ display:"flex", gap:7 }}>
+                                    <button onClick={() => executePulseReduce(ticker, x.acct, pulseReducePct)}
+                                      style={{ fontSize:11, fontWeight:700, padding:"6px 18px", borderRadius:5,
+                                        cursor:"pointer", background:"rgba(239,68,68,0.2)",
+                                        border:"1px solid rgba(239,68,68,0.45)", color:"#ef4444" }}>
+                                      Confirm Reduce
+                                    </button>
+                                    <button onClick={() => setPulseTradeOpen(null)}
+                                      style={{ fontSize:10, padding:"6px 12px", borderRadius:5, cursor:"pointer",
+                                        background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                                        color:"rgba(255,255,255,0.35)" }}>
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                         </div>
                       );
                     })}
@@ -3856,6 +4063,47 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               </div>
             </div>
+
+            {/* ── Trade Log ── */}
+            {pulseTradeLog.length > 0 && (
+              <div className="card" style={{ marginBottom:16, padding:"14px 18px" }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <p style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.5)", margin:0 }}>
+                    📋 Trade log <span style={{ fontSize:9, fontWeight:400, color:"rgba(255,255,255,0.25)", marginLeft:4 }}>logged from Action Center</span>
+                  </p>
+                  <button onClick={() => { setPulseTradeLog([]); localStorage.removeItem("pulse:tradeLog"); }}
+                    style={{ fontSize:9, padding:"2px 8px", borderRadius:4, cursor:"pointer",
+                      background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
+                      color:"rgba(255,255,255,0.25)" }}>
+                    Clear
+                  </button>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                  {pulseTradeLog.slice(0, 20).map((t, i) => {
+                    const isBuy = t.type === "Buy";
+                    const tc    = isBuy ? "#22c55e" : "#ef4444";
+                    return (
+                      <div key={i} style={{ display:"flex", alignItems:"center", gap:10,
+                        padding:"6px 10px", borderRadius:6,
+                        background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.05)" }}>
+                        <span style={{ fontSize:10, fontWeight:700, color:tc, minWidth:42 }}>{t.type}</span>
+                        <span style={{ fontSize:11, fontWeight:600, fontFamily:"'JetBrains Mono',monospace",
+                          color:"rgba(255,255,255,0.7)", minWidth:52 }}>{t.ticker}</span>
+                        <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3,
+                          background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)",
+                          color:"rgba(255,255,255,0.4)" }}>{t.account}</span>
+                        <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                          color:tc, fontWeight:600 }}>{t.note}</span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginLeft:"auto",
+                          whiteSpace:"nowrap" }}>
+                          {new Date(t.date).toLocaleDateString()} {new Date(t.date).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", lineHeight:1.5 }}>
               ⚠ Not financial advice. Market signals and outlooks are curated manually and may not reflect current conditions. Last updated {mp.lastUpdated}. Consult a licensed financial advisor before making investment decisions.
