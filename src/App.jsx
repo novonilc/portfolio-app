@@ -279,7 +279,13 @@ export default function App() {
   const [targetsFilter,    setTargetsFilter]   = useState("all");
   const [claudeApiKey,     setClaudeApiKey]    = useState(() => localStorage.getItem("pulse:apiKey") || "");
   const [marketPulse,      setMarketPulse]     = useState(() => {
-    try { const c = localStorage.getItem("pulse:cache"); return c ? JSON.parse(c) : marketPulseData; } catch { return marketPulseData; }
+    try {
+      const c = localStorage.getItem("pulse:cache");
+      if (!c) return marketPulseData;
+      const cached = JSON.parse(c);
+      // Backfill any fields added after the cache was written (e.g. newsSignals)
+      return { ...marketPulseData, ...cached };
+    } catch { return marketPulseData; }
   });
   const [pulseLoading,     setPulseLoading]    = useState(false);
   const [pulseError,       setPulseError]      = useState(null);
