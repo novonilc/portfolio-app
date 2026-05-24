@@ -32,7 +32,7 @@ Then open `http://localhost:5173`.
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
-> **New in this version:** a **Market Pulse** tab provides a structured, manually-curated market dashboard — current market regime, macro signal grid, Risk-On/Risk-Off meter, and 3 + 6-month scenario outlooks (bull/base/bear) with Canadian-specific positioning guidance. Also: a full-portfolio **Dashboard** tab gives you a combined TFSA + RRSP snapshot — capital allocation in USD and CAD, currency exposure donut charts, ranked top holdings, WHT drag, dividend income breakdown, and portfolio health indicators — all without switching accounts.
+> **Recent changes:** The **Market Pulse** tab has been significantly enhanced. It now features an **Action Center** with one-click Buy and Reduce trade panels that update your holdings directly, a **News Flash** panel sourcing Bloomberg/CNBC/Reuters/FT/WSJ headlines with per-ticker portfolio impact analysis, two new macro signal categories (Credit & Risk, Global & Commodities), a **Trade Log** that persists every action you take, and a redesigned **Risk-On/Risk-Off gauge** that fills only up to the current score so green never appears when conditions are bearish. The AI refresh prompt now includes your actual holdings so Claude generates personalised, ticker-specific actions rather than generic guidance.
 
 ---
 
@@ -173,38 +173,51 @@ Look up any ticker symbol against the curated database.
 - **Browse view**: When no search is active, shows all 20 curated tickers as a scannable grid.
 
 ### Market Pulse Tab
-A curated, manually-maintained market dashboard that answers two questions: where is the market right now, and where is it likely heading over the next 3–6 months?
+A curated market dashboard that answers two questions — where is the market right now, and where is it likely heading — and then lets you act on the answers directly without leaving the tab.
+
+**Action Center (top of tab):**
+The most prominent section. Every action has a priority badge (High / Medium / Low), an action type (Buy / Hold / Reduce / Watch / Rebalance), and a ticker chip that shows the account and current value if you already hold the position.
+
+- **↑ Buy / Add button** — expands an inline panel with an account selector (TFSA/RRSP) and a CAD amount input. As you type, it shows "Currently C$X,XXX → C$Y,YYY after". Press Enter or "Confirm Buy" to update the holding immediately.
+- **↓ Reduce button** — expands a panel with a draggable slider (5–100% in 5% steps). The live preview shows "−25% → C$3,710 remaining" as you drag. "Confirm Reduce" updates the holding value.
+- **Hold / Watch cards** — show the current account chip and position value but require no action.
+- All trades update `holdings` state and persist to localStorage immediately.
+
+**Trade Log (bottom of tab):**
+A timestamped record of every buy and reduce action logged from the Action Center — ticker, type, account, amount, and outcome note. Persisted to localStorage across sessions and clearable with one click.
 
 **Regime header + Risk-On/Risk-Off gauge:**
-- Current market regime label (e.g. "Cautious Bull — Recovery Mode") with a one-paragraph description
-- A colour-gradient needle gauge (0 = full Risk-Off, 100 = full Risk-On) with a plain-English label and context line
+- Current market regime label with a one-paragraph description
+- Redesigned **fill-up-to-score gauge**: the track fills from left only to the current score, so unvisited zones stay dark. A score of 44 shows red→orange→yellow fill — no green leaks in. The thumb glows in the zone colour (`risk.color`). Numeric score shown in top-right corner.
 
-**Macro signals grid (4 panels):**
+**News Flash panel (between macro signals and yield curve):**
+Up to 6 recent headlines sourced from Bloomberg, CNBC, Reuters, Financial Times, or WSJ. Each card shows:
+- Source badge + date
+- Headline
+- **Portfolio impact line** naming the specific tickers in your holdings that are affected and how (e.g. "Directly positive for NVDA (TFSA) — reinforces AI capex super-cycle thesis")
+- Left-border colour: green = bullish, red = bearish, yellow = neutral
+
+**Macro signals grid (6 panels):**
 
 | Panel | What it covers |
 |---|---|
-| Equities | S&P 500, TSX Composite, VIX, Nasdaq — with values, trend arrows (↑↓→), and one-line notes |
-| Rates & Bonds | Fed funds rate, 10Y Treasury, yield curve shape, BoC rate |
+| Equities | S&P 500, TSX Composite, VIX, Nasdaq |
+| Rates & Bonds | Fed funds rate, 10Y Treasury, yield curve shape, real yield, breakeven inflation, BoC rate |
 | Macro | US CPI, unemployment, oil (WTI), gold, USD/CAD |
+| Credit & Risk | HY credit spread (CDX HY), IG credit spread, US HY default rate, bank lending standards |
+| Global & Commodities | DXY (US Dollar Index), copper, China PMI, Eurozone CPI |
 | Sentiment | Fear & Greed index, AAII bull/bear survey, put/call ratio, earnings revision direction |
 
 Each signal is colour-coded: green = bullish, yellow = caution, red = bearish, white = neutral.
 
-**3-month and 6-month outlook panels:**
+**Yield curve panel:** SVG line chart of the full 3M/2Y/5Y/10Y/30Y curve, spread table (3M–10Y, 2s10s, 5Y–30Y), NY Fed 12-month recession probability bar, inversion history note, trajectory outlook, and BoC/Canadian curve context.
 
-Each horizon has three scenario cards — Bull, Base, Bear — each showing:
-- Probability weight (e.g. 30/45/25%)
-- Trigger condition (what has to happen for this scenario to materialise)
-- Market target (S&P 500 range)
-- Canadian angle (TSX, oil, CAD implications)
-- Portfolio positioning action (what to do in your TFSA/RRSP)
-- Key calendar events to watch (FOMC dates, earnings seasons, political events)
+**3-month and 6-month outlook panels:**
+Each horizon has three scenario cards — Bull, Base, Bear — each showing probability, trigger condition, S&P 500 target range, Canadian angle (TSX, oil, CAD), portfolio positioning referencing actual held tickers, sector rotation guidance, and key calendar events.
 
 **Bull catalysts vs Bear risks:** Two side-by-side panels listing the main arguments on each side.
 
-**Portfolio implication panel:** A plain-English summary of what the current environment means for a Canadian TFSA/RRSP investor, followed by a prioritised action list (High/Medium/Low) with specific ticker guidance.
-
-> All content in this tab is curated in `src/data/marketPulse.json`. No API calls are made — it reflects the state of the market as of the `lastUpdated` date. See [Updating Curated Data](#updating-curated-data) for how to refresh it.
+> All content in this tab is curated in `src/data/marketPulse.json`. The AI refresh feature (see below) can regenerate the full JSON automatically using your live holdings as context. See [Updating Curated Data](#updating-curated-data) for how to edit it manually.
 
 ---
 
@@ -244,19 +257,21 @@ The app has six tabs that work best in a specific order. Follow this loop each t
 Market Pulse → Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
 ```
 
-**Start on Market Pulse.** Check the regime label and Risk-On/Risk-Off score before doing anything else. If the outlook is "Cautious Bull" or "Risk-Off", bias toward a longer DCA window and keep more cash in reserve. If the outlook is "Bull" and the 3-month base case looks constructive, you can deploy more aggressively.
+**Start on Market Pulse.** Check the regime label and Risk-On/Risk-Off score before doing anything else. If the outlook is "Cautious Bull" or "Risk-Off", bias toward a longer DCA window and keep more cash in reserve. If the Action Center has High-priority Buy actions, those are the highest-conviction moves for the current regime.
 
 ---
 
-### Step 0 — Read the market environment (Market Pulse tab)
+### Step 0 — Read the market environment and act on signals (Market Pulse tab)
 
 Before touching any portfolio numbers, check Market Pulse:
 
-1. **What is the regime?** — "Cautious Bull", "Risk-Off", or "Bull" sets the tone for how aggressively you deploy cash this session.
-2. **What does the base-case scenario say?** — If the 3-month base case targets a range below current levels, spread your deployment with a 12–16 week DCA window rather than deploying all at once.
-3. **What are the bear risks?** — If the top bear risk is directly relevant to your largest holding (e.g. tariff drag for a tech-heavy TFSA), check whether your target allocation still makes sense.
+1. **Read the Action Center first.** It sits at the top of the tab for a reason — High-priority actions are the most time-sensitive. If a High Buy is signalled, use the inline Buy panel to log it without switching tabs.
+2. **Check the News Flash panel.** Scan the recent headlines — each one names the tickers in your portfolio that are directly affected. A bearish headline on a position you hold is a prompt to check its Reduce action card.
+3. **What is the regime?** — "Cautious Bull", "Risk-Off", or "Bull" sets the tone for how aggressively you deploy cash this session.
+4. **What does the base-case scenario say?** — If the 3-month base case targets a range below current levels, spread your deployment with a 12–16 week DCA window rather than deploying all at once.
+5. **What are the bear risks?** — If the top bear risk is directly relevant to your largest holding, check whether your target allocation still makes sense.
 
-This tab doesn't require any interaction — just read it. It takes 2 minutes and frames every decision that follows.
+The Action Center, News Flash, and Trade Log mean this tab is now a two-way tool — read it and act on it in the same place.
 
 ---
 
@@ -473,7 +488,7 @@ Your portfolio data is stored in `localStorage` — a browser-sandboxed storage 
 
 The only network requests the app makes are:
 1. Loading the Google Fonts stylesheet (DM Sans, JetBrains Mono, Instrument Serif) — no financial data is sent
-2. Nothing else
+2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh" or "Copy prompt", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. If you use the API-key option, your Anthropic API key is stored in `localStorage` only; the prompt sent to the Anthropic API includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information. These requests are never made automatically — only when you explicitly trigger a refresh.
 
 To verify this yourself: open DevTools → Network tab → use the app → see that no requests go to any server containing your portfolio data.
 
@@ -595,7 +610,7 @@ portfolio-app/
         └── marketPulse.json       # Market Pulse tab — regime, signals, outlooks
 ```
 
-The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code.
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~5,400 lines; the Market Pulse tab (search for `tab === "pulse"`) and Action Center trade logic (`executePulseBuy`, `executePulseReduce`) are the most recently modified sections.
 
 ---
 
@@ -729,10 +744,12 @@ marketPulse.json
 ├── period               string    — Human label, e.g. "May 2026"
 ├── regime               object    — Current market regime assessment
 ├── riskMeter            object    — Risk-On / Risk-Off score and label
-├── macroSignals         array     — 4 signal panels (Equities, Rates, Macro, Sentiment)
+├── yieldCurve           object    — Full yield curve data, spreads, recession probability
+├── macroSignals         array     — 6 signal panels (Equities, Rates, Macro, Credit & Risk, Global & Commodities, Sentiment)
+├── newsSignals          array     — Recent headlines from Bloomberg/CNBC/Reuters/FT/WSJ with portfolio impact
 ├── outlooks             array     — 3-month and 6-month scenario panels
 ├── catalysts            object    — Bull and bear factor lists
-└── portfolioImplication object    — Summary + prioritised action list
+└── portfolioImplication object    — Summary + prioritised action list with type and ticker fields
 ```
 
 #### Updating the regime
@@ -761,8 +778,9 @@ marketPulse.json
 }
 ```
 
-- `score` 0–100: `< 35` = Risk-Off, `35–50` = Mildly Risk-Off, `50–65` = Mildly Risk-On, `> 65` = Risk-On
-- The needle on the gauge moves linearly with this score
+- `score` 0–100: `< 20` = Extreme Risk-Off, `20–40` = Risk-Off, `40–60` = Neutral, `60–80` = Risk-On, `> 80` = Strong Risk-On
+- The gauge **fills from the left up to the score** — zones beyond the current score stay dark. A score of 44 shows a yellow fill; green only appears at scores above 60. The thumb glows in `color`.
+- `color` should match the zone: `#ef4444` (< 20), `#f97316` (20–40), `#eab308` (40–60), `#84cc16` (60–80), `#22c55e` (> 80)
 
 #### Updating macro signals
 
@@ -801,31 +819,63 @@ Each entry in `outlooks` has `horizon` (`"3 months"` or `"6 months"`), `period` 
 - `color` conventions: `#22c55e` = bull, `#fbbf24` = base, `#ef4444` = bear
 - Keep `canadianAngle` specific — mention TSX level, oil direction, or CAD rate
 
+#### Adding news signals
+
+The `newsSignals` array powers the News Flash panel. Each entry:
+
+```json
+{
+  "source":          "Bloomberg",
+  "headline":        "Fed Officials Signal No Rate Cuts Before Year-End as Services Inflation Stays Sticky",
+  "date":            "May 14, 2026",
+  "impact":          "bearish",
+  "portfolioImpact": "Keeps short-end yields elevated; validates holding ZAG.TO short-duration over long TLT; weighs on VFV.TO and QQQM valuations."
+}
+```
+
+| Field | Options | Notes |
+|---|---|---|
+| `source` | string | News outlet name — shown as a source badge |
+| `headline` | string | The headline text |
+| `date` | string | Human-readable date |
+| `impact` | `"bullish"` \| `"bearish"` \| `"neutral"` | Controls the card's left-border and icon colour |
+| `portfolioImpact` | string | **Name the specific tickers** held in the portfolio that are affected and how. This is the most important field — it connects the macro news to your actual positions. |
+
+Include 4–8 entries covering the most market-moving headlines since the last update.
+
 #### Updating the portfolio implication
 
 ```json
 "portfolioImplication": {
   "summary": "2–3 sentence plain-English takeaway for a Canadian TFSA/RRSP investor.",
   "actions": [
-    { "priority": "High",   "action": "Specific thing to do or watch." },
-    { "priority": "Medium", "action": "..." },
-    { "priority": "Low",    "action": "..." }
+    { "priority": "High",   "type": "Buy",  "ticker": "NVDA",  "action": "Specific action referencing the ticker and rationale." },
+    { "priority": "High",   "type": "Hold", "ticker": "GOLD",  "action": "..." },
+    { "priority": "Medium", "type": "Watch","ticker": "MU",    "action": "..." },
+    { "priority": "Low",    "type": "Rebalance", "ticker": "VFV.TO", "action": "..." }
   ]
 }
 ```
 
-- `priority` accepts `"High"`, `"Medium"`, or `"Low"` — rendered as a colour-coded badge (red/amber/grey)
-- Actions should be concrete (mention tickers or ETFs), not generic ("stay diversified")
+| Field | Options | Notes |
+|---|---|---|
+| `priority` | `"High"` \| `"Medium"` \| `"Low"` | Rendered as a colour-coded badge (red/amber/grey). Aim for at least 3 High actions. |
+| `type` | `"Buy"` \| `"Hold"` \| `"Reduce"` \| `"Watch"` \| `"Rebalance"` | Controls the action button that appears on the card. `Buy` and `Rebalance` show a green Buy/Add button. `Reduce` shows a red Reduce button with a slider. |
+| `ticker` | string or `null` | The ticker the action applies to. If held in your portfolio, the card shows the account and current value. Set to `null` for general (non-ticker) actions. |
+| `action` | string | The guidance text. Be specific — name the ticker, the trigger condition, and the exit thesis. |
+
+- Actions should reference tickers that exist in your portfolio. Generic advice ("stay diversified") wastes the card.
+- The **Buy** and **Reduce** buttons directly update `holdings` state and persist to localStorage — no need to switch to Edit Targets.
 
 #### Recommended update cadence
 
 | Event | What to update |
 |---|---|
-| Monthly | `lastUpdated`, `period`, macro signal values and notes |
+| Monthly | `lastUpdated`, `period`, macro signal values and notes, `newsSignals` |
 | After FOMC meeting | Fed funds rate signal, Risk-On/Risk-Off score, 3-month scenario probabilities |
-| After major earnings season | Regime description, sentiment signals, catalysts list |
+| After major earnings season | Regime description, sentiment signals, catalysts list, `newsSignals` |
 | Significant geopolitical shift | `regime`, `riskMeter`, bear catalysts, portfolio implication actions |
-| Quarterly | Full review of 6-month outlook scenarios and probabilities |
+| Quarterly | Full review of 6-month outlook scenarios and `portfolioImplication.actions` — ensure tickers still reflect current holdings |
 
 ---
 

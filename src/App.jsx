@@ -305,6 +305,9 @@ export default function App() {
   const [pulseTradeFlash,  setPulseTradeFlash] = useState(null); // { msg, ok }
   const [pulsePasteError,  setPulsePasteError] = useState(null);
   const [pulseApplyDone,   setPulseApplyDone]  = useState(false);
+  const [brokerImportLoading, setBrokerImportLoading] = useState(false);
+  const [brokerImportError,   setBrokerImportError]   = useState(null);
+  const [brokerImportPreview, setBrokerImportPreview] = useState(null); // { rows, summary }
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -938,6 +941,113 @@ export default function App() {
       event.target.value = "";
     };
     reader.readAsText(file);
+  }
+
+  // ── Broker CSV import via Claude ──────────────────────────────────────
+  async function importBrokerHoldings(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    event.target.value = "";
+
+    if (!claudeApiKey.trim()) {
+      setBrokerImportError("Enter your Anthropic API key in the Market Pulse tab first.");
+      return;
+    }
+
+    setBrokerImportLoading(true);
+    setBrokerImportError(null);
+    setBrokerImportPreview(null);
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const csvText = String(e.target.result || "");
+        const rate = usdCadRate || 1.38;
+
+        const prompt = `You are converting a Wealthsimple brokerage CSV export into portfolio app holdings.
+
+Current USD/CAD rate: ${rate}
+
+CSV data:
+${csvText}
+
+Rules:
+- Include ALL holdings where Quantity > 0
+- Use "Account Type" column to set the "account" field (TFSA, RRSP, RESP, or Crypto)
+- For "current" (market value in CAD):
+  - If "Market Value Currency" is CAD: use the "Market Value" column value
+  - If "Market Value Currency" is USD: multiply "Market Value" by ${rate}
+- Use "Book Value (CAD)" column for "costBasis"
+- Use "Symbol" for "ticker", "Name" for "name"
+- "currencyOverride": set to "USD" if the Market Value Currency is USD, "CAD" if CAD, else ""
+- Suggest "target" % allocation per account (integers; each account's targets must sum to 100)
+  - TFSA: favor no/low-dividend growth stocks
+  - RRSP: favor US-listed dividend/income stocks (WHT-exempt in RRSP)
+  - RESP: keep proportional to current market values
+  - Crypto: split proportionally by market value
+- Estimate "divYield" (0–5) and "cagr" (5–20) per ticker
+- Set "locked" to "✅ Keep" for all
+- "notes": one-line rationale for the target
+
+Return ONLY a valid JSON array — no markdown fences, no explanation.
+Example element:
+{"account":"TFSA","ticker":"NVDA","name":"NVIDIA Corp","current":1767.91,"costBasis":2053.54,"target":15,"divYield":0.03,"cagr":18,"currencyOverride":"USD","notes":"AI infrastructure leader","locked":"✅ Keep"}`;
+
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": claudeApiKey.trim(),
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 8000,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error?.message || `API error ${res.status}`);
+        }
+
+        const data = await res.json();
+        const text = (data.content?.[0]?.text || "").trim();
+        const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+        const rows = JSON.parse(stripped);
+
+        if (!Array.isArray(rows) || !rows.length) throw new Error("Claude returned no holdings");
+
+        // Summarise by account
+        const byAccount = {};
+        for (const r of rows) {
+          const acct = r.account || "UNKNOWN";
+          if (!byAccount[acct]) byAccount[acct] = { count: 0, totalCAD: 0 };
+          byAccount[acct].count++;
+          byAccount[acct].totalCAD += r.current || 0;
+        }
+        setBrokerImportPreview({ rows, byAccount });
+      } catch (err) {
+        setBrokerImportError(err.message || "Failed to parse broker CSV");
+      } finally {
+        setBrokerImportLoading(false);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function applyBrokerImport() {
+    if (!brokerImportPreview?.rows) return;
+    try {
+      applyCsvImport(brokerImportPreview.rows);
+      setBackupStatus(`✓ Imported ${brokerImportPreview.rows.length} holdings from broker CSV`);
+      setTimeout(() => setBackupStatus(""), 4000);
+    } catch (err) {
+      setBrokerImportError(err.message);
+    }
+    setBrokerImportPreview(null);
   }
 
   // ── FX helpers (close over usdCadRate state) ───────────────────────────
@@ -1633,6 +1743,24 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               📂 Restore / Import
               <input type="file" accept=".json,.csv,text/csv,application/json" style={{ display:"none" }} onChange={importData}/>
             </label>
+            <label className="btn" style={{
+              cursor: brokerImportLoading ? "wait" : "pointer",
+              fontSize:11, padding:"6px 12px",
+              background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)",
+              color:"#fbbf24", opacity: brokerImportLoading ? 0.6 : 1,
+            }} title="Upload your Wealthsimple holdings CSV — Claude will parse and import it automatically">
+              {brokerImportLoading ? "⏳ Analysing…" : "🏦 Import from Broker"}
+              <input type="file" accept=".csv,text/csv" style={{ display:"none" }}
+                disabled={brokerImportLoading}
+                onChange={importBrokerHoldings}/>
+            </label>
+            {brokerImportError && (
+              <span style={{ fontSize:11, color:"#f87171", maxWidth:260 }}>
+                ⚠ {brokerImportError}
+                <button onClick={() => setBrokerImportError(null)}
+                  style={{ marginLeft:6, background:"none", border:"none", color:"#f87171", cursor:"pointer" }}>✕</button>
+              </span>
+            )}
             {showReset ? (
               <>
                 <button className="btn btn-danger" onClick={doReset} style={{ fontSize:11, padding:"6px 12px" }}>
@@ -5618,6 +5746,53 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </div>
         );
       })()}
+
+      {/* ── Broker import preview modal ── */}
+      {brokerImportPreview && (
+        <div style={{
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:9999,
+          display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+        }} onClick={() => setBrokerImportPreview(null)}>
+          <div style={{
+            background:"#1e293b", border:"1px solid rgba(251,191,36,0.3)",
+            borderRadius:14, padding:"28px 32px", maxWidth:480, width:"100%",
+            boxShadow:"0 24px 60px rgba(0,0,0,0.6)",
+          }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize:15, fontWeight:700, color:"#f1f5f9", marginBottom:16 }}>
+              Broker import ready
+            </p>
+            <p style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:16 }}>
+              Claude analysed your holdings CSV. Review the summary below, then confirm to load into the app.
+              Existing holdings in these accounts will be replaced.
+            </p>
+            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
+              {Object.entries(brokerImportPreview.byAccount).map(([acct, { count, totalCAD }]) => (
+                <div key={acct} style={{
+                  display:"flex", justifyContent:"space-between", alignItems:"center",
+                  background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 14px",
+                  border:"1px solid rgba(255,255,255,0.07)",
+                }}>
+                  <span style={{ fontSize:13, fontWeight:600, color:"#fbbf24" }}>{acct}</span>
+                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.55)" }}>
+                    {count} position{count !== 1 ? "s" : ""} &nbsp;·&nbsp;
+                    C${Math.round(totalCAD).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button className="btn btn-primary" style={{ flex:1, padding:"10px 0", fontSize:13 }}
+                onClick={applyBrokerImport}>
+                ✓ Import {brokerImportPreview.rows.length} holdings
+              </button>
+              <button className="btn" style={{ padding:"10px 16px", fontSize:13 }}
+                onClick={() => setBrokerImportPreview(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
