@@ -103,6 +103,20 @@ const CSV_HEADER_ALIASES = {
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
+// Normalise Wealthsimple CSV "Account Type" values → short portfolio names
+function normalizeWsAccountName(raw = "") {
+  const s = raw.trim().toLowerCase();
+  if (s === "tfsa" || s.includes("tax-free")) return "TFSA";
+  if (s === "rrsp" || s.includes("retirement savings")) return "RRSP";
+  if (s === "resp" || s.includes("education")) return "RESP";
+  if (s.includes("crypto")) return "Crypto";
+  if (s.includes("non-registered") || s === "individual" || s === "personal") return "Non-Reg";
+  if (s.includes("locked-in") || s === "lira") return "LIRA";
+  if (s.includes("rrif")) return "RRIF";
+  // Fallback: uppercase + collapse spaces
+  return raw.trim().replace(/\s+/g, "-").toUpperCase().slice(0, 12);
+}
+
 function getTickerCurrency(ticker, currencyOverride = "") {
   if (currencyOverride === "CAD" || currencyOverride === "USD") return currencyOverride;
   return (ticker.endsWith(".TO") || CAD_EXEMPT.has(ticker)) ? "CAD" : "USD";
@@ -330,6 +344,17 @@ export default function App() {
   const [contribRoom,         setContribRoom]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:contribRoom") || "{}"); } catch { return {}; }
   });
+
+  // ── Investor profile ───────────────────────────────────────────────────────
+  const [investorProfile,   setInvestorProfile]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:profile") || "null"); } catch { return null; }
+  });
+  const [showProfileModal,  setShowProfileModal]  = useState(false);
+  const [profileDraft,      setProfileDraft]      = useState(null); // working copy while modal open
+
+  // ── CSV import account mapping ─────────────────────────────────────────────
+  // { [csvAcctName]: { target: appPortfolioName, mode: "replace"|"merge" } }
+  const [brokerImportMapping, setBrokerImportMapping] = useState({});
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -888,13 +913,19 @@ export default function App() {
     return rows;
   }
 
-  function applyCsvImport(rows) {
-    const csvAccounts = [...new Set(rows.map(r => r.account).filter(Boolean))];
-    const basePortfolios = [...portfolios];
-    const nextPortfolios = [...new Set([...basePortfolios, ...csvAccounts])];
-    const nextHoldings = { ...holdings };
-    const nextCash = { ...cashHolding };
-    const nextContrib = { ...contribPlan };
+  // mapping: { [csvRawAcct]: { target: appPortfolioName, mode: "replace"|"merge" } }
+  function applyCsvImport(rows, mapping = {}) {
+    // Remap rows: replace raw CSV account name with the user's chosen target portfolio name
+    const remapped = rows.map(r => {
+      const m = mapping[r.account];
+      return { ...r, account: m ? m.target : normalizeWsAccountName(r.account) };
+    });
+
+    const targetAccounts = [...new Set(remapped.map(r => r.account).filter(Boolean))];
+    const nextPortfolios = [...new Set([...portfolios, ...targetAccounts])];
+    const nextHoldings   = { ...holdings };
+    const nextCash       = { ...cashHolding };
+    const nextContrib    = { ...contribPlan };
 
     for (const p of nextPortfolios) {
       if (!nextHoldings[p]) nextHoldings[p] = [];
@@ -902,19 +933,43 @@ export default function App() {
       if (!nextContrib[p]) nextContrib[p] = { ...DEFAULT_CONTRIB_PLAN };
     }
 
-    for (const p of csvAccounts) {
-      nextHoldings[p] = rows.filter(r => r.account === p).map(({ account: _a, ...rest }) => rest);
+    // Group incoming rows by target portfolio
+    const byTarget = {};
+    for (const r of remapped) {
+      if (!byTarget[r.account]) byTarget[r.account] = [];
+      byTarget[r.account].push(r);
+    }
+
+    for (const [targetAcct, acctRows] of Object.entries(byTarget)) {
+      const incoming = acctRows.map(({ account: _a, ...rest }) => rest);
+      // Find the raw CSV account name(s) that map to this target (to check merge/replace mode)
+      const rawAcct = Object.keys(mapping).find(k => mapping[k].target === targetAcct);
+      const mode    = rawAcct ? (mapping[rawAcct]?.mode || "replace") : "replace";
+
+      if (mode === "merge") {
+        // Merge: update existing holdings by ticker, append new ones
+        const existing = [...(nextHoldings[targetAcct] || [])];
+        for (const inc of incoming) {
+          const idx = existing.findIndex(h => h.ticker === inc.ticker);
+          if (idx >= 0) existing[idx] = { ...existing[idx], ...inc }; // update in-place
+          else existing.push(inc);
+        }
+        nextHoldings[targetAcct] = existing;
+      } else {
+        // Replace: overwrite the account entirely
+        nextHoldings[targetAcct] = incoming;
+      }
     }
 
     setPortfolios(nextPortfolios);
     localStorage.setItem("portfolio:list", JSON.stringify(nextPortfolios));
     setHoldings(nextHoldings);
-    for (const p of csvAccounts) persist(p, nextHoldings[p]);
+    for (const p of targetAccounts) persist(p, nextHoldings[p]);
     setCashHolding(nextCash);
     persistCash(nextCash);
     setContribPlan(nextContrib);
     persistContrib(nextContrib);
-    if (csvAccounts.length) setAccount(csvAccounts[0]);
+    if (targetAccounts.length) setAccount(targetAccounts[0]);
   }
 
   function importData(event) {
@@ -1016,20 +1071,37 @@ export default function App() {
         const csvText = String(e.target.result || "");
         const rate = usdCadRate || 1.38;
 
-        // Pre-scan CSV to find tickers that are managed funds or private equity
+        // Pre-scan CSV to find tickers that are managed funds or private equity,
+        // and to collect unique raw account names for the mapping UI
         const csvLines = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(Boolean);
         const rawHdrs  = parseCsvLine(csvLines[0] || "").map(h => h.toLowerCase().trim().replace(/\s+/g, " "));
-        const secTypeIdx      = rawHdrs.findIndex(h => h === "security type");
-        const classIdx        = rawHdrs.findIndex(h => h.includes("account classification"));
-        const symbolIdx       = rawHdrs.findIndex(h => h === "symbol");
-        const excludedTickers = new Set();
+        const secTypeIdx   = rawHdrs.findIndex(h => h === "security type");
+        const classIdx     = rawHdrs.findIndex(h => h.includes("account classification"));
+        const symbolIdx    = rawHdrs.findIndex(h => h === "symbol");
+        const acctTypeIdx  = rawHdrs.findIndex(h => h === "account type" || h.includes("account type"));
+        const excludedTickers  = new Set();
+        const csvRawAcctNames  = new Set(); // raw "Account Type" values in this CSV
         for (let i = 1; i < csvLines.length; i++) {
           const cells = parseCsvLine(csvLines[i]);
-          const secType = (cells[secTypeIdx] || "").toUpperCase().trim();
-          const cls     = (cells[classIdx]   || "").toLowerCase().trim();
-          const sym     = (cells[symbolIdx]  || "").toUpperCase().trim();
+          const secType  = (cells[secTypeIdx]  || "").toUpperCase().trim();
+          const cls      = (cells[classIdx]    || "").toLowerCase().trim();
+          const sym      = (cells[symbolIdx]   || "").toUpperCase().trim();
+          const rawAcct  = (cells[acctTypeIdx] || "").trim();
           if (sym && (secType === "MUTUAL_FUND" || cls === "managed")) excludedTickers.add(sym);
+          if (rawAcct) csvRawAcctNames.add(rawAcct);
         }
+
+        // Build initial mapping: rawAccountName → { target: normalised name, mode: "replace" }
+        // Pre-populate to existing portfolio names where possible, default to "replace"
+        const initialMapping = {};
+        for (const raw of csvRawAcctNames) {
+          const normalised = normalizeWsAccountName(raw);
+          initialMapping[raw] = {
+            target: portfolios.includes(normalised) ? normalised : normalised,
+            mode: "replace",
+          };
+        }
+        setBrokerImportMapping(initialMapping);
 
         const prompt = `You are converting a Wealthsimple brokerage CSV export into portfolio app holdings.
 
@@ -1043,7 +1115,7 @@ Rules:
   - SKIP any row where Security Type is "MUTUAL_FUND" (private equity, managed funds)
   - SKIP any row where Account Classification is "Managed"
   - These tickers must be excluded entirely: ${[...excludedTickers].join(", ") || "none"}
-- Use "Account Type" column to set the "account" field (TFSA, RRSP, RESP, or Crypto)
+- Use the EXACT value from the "Account Type" column verbatim for the "account" field — do NOT normalise it. Preserve it exactly as it appears in the CSV.
 - For "current" (market value in CAD):
   - If "Market Value Currency" is CAD: use the "Market Value" column value
   - If "Market Value Currency" is USD: multiply "Market Value" by ${rate}
@@ -1103,7 +1175,12 @@ Example element:
           byAccount[acct].count++;
           byAccount[acct].totalCAD += r.current || 0;
         }
-        setBrokerImportPreview({ rows: cleanRows, byAccount, skipped: rows.length - cleanRows.length });
+        setBrokerImportPreview({
+          rows: cleanRows,
+          byAccount,
+          skipped: rows.length - cleanRows.length,
+          csvRawAcctNames: [...csvRawAcctNames],
+        });
       } catch (err) {
         setBrokerImportError(err.message || "Failed to parse broker CSV");
       } finally {
@@ -1116,13 +1193,40 @@ Example element:
   function applyBrokerImport() {
     if (!brokerImportPreview?.rows) return;
     try {
-      applyCsvImport(brokerImportPreview.rows);
+      applyCsvImport(brokerImportPreview.rows, brokerImportMapping);
       setBackupStatus(`✓ Imported ${brokerImportPreview.rows.length} holdings from broker CSV`);
       setTimeout(() => setBackupStatus(""), 4000);
     } catch (err) {
       setBrokerImportError(err.message);
     }
     setBrokerImportPreview(null);
+  }
+
+  // ── Investor profile context block (injected into all AI prompts) ────────
+  function profileContext() {
+    if (!investorProfile) return "";
+    const ip = investorProfile;
+    const yearsLeft = ip.age ? Math.max(0, (ip.retirementAge || 65) - Number(ip.age)) : null;
+    const RISK_DESC = {
+      conservative: "Conservative — prioritise capital preservation and low volatility over growth",
+      balanced:     "Balanced — mix of growth and stability, comfortable with moderate drawdowns",
+      growth:       "Growth — maximise long-term wealth, comfortable with significant volatility",
+      aggressive:   "Aggressive — maximum growth potential, can tolerate severe drawdowns",
+    };
+    const GOAL_DESC = {
+      retirement:   "Building retirement income",
+      growth:       "Maximising long-term wealth accumulation",
+      income:       "Generating regular dividend income",
+      preservation: "Preserving capital with modest growth",
+    };
+    const lines = [
+      "INVESTOR PROFILE:",
+      ip.age        ? `- Age: ${ip.age}${yearsLeft !== null ? ` (${yearsLeft} years to retirement at age ${ip.retirementAge || 65})` : ""}` : null,
+      ip.riskTolerance  ? `- Risk tolerance: ${RISK_DESC[ip.riskTolerance] || ip.riskTolerance}` : null,
+      ip.primaryGoal    ? `- Primary goal: ${GOAL_DESC[ip.primaryGoal] || ip.primaryGoal}` : null,
+      ip.monthlyContrib ? `- Monthly contribution capacity: C$${Number(ip.monthlyContrib).toLocaleString()}` : null,
+    ].filter(Boolean);
+    return lines.join("\n");
   }
 
   // ── AI target suggestions for the active account ──────────────────────
@@ -1166,8 +1270,9 @@ Example element:
         Crypto: "Split proportionally by current market value between BTC, ETH, and any crypto ETFs.",
       };
 
+      const profCtxTargets = profileContext();
       const prompt = `You are a Canadian portfolio advisor. Suggest optimal target allocations for a ${account} account.
-
+${profCtxTargets ? `\n${profCtxTargets}\n` : ""}
 Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskLabel})
 Account: ${account}
 Total value: C$${Math.round(totalCAD).toLocaleString()}
@@ -1307,8 +1412,9 @@ Return ONLY a JSON array, no markdown:
                       : riskScore > 60 ? "risk-on — lean growth, accept more volatility"
                       : "neutral — balance growth and quality";
 
+      const profCtx = profileContext();
       const prompt = `You are a portfolio advisor for a Canadian investor with TFSA, RRSP, and other registered accounts.
-
+${profCtx ? `\n${profCtx}\n` : ""}
 Combined portfolio: C$${Math.round(grandTotal).toLocaleString()} across ${portfolios.length} accounts
 Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskCtx})
 Detected sector gaps: ${gapList.length ? gapList.join(", ") : "none — well covered"}
@@ -1477,8 +1583,9 @@ Return ONLY a valid JSON object, no markdown:
         ? openTrades.map(t => `  ${t.type.toUpperCase()} ${t.ticker} ${t.account} strike $${t.strike} exp ${t.expiry}`).join("\n")
         : "  None";
 
+      const profCtxOptions = profileContext();
       const prompt = `You are an options strategy advisor for a Canadian investor.
-
+${profCtxOptions ? `\n${profCtxOptions}\nOptions sizing and risk level should reflect this investor profile. A conservative investor should see primarily Low-risk trade suggestions; an aggressive investor can handle High-risk trades.\n` : ""}
 ACCOUNT CONTEXT:
 - TFSA acts as a non-registered account for options (covered calls and CSPs are permitted)
 - RRSP: covered calls and cash-secured puts permitted per broker rules
@@ -2280,6 +2387,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 disabled={brokerImportLoading}
                 onChange={importBrokerHoldings}/>
             </label>
+            {/* Investor Profile button */}
+            <button
+              onClick={() => { setProfileDraft(investorProfile ? { ...investorProfile } : {}); setShowProfileModal(true); }}
+              style={{ fontSize:11, padding:"6px 12px", borderRadius:7, cursor:"pointer",
+                background: investorProfile ? "rgba(167,139,250,0.14)" : "rgba(255,255,255,0.05)",
+                border: investorProfile ? "1px solid rgba(167,139,250,0.4)" : "1px solid rgba(255,255,255,0.12)",
+                color: investorProfile ? "#a78bfa" : "rgba(255,255,255,0.45)" }}
+              title="Set your investor profile — personalises all AI suggestions">
+              {investorProfile ? `👤 ${investorProfile.age}yr · ${investorProfile.riskTolerance}` : "👤 Set Profile"}
+            </button>
             {brokerImportError && (
               <span style={{ fontSize:11, color:"#f87171", maxWidth:260 }}>
                 ⚠ {brokerImportError}
@@ -3307,6 +3424,68 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "recommend" && (
         <div style={{ padding:"22px 28px" }}>
+
+          {/* ── Investor Profile banner ─────────────────────────────────── */}
+          {(() => {
+            const ip = investorProfile;
+            const yearsLeft = ip?.age ? Math.max(0, (ip.retirementAge || 65) - Number(ip.age)) : null;
+            const RISK_COLOR = { conservative:"#22d3ee", balanced:"#a78bfa", growth:"#22c55e", aggressive:"#f97316" };
+            const RISK_LABEL = { conservative:"Conservative 🛡", balanced:"Balanced ⚖️", growth:"Growth 📈", aggressive:"Aggressive 🚀" };
+            const GOAL_LABEL = { retirement:"Retirement Income", growth:"Wealth Accumulation", income:"Dividend Income", preservation:"Capital Preservation" };
+            if (!ip) return (
+              <div style={{ marginBottom:14, padding:"12px 18px", borderRadius:10,
+                background:"rgba(167,139,250,0.05)", border:"1px dashed rgba(167,139,250,0.3)",
+                display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                <p style={{ fontSize:12, color:"rgba(255,255,255,0.45)", margin:0 }}>
+                  👤 Set your investor profile to personalise recommendations and AI suggestions.
+                </p>
+                <button onClick={() => { setProfileDraft({}); setShowProfileModal(true); }}
+                  style={{ fontSize:11, padding:"5px 14px", borderRadius:7, cursor:"pointer",
+                    background:"rgba(167,139,250,0.14)", border:"1px solid rgba(167,139,250,0.4)",
+                    color:"#a78bfa", fontWeight:600 }}>
+                  Set up profile →
+                </button>
+              </div>
+            );
+            const riskColor = RISK_COLOR[ip.riskTolerance] || "#a78bfa";
+            return (
+              <div style={{ marginBottom:14, padding:"12px 18px", borderRadius:10,
+                background:`${riskColor}08`, border:`1px solid ${riskColor}25`,
+                display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center" }}>
+                  <span style={{ fontSize:12, fontWeight:600, color: riskColor }}>
+                    {RISK_LABEL[ip.riskTolerance]}
+                  </span>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>
+                    {GOAL_LABEL[ip.primaryGoal]}
+                  </span>
+                  {ip.age && (
+                    <>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
+                      <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>
+                        Age {ip.age} · {yearsLeft}yr to retirement
+                      </span>
+                    </>
+                  )}
+                  {ip.monthlyContrib > 0 && (
+                    <>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
+                      <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>
+                        C${Number(ip.monthlyContrib).toLocaleString()}/mo
+                      </span>
+                    </>
+                  )}
+                </div>
+                <button onClick={() => { setProfileDraft({ ...ip }); setShowProfileModal(true); }}
+                  style={{ fontSize:10, padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                    background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                    color:"rgba(255,255,255,0.4)" }}>
+                  Edit profile
+                </button>
+              </div>
+            );
+          })()}
 
           {/* ── AI Diversification panel ───────────────────────────────── */}
           {(() => {
@@ -7212,48 +7391,126 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       {/* ── Broker import preview modal ── */}
       {brokerImportPreview && (
         <div style={{
-          position:"fixed", inset:0, background:"rgba(0,0,0,0.72)", zIndex:9999,
+          position:"fixed", inset:0, background:"rgba(0,0,0,0.78)", zIndex:9999,
           display:"flex", alignItems:"center", justifyContent:"center", padding:24,
         }} onClick={() => setBrokerImportPreview(null)}>
           <div style={{
             background:"#1e293b", border:"1px solid rgba(251,191,36,0.3)",
-            borderRadius:14, padding:"28px 32px", maxWidth:480, width:"100%",
+            borderRadius:14, padding:"28px 32px", maxWidth:560, width:"100%",
+            maxHeight:"90vh", overflowY:"auto",
             boxShadow:"0 24px 60px rgba(0,0,0,0.6)",
           }} onClick={e => e.stopPropagation()}>
-            <p style={{ fontSize:15, fontWeight:700, color:"#f1f5f9", marginBottom:16 }}>
-              Broker import ready
+            <p style={{ fontSize:15, fontWeight:700, color:"#f1f5f9", marginBottom:6 }}>
+              🏦 Broker Import Ready
             </p>
-            <p style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:16 }}>
-              Claude analysed your holdings CSV. Review the summary below, then confirm to load into the app.
-              Existing holdings in these accounts will be replaced.
+            <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:20, lineHeight:1.5 }}>
+              Claude parsed your CSV. For each detected account, choose the portfolio it should
+              load into and whether to <strong style={{color:"rgba(255,255,255,0.6)"}}>Replace</strong> all
+              existing holdings or <strong style={{color:"rgba(255,255,255,0.6)"}}>Merge</strong> (update
+              existing tickers, add new ones, keep everything else).
               {brokerImportPreview.skipped > 0 && (
                 <span style={{ display:"block", marginTop:6, color:"#94a3b8" }}>
-                  ✂ {brokerImportPreview.skipped} managed / private-equity position{brokerImportPreview.skipped !== 1 ? "s" : ""} excluded automatically.
+                  ✂ {brokerImportPreview.skipped} managed/private-equity position{brokerImportPreview.skipped !== 1 ? "s" : ""} excluded automatically.
                 </span>
               )}
             </p>
-            <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
-              {Object.entries(brokerImportPreview.byAccount).map(([acct, { count, totalCAD }]) => (
-                <div key={acct} style={{
-                  display:"flex", justifyContent:"space-between", alignItems:"center",
-                  background:"rgba(255,255,255,0.04)", borderRadius:8, padding:"10px 14px",
-                  border:"1px solid rgba(255,255,255,0.07)",
-                }}>
-                  <span style={{ fontSize:13, fontWeight:600, color:"#fbbf24" }}>{acct}</span>
-                  <span style={{ fontSize:12, color:"rgba(255,255,255,0.55)" }}>
-                    {count} position{count !== 1 ? "s" : ""} &nbsp;·&nbsp;
-                    C${Math.round(totalCAD).toLocaleString()}
-                  </span>
-                </div>
-              ))}
+
+            {/* Account mapping table */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr auto",
+                gap:"6px 10px", alignItems:"center", marginBottom:8 }}>
+                <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.1em",
+                  color:"rgba(255,255,255,0.3)", fontWeight:600 }}>CSV Account</p>
+                <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.1em",
+                  color:"rgba(255,255,255,0.3)", fontWeight:600 }}>Load into Portfolio</p>
+                <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.1em",
+                  color:"rgba(255,255,255,0.3)", fontWeight:600 }}>Mode</p>
+              </div>
+              {(brokerImportPreview.csvRawAcctNames || Object.keys(brokerImportPreview.byAccount)).map(rawAcct => {
+                const m = brokerImportMapping[rawAcct] || { target: normalizeWsAccountName(rawAcct), mode:"replace" };
+                const { count, totalCAD } = brokerImportPreview.byAccount[rawAcct] || { count:0, totalCAD:0 };
+                return (
+                  <div key={rawAcct} style={{ display:"grid",
+                    gridTemplateColumns:"1fr 1fr auto", gap:"6px 10px",
+                    alignItems:"center", marginBottom:8,
+                    background:"rgba(255,255,255,0.03)", borderRadius:8,
+                    padding:"10px 12px", border:"1px solid rgba(255,255,255,0.07)" }}>
+                    {/* CSV account name */}
+                    <div>
+                      <p style={{ fontSize:12, fontWeight:600, color:"#fbbf24", margin:0 }}>{rawAcct}</p>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", margin:0 }}>
+                        {count} pos · C${Math.round(totalCAD).toLocaleString()}
+                      </p>
+                    </div>
+                    {/* Target portfolio selector */}
+                    <select
+                      value={m.target}
+                      onChange={e => setBrokerImportMapping(prev => ({
+                        ...prev,
+                        [rawAcct]: { ...m, target: e.target.value },
+                      }))}
+                      style={{ fontSize:11, padding:"5px 8px",
+                        background:"rgba(255,255,255,0.07)",
+                        border:"1px solid rgba(255,255,255,0.15)",
+                        borderRadius:6, color:"rgba(255,255,255,0.85)",
+                        cursor:"pointer" }}>
+                      {/* Existing portfolios */}
+                      {portfolios.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                      {/* Normalised name if not already in list */}
+                      {!portfolios.includes(normalizeWsAccountName(rawAcct)) && (
+                        <option value={normalizeWsAccountName(rawAcct)}>
+                          {normalizeWsAccountName(rawAcct)} (new)
+                        </option>
+                      )}
+                      {/* If custom target isn't a known portfolio name */}
+                      {m.target && !portfolios.includes(m.target) && m.target !== normalizeWsAccountName(rawAcct) && (
+                        <option value={m.target}>{m.target} (new)</option>
+                      )}
+                    </select>
+                    {/* Mode selector */}
+                    <select
+                      value={m.mode}
+                      onChange={e => setBrokerImportMapping(prev => ({
+                        ...prev,
+                        [rawAcct]: { ...m, mode: e.target.value },
+                      }))}
+                      style={{ fontSize:11, padding:"5px 8px",
+                        background: m.mode === "merge"
+                          ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.07)",
+                        border:`1px solid ${m.mode === "merge"
+                          ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.2)"}`,
+                        borderRadius:6,
+                        color: m.mode === "merge" ? "#22c55e" : "#f87171",
+                        cursor:"pointer" }}>
+                      <option value="replace">Replace</option>
+                      <option value="merge">Merge</option>
+                    </select>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Mode legend */}
+            <div style={{ display:"flex", gap:16, marginBottom:20,
+              padding:"8px 12px", background:"rgba(255,255,255,0.03)",
+              borderRadius:8, border:"1px solid rgba(255,255,255,0.06)" }}>
+              <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)", margin:0, lineHeight:1.5 }}>
+                <span style={{ color:"#f87171", fontWeight:600 }}>Replace</span>
+                {" "}— clears the target portfolio and loads these holdings fresh.{" "}
+                <span style={{ color:"#22c55e", fontWeight:600 }}>Merge</span>
+                {" "}— updates tickers that already exist and adds new ones; everything else stays.
+              </p>
+            </div>
+
             <div style={{ display:"flex", gap:10 }}>
               <button className="btn btn-primary" style={{ flex:1, padding:"10px 0", fontSize:13 }}
                 onClick={applyBrokerImport}>
                 ✓ Import {brokerImportPreview.rows.length} holdings
               </button>
               <button className="btn" style={{ padding:"10px 16px", fontSize:13 }}
-                onClick={() => setBrokerImportPreview(null)}>
+                onClick={() => { setBrokerImportPreview(null); setBrokerImportMapping({}); }}>
                 Cancel
               </button>
             </div>
@@ -7352,6 +7609,180 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </div>
         );
       })()}
+
+      {/* ════ INVESTOR PROFILE MODAL ════════════════════════════════════ */}
+      {showProfileModal && (() => {
+        const draft = profileDraft || investorProfile || {};
+        const set   = (k, v) => setProfileDraft(d => ({ ...(d || draft), [k]: v }));
+        const yearsToRetirement = draft.age ? Math.max(0, (draft.retirementAge || 65) - Number(draft.age)) : null;
+
+        const RISK_OPTIONS = [
+          { key:"conservative", label:"Conservative",
+            desc:"Preserve capital first. OK with 4–6% annual return if it means minimal volatility.",
+            icon:"🛡", color:"#22d3ee" },
+          { key:"balanced",     label:"Balanced",
+            desc:"Mix of growth and stability. Can handle 20–30% market swings without panic-selling.",
+            icon:"⚖️", color:"#a78bfa" },
+          { key:"growth",       label:"Growth",
+            desc:"Maximize long-term wealth. Comfortable holding through 40%+ drawdowns.",
+            icon:"📈", color:"#22c55e" },
+          { key:"aggressive",   label:"Aggressive",
+            desc:"Maximum growth potential. Can handle near-total drawdowns on any single position.",
+            icon:"🚀", color:"#f97316" },
+        ];
+        const GOAL_OPTIONS = [
+          { key:"retirement",    label:"Retirement Income",   desc:"Build a nest egg that funds your lifestyle in retirement.", icon:"🏖" },
+          { key:"growth",        label:"Wealth Accumulation", desc:"Compound your portfolio as aggressively as possible.", icon:"💰" },
+          { key:"income",        label:"Dividend Income",     desc:"Generate regular, growing income from dividends now.", icon:"💵" },
+          { key:"preservation",  label:"Capital Preservation",desc:"Protect what you have with modest, steady growth.", icon:"🔒" },
+        ];
+
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.80)", zIndex:10000,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+            onClick={() => setShowProfileModal(false)}>
+            <div style={{ background:"#1e293b", border:"1px solid rgba(167,139,250,0.35)",
+              borderRadius:16, padding:"32px 36px", maxWidth:560, width:"100%",
+              maxHeight:"92vh", overflowY:"auto",
+              boxShadow:"0 32px 80px rgba(0,0,0,0.7)" }}
+              onClick={e => e.stopPropagation()}>
+
+              {/* Header */}
+              <div style={{ marginBottom:24 }}>
+                <p style={{ fontSize:18, fontWeight:700, color:"#f1f5f9", margin:0 }}>
+                  👤 Investor Profile
+                </p>
+                <p style={{ fontSize:12, color:"rgba(255,255,255,0.4)", marginTop:4 }}>
+                  Your answers personalise Ideas, AI targets, and all AI recommendations.
+                </p>
+              </div>
+
+              {/* Q1: Age */}
+              <div style={{ marginBottom:24 }}>
+                <p style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.8)", marginBottom:10 }}>
+                  How old are you?
+                </p>
+                <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                  <input type="number" min={18} max={90}
+                    value={draft.age || ""}
+                    placeholder="e.g. 38"
+                    onChange={e => set("age", e.target.value)}
+                    style={{ width:100, fontSize:20, padding:"8px 12px", textAlign:"center",
+                      background:"rgba(255,255,255,0.07)", border:"1px solid rgba(167,139,250,0.3)",
+                      borderRadius:8, color:"#a78bfa", fontFamily:"'JetBrains Mono',monospace",
+                      fontWeight:700 }} />
+                  {yearsToRetirement !== null && (
+                    <p style={{ fontSize:12, color:"rgba(255,255,255,0.45)" }}>
+                      → <strong style={{ color:"#a78bfa" }}>{yearsToRetirement} years</strong> to retirement (age {draft.retirementAge || 65})
+                      {" "}<button onClick={() => {
+                        const r = prompt("Target retirement age:", draft.retirementAge || 65);
+                        if (r) set("retirementAge", Number(r));
+                      }} style={{ fontSize:9, padding:"1px 6px", borderRadius:4, marginLeft:4,
+                        background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                        color:"rgba(255,255,255,0.35)", cursor:"pointer" }}>change</button>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Q2: Risk tolerance */}
+              <div style={{ marginBottom:24 }}>
+                <p style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.8)", marginBottom:10 }}>
+                  How would you describe your risk tolerance?
+                </p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  {RISK_OPTIONS.map(opt => {
+                    const sel = draft.riskTolerance === opt.key;
+                    return (
+                      <button key={opt.key} onClick={() => set("riskTolerance", opt.key)}
+                        style={{ padding:"12px 14px", borderRadius:10, textAlign:"left", cursor:"pointer",
+                          background: sel ? `${opt.color}18` : "rgba(255,255,255,0.03)",
+                          border:`1px solid ${sel ? opt.color : "rgba(255,255,255,0.08)"}`,
+                          transition:"all 0.15s" }}>
+                        <p style={{ fontSize:13, margin:"0 0 4px",
+                          color: sel ? opt.color : "rgba(255,255,255,0.7)", fontWeight:600 }}>
+                          {opt.icon} {opt.label}
+                        </p>
+                        <p style={{ fontSize:10, margin:0, color:"rgba(255,255,255,0.38)", lineHeight:1.4 }}>
+                          {opt.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Q3: Primary goal */}
+              <div style={{ marginBottom:24 }}>
+                <p style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.8)", marginBottom:10 }}>
+                  What is your primary investment goal?
+                </p>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+                  {GOAL_OPTIONS.map(opt => {
+                    const sel = draft.primaryGoal === opt.key;
+                    return (
+                      <button key={opt.key} onClick={() => set("primaryGoal", opt.key)}
+                        style={{ padding:"12px 14px", borderRadius:10, textAlign:"left", cursor:"pointer",
+                          background: sel ? "rgba(167,139,250,0.12)" : "rgba(255,255,255,0.03)",
+                          border:`1px solid ${sel ? "rgba(167,139,250,0.5)" : "rgba(255,255,255,0.08)"}`,
+                          transition:"all 0.15s" }}>
+                        <p style={{ fontSize:13, margin:"0 0 4px",
+                          color: sel ? "#a78bfa" : "rgba(255,255,255,0.7)", fontWeight:600 }}>
+                          {opt.icon} {opt.label}
+                        </p>
+                        <p style={{ fontSize:10, margin:0, color:"rgba(255,255,255,0.38)", lineHeight:1.4 }}>
+                          {opt.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Q4: Monthly contribution */}
+              <div style={{ marginBottom:28 }}>
+                <p style={{ fontSize:12, fontWeight:600, color:"rgba(255,255,255,0.8)", marginBottom:10 }}>
+                  How much can you invest monthly? <span style={{ color:"rgba(255,255,255,0.3)", fontWeight:400 }}>(optional)</span>
+                </p>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:14, color:"rgba(255,255,255,0.4)" }}>C$</span>
+                  <input type="number" min={0}
+                    value={draft.monthlyContrib || ""}
+                    placeholder="e.g. 1500"
+                    onChange={e => set("monthlyContrib", e.target.value)}
+                    style={{ width:140, fontSize:16, padding:"7px 12px",
+                      background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.15)",
+                      borderRadius:8, color:"rgba(255,255,255,0.85)", fontFamily:"'JetBrains Mono',monospace" }} />
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>/ month</span>
+                </div>
+              </div>
+
+              {/* Save */}
+              <div style={{ display:"flex", gap:10 }}>
+                <button className="btn btn-primary"
+                  disabled={!draft.age || !draft.riskTolerance || !draft.primaryGoal}
+                  style={{ flex:1, padding:"11px 0", fontSize:13, fontWeight:600 }}
+                  onClick={() => {
+                    const p = { ...draft, savedAt: new Date().toISOString() };
+                    setInvestorProfile(p);
+                    localStorage.setItem("portfolio:profile", JSON.stringify(p));
+                    setProfileDraft(null);
+                    setShowProfileModal(false);
+                  }}>
+                  Save Profile
+                </button>
+                {investorProfile && (
+                  <button className="btn" style={{ padding:"11px 16px", fontSize:13 }}
+                    onClick={() => { setProfileDraft(null); setShowProfileModal(false); }}>
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
