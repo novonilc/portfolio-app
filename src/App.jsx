@@ -393,7 +393,9 @@ export default function App() {
   const [license, setLicense] = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; }
   });
-  if (!license) return <LicenseGate onActivate={setLicense} />;
+  // Gate is skipped automatically on localhost — only enforced on the public deployment
+  const onLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (!license && !onLocalhost) return <LicenseGate onActivate={setLicense} />;
 
   const [portfolios,       setPortfolios]      = useState(["TFSA","RRSP"]);
   const [account,          setAccount]         = useState("TFSA");
