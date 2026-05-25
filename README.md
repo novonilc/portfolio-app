@@ -29,10 +29,24 @@ Then open `http://localhost:5173`.
 - [Customizing for Your Portfolio](#customizing-for-your-portfolio)
 - [Updating Curated Data](#updating-curated-data)
 - [Data Backup and Portability](#data-backup-and-portability)
+- [Broker CSV Import](#broker-csv-import)
 - [Disclaimer](#disclaimer)
 - [License](#license)
 
-> **Recent changes:** The **Market Pulse** tab has been significantly enhanced. It now features an **Action Center** with one-click Buy and Reduce trade panels that update your holdings directly, a **News Flash** panel sourcing Bloomberg/CNBC/Reuters/FT/WSJ headlines with per-ticker portfolio impact analysis, two new macro signal categories (Credit & Risk, Global & Commodities), a **Trade Log** that persists every action you take, and a redesigned **Risk-On/Risk-Off gauge** that fills only up to the current score so green never appears when conditions are bearish. The AI refresh prompt now includes your actual holdings so Claude generates personalised, ticker-specific actions rather than generic guidance.
+### Wiki
+
+In-depth guides for specific features live in the [`docs/`](docs/) folder:
+
+| Guide | Description |
+|---|---|
+| [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
+| [Market Pulse & Claude API](docs/market-pulse.md) | Set up your Anthropic API key, configure Market Pulse, and use the Action Center |
+| [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
+| [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
+
+> **Recent changes:**
+> - **Broker CSV Import** — upload your Wealthsimple holdings export directly. Claude reads every position, converts USD market values to CAD at the live FX rate, groups holdings by account (TFSA, RRSP, RESP, Crypto), and suggests target allocations optimised per account type. A preview modal shows the account-by-account summary before anything changes. Requires an Anthropic API key (same one used by Market Pulse). See [Broker CSV Import](#broker-csv-import).
+> - **Market Pulse** tab significantly enhanced with an **Action Center** (one-click Buy/Reduce panels), a **News Flash** panel sourcing Bloomberg/CNBC/Reuters/FT/WSJ headlines with per-ticker portfolio impact, two new macro signal categories (Credit & Risk; Global & Commodities), a persistent **Trade Log**, and a redesigned **Risk-On/Risk-Off gauge** that fills only up to the current score.
 
 ---
 
@@ -488,7 +502,10 @@ Your portfolio data is stored in `localStorage` — a browser-sandboxed storage 
 
 The only network requests the app makes are:
 1. Loading the Google Fonts stylesheet (DM Sans, JetBrains Mono, Instrument Serif) — no financial data is sent
-2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh" or "Copy prompt", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. If you use the API-key option, your Anthropic API key is stored in `localStorage` only; the prompt sent to the Anthropic API includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information. These requests are never made automatically — only when you explicitly trigger a refresh.
+2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh" or "Copy prompt", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. If you use the API-key option, your Anthropic API key is stored in `localStorage` only; the prompt sent to the Anthropic API includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information.
+3. **Broker CSV Import (optional, on-demand only):** When you upload a broker holdings CSV, its contents are sent to the Anthropic API along with the current USD/CAD rate. The CSV includes ticker symbols, quantities, and market values from your brokerage. No account numbers, names, or SINs are transmitted — only position data. Your API key is stored in `localStorage`; no data is stored server-side by this app.
+
+All Claude API requests are never made automatically — only when you explicitly trigger them.
 
 To verify this yourself: open DevTools → Network tab → use the app → see that no requests go to any server containing your portfolio data.
 
@@ -610,7 +627,17 @@ portfolio-app/
         └── marketPulse.json       # Market Pulse tab — regime, signals, outlooks
 ```
 
-The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~5,400 lines; the Market Pulse tab (search for `tab === "pulse"`) and Action Center trade logic (`executePulseBuy`, `executePulseReduce`) are the most recently modified sections.
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~5,800 lines; the most recently modified sections are the broker import functions (`importBrokerHoldings`, `applyBrokerImport`) and the Market Pulse Action Center trade logic (`executePulseBuy`, `executePulseReduce`).
+
+In-depth feature guides live in `docs/`:
+
+```
+docs/
+├── broker-import.md           # Wealthsimple CSV import walkthrough
+├── market-pulse.md            # Market Pulse + Claude API setup
+├── canadian-tax-optimization.md  # TFSA vs RRSP placement guide
+└── data-customization.md      # Editing recommendations.json and marketPulse.json
+```
 
 ---
 
@@ -882,19 +909,19 @@ Include 4–8 entries covering the most market-moving headlines since the last u
 ## Data Backup and Portability
 
 ### Export
-Click **Export** in the header. Downloads a `portfolio-backup-YYYY-MM-DD.json` file with all portfolios, cash balances, cost basis, targets, and custom CAGR values.
+Click **💾 Backup** in the header. Downloads a `portfolio-backup-YYYY-MM-DD.json` file with all portfolios, cash balances, cost basis, targets, and custom CAGR values.
 
-### Import
-Click **Import** and select either:
+### Restore / Import
+Click **📂 Restore / Import** and select either:
 
 - A previously exported **JSON** backup (restores all portfolios/settings), or
-- A **CSV** file to import holdings quickly.
+- An app-format **CSV** file to import holdings quickly.
 
 JSON notes:
 - Restores holdings, cash balances, custom portfolios, and contribution settings.
 - Old format (without the `portfolios` array) is still supported for backwards compatibility.
 
-CSV notes:
+App-format CSV notes:
 - Required column: `ticker` (or `symbol`)
 - Optional columns: `name`, `current`, `costBasis`, `target`, `divYield`, `cagr`, `currency`, `notes`, `account`
 - If `account` is present, rows are grouped into matching portfolios (new portfolios are auto-created).
@@ -940,6 +967,60 @@ ENB,Enbridge,4200,3600,8,7.4,7,CAD,RRSP,Dividend income
   }
 }
 ```
+
+---
+
+---
+
+## Broker CSV Import
+
+The **🏦 Import from Broker** button (gold, next to Restore / Import) lets you upload your brokerage's holdings export directly. Claude reads the file, maps every column to the app's internal format, converts currencies, and suggests target allocations — all in one step.
+
+### Supported brokers
+
+Any CSV export that contains the columns below works. Tested with **Wealthsimple**.
+
+| Column in export | Maps to |
+|---|---|
+| `Account Type` | Portfolio bucket (TFSA, RRSP, RESP, Crypto) |
+| `Symbol` | Ticker |
+| `Name` | Holding name |
+| `Market Value` + `Market Value Currency` | Current value (converted to CAD at the live FX rate) |
+| `Book Value (CAD)` | Cost basis |
+
+### How to export from Wealthsimple
+
+1. Open the Wealthsimple app or web → **Activity** → **Holdings**
+2. Click **Export** (top right) → **CSV**
+3. Save the file — it will be named something like `holdings-report-YYYY-MM-DD.csv`
+
+### Import flow
+
+1. Make sure your **Anthropic API key** is entered in the Market Pulse tab
+2. Click **🏦 Import from Broker** in the header
+3. Select your broker CSV file
+4. Claude analyses the file (~5–10 seconds)
+5. A **preview modal** appears showing each account with position count and total CAD value
+6. Click **✓ Import** to load everything in — or **Cancel** to discard
+
+### What Claude does automatically
+
+- Groups all positions by `Account Type` (TFSA, RRSP, RESP, Crypto)
+- Converts USD market values to CAD using the app's current FX rate
+- Sets `currencyOverride` to `"USD"` for US-listed positions so the rebalance tab shows the correct native currency
+- Suggests target % allocations per account (summing to 100 per account), optimised for:
+  - **TFSA**: growth stocks with no or minimal dividends (no WHT drag)
+  - **RRSP**: US dividend payers (WHT-exempt under the Canada–US treaty)
+  - **RESP**: proportional to current market values (balanced)
+  - **Crypto**: proportional to market value
+- Estimates dividend yield and 5-year CAGR per ticker
+- Writes a one-line rationale in the `notes` field for each position
+
+### After importing
+
+Targets are Claude's best suggestion — review them in the **Edit Targets** tab and adjust to match your actual investment plan. Run a **Full Rebalance** pass to see what changes the new targets imply before acting.
+
+> For a detailed walkthrough with screenshots, see [docs/broker-import.md](docs/broker-import.md).
 
 ---
 
