@@ -1,9 +1,26 @@
+import { useState } from "react";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
+import App, { LicenseGate } from "./App.jsx";
+
+function Root() {
+  const [license, setLicense] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; }
+  });
+
+  const onLocalhost =
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1";
+
+  if (!license && !onLocalhost) {
+    return <LicenseGate onActivate={setLicense} />;
+  }
+
+  return <App />;
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <Root />
   </React.StrictMode>
 );

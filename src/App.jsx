@@ -180,7 +180,7 @@ const DEFAULT_OPT_TRADE = {
 // ═══════════════════════════════════════════════════════════════════════════
 // LICENSE GATE — shown when no valid license is stored in localStorage
 // ═══════════════════════════════════════════════════════════════════════════
-function LicenseGate({ onActivate }) {
+export function LicenseGate({ onActivate }) {
   const [key,     setKey]     = useState("");
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState(null);
@@ -390,13 +390,6 @@ function AppLogo() {
 }
 
 export default function App() {
-  const [license, setLicense] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; }
-  });
-  // Gate is skipped automatically on localhost — only enforced on the public deployment
-  const onLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  if (!license && !onLocalhost) return <LicenseGate onActivate={setLicense} />;
-
   const [portfolios,       setPortfolios]      = useState(["TFSA","RRSP"]);
   const [account,          setAccount]         = useState("TFSA");
   const [cashHolding,      setCashHolding]     = useState({ TFSA: 0, RRSP: 0 });
