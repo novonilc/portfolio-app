@@ -45,7 +45,8 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
-> - **Broker CSV Import** — upload your Wealthsimple holdings export directly. Claude reads every position, converts USD market values to CAD at the live FX rate, groups holdings by account (TFSA, RRSP, RESP, Crypto), and suggests target allocations optimised per account type. A preview modal shows the account-by-account summary before anything changes. Requires an Anthropic API key (same one used by Market Pulse). See [Broker CSV Import](#broker-csv-import).
+> - **AI Target Suggestions** — a ✨ button in the Edit Targets tab sends your current holdings to Claude, which returns optimised target % allocations for the active account (TFSA growth vs RRSP income logic, WHT awareness, concentration limits). A before/after diff modal lets you review every change before applying. Requires an Anthropic API key.
+> - **Broker CSV Import** — upload your Wealthsimple holdings export directly. Claude reads every position, converts USD market values to CAD, groups by account, suggests targets, and automatically excludes managed/private-equity funds (MUTUAL_FUND, Managed classification). A preview modal shows what will be imported before anything changes.
 > - **Market Pulse** tab significantly enhanced with an **Action Center** (one-click Buy/Reduce panels), a **News Flash** panel sourcing Bloomberg/CNBC/Reuters/FT/WSJ headlines with per-ticker portfolio impact, two new macro signal categories (Credit & Risk; Global & Commodities), a persistent **Trade Log**, and a redesigned **Risk-On/Risk-Off gauge** that fills only up to the current score.
 
 ---
@@ -969,6 +970,42 @@ ENB,Enbridge,4200,3600,8,7.4,7,CAD,RRSP,Dividend income
 ```
 
 ---
+
+---
+
+## AI Target Suggestions
+
+The **✨ Suggest Targets with AI** button (purple, in the Edit Targets tab header) analyses your current holdings and proposes optimised target allocations for the active account.
+
+### What it does
+
+1. Reads all holdings for the active account with their current CAD values
+2. Checks the current Market Pulse regime and Risk-On/Risk-Off score for context
+3. Sends the data to Claude with account-specific rules:
+   - **TFSA** — minimise IRS withholding tax drag; favour no/low-dividend growth stocks
+   - **RRSP** — favour US dividend payers (WHT-exempt under the Canada-US treaty); balance income and growth
+   - **RESP** — conservative; mirror current market-value proportions
+   - **Crypto** — split proportionally by market value
+4. Returns targets that sum to exactly 100, a refreshed CAGR estimate, and a dividend yield per position
+5. Shows a **before/after diff modal** — every ticker shows its old target, new target, and delta (green = increased, red = decreased), plus a one-line rationale
+
+### Preview modal
+
+```
+Ticker   Was → Now    Δ      CAGR   Div%   Rationale
+NVDA     14%  → 18%  +4%    18%    0.0%   AI compute moat; TFSA-optimal growth
+AMZN     10%  → 12%  +2%    15%    0.0%   No WHT drag; cloud + retail flywheel
+GLD       5%  →  4%  -1%     6%    0.0%   Reduce slightly; overweight vs. regime
+──────────────────────────────────────────────────
+TOTAL    100% → 100%
+```
+
+Click **✓ Apply targets** to update all targets, CAGRs, and dividend yields at once — or **Cancel** to discard.
+
+### Requirements
+
+- Anthropic API key set in the Market Pulse tab (same key as Market Pulse refresh and Broker Import)
+- At least one holding in the active account
 
 ---
 

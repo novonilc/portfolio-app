@@ -308,6 +308,9 @@ export default function App() {
   const [brokerImportLoading, setBrokerImportLoading] = useState(false);
   const [brokerImportError,   setBrokerImportError]   = useState(null);
   const [brokerImportPreview, setBrokerImportPreview] = useState(null); // { rows, summary }
+  const [aiTargetsLoading,    setAiTargetsLoading]    = useState(false);
+  const [aiTargetsError,      setAiTargetsError]      = useState(null);
+  const [aiTargetsPreview,    setAiTargetsPreview]    = useState(null); // { suggestions, account }
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -964,6 +967,21 @@ export default function App() {
         const csvText = String(e.target.result || "");
         const rate = usdCadRate || 1.38;
 
+        // Pre-scan CSV to find tickers that are managed funds or private equity
+        const csvLines = csvText.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n").filter(Boolean);
+        const rawHdrs  = parseCsvLine(csvLines[0] || "").map(h => h.toLowerCase().trim().replace(/\s+/g, " "));
+        const secTypeIdx      = rawHdrs.findIndex(h => h === "security type");
+        const classIdx        = rawHdrs.findIndex(h => h.includes("account classification"));
+        const symbolIdx       = rawHdrs.findIndex(h => h === "symbol");
+        const excludedTickers = new Set();
+        for (let i = 1; i < csvLines.length; i++) {
+          const cells = parseCsvLine(csvLines[i]);
+          const secType = (cells[secTypeIdx] || "").toUpperCase().trim();
+          const cls     = (cells[classIdx]   || "").toLowerCase().trim();
+          const sym     = (cells[symbolIdx]  || "").toUpperCase().trim();
+          if (sym && (secType === "MUTUAL_FUND" || cls === "managed")) excludedTickers.add(sym);
+        }
+
         const prompt = `You are converting a Wealthsimple brokerage CSV export into portfolio app holdings.
 
 Current USD/CAD rate: ${rate}
@@ -972,7 +990,10 @@ CSV data:
 ${csvText}
 
 Rules:
-- Include ALL holdings where Quantity > 0
+- Include holdings where Quantity > 0 EXCEPT:
+  - SKIP any row where Security Type is "MUTUAL_FUND" (private equity, managed funds)
+  - SKIP any row where Account Classification is "Managed"
+  - These tickers must be excluded entirely: ${[...excludedTickers].join(", ") || "none"}
 - Use "Account Type" column to set the "account" field (TFSA, RRSP, RESP, or Crypto)
 - For "current" (market value in CAD):
   - If "Market Value Currency" is CAD: use the "Market Value" column value
@@ -981,7 +1002,7 @@ Rules:
 - Use "Symbol" for "ticker", "Name" for "name"
 - "currencyOverride": set to "USD" if the Market Value Currency is USD, "CAD" if CAD, else ""
 - Suggest "target" % allocation per account (integers; each account's targets must sum to 100)
-  - TFSA: favor no/low-dividend growth stocks
+  - TFSA: favor no/low-dividend growth stocks (no IRS WHT drag)
   - RRSP: favor US-listed dividend/income stocks (WHT-exempt in RRSP)
   - RESP: keep proportional to current market values
   - Crypto: split proportionally by market value
@@ -992,6 +1013,8 @@ Rules:
 Return ONLY a valid JSON array — no markdown fences, no explanation.
 Example element:
 {"account":"TFSA","ticker":"NVDA","name":"NVIDIA Corp","current":1767.91,"costBasis":2053.54,"target":15,"divYield":0.03,"cagr":18,"currencyOverride":"USD","notes":"AI infrastructure leader","locked":"✅ Keep"}`;
+
+        // Client-side safety filter applied after Claude responds (see below)
 
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -1020,15 +1043,18 @@ Example element:
 
         if (!Array.isArray(rows) || !rows.length) throw new Error("Claude returned no holdings");
 
+        // Client-side safety filter: remove any managed/private-equity tickers Claude may have slipped through
+        const cleanRows = rows.filter(r => !excludedTickers.has((r.ticker || "").toUpperCase()));
+
         // Summarise by account
         const byAccount = {};
-        for (const r of rows) {
+        for (const r of cleanRows) {
           const acct = r.account || "UNKNOWN";
           if (!byAccount[acct]) byAccount[acct] = { count: 0, totalCAD: 0 };
           byAccount[acct].count++;
           byAccount[acct].totalCAD += r.current || 0;
         }
-        setBrokerImportPreview({ rows, byAccount });
+        setBrokerImportPreview({ rows: cleanRows, byAccount, skipped: rows.length - cleanRows.length });
       } catch (err) {
         setBrokerImportError(err.message || "Failed to parse broker CSV");
       } finally {
@@ -1048,6 +1074,133 @@ Example element:
       setBrokerImportError(err.message);
     }
     setBrokerImportPreview(null);
+  }
+
+  // ── AI target suggestions for the active account ──────────────────────
+  async function suggestTargetsWithAI() {
+    if (!claudeApiKey.trim()) {
+      setAiTargetsError("Enter your Anthropic API key in the Market Pulse tab first.");
+      return;
+    }
+    const snap = holdings[account];
+    if (!snap || !snap.length) { setAiTargetsError("No holdings to analyse."); return; }
+
+    setAiTargetsLoading(true);
+    setAiTargetsError(null);
+    setAiTargetsPreview(null);
+
+    try {
+      // Build a CAD-valued summary without exposing cost-basis / personal details
+      const fxRate    = usdCadRate || 1.38;
+      const totalCAD  = snap.reduce((s, h) => {
+        const cur = getTickerCurrency(h.ticker, h.currencyOverride);
+        return s + (cur === "USD" ? h.current * fxRate : h.current);
+      }, 0);
+
+      const lines = snap.map(h => {
+        const cur    = getTickerCurrency(h.ticker, h.currencyOverride);
+        const cadVal = cur === "USD" ? h.current * fxRate : h.current;
+        const pct    = totalCAD > 0 ? ((cadVal / totalCAD) * 100).toFixed(1) : "0.0";
+        return `${h.ticker} | ${h.name} | ${cur} | C$${Math.round(cadVal).toLocaleString()} (${pct}% of portfolio) | divYield:${h.divYield ?? 0}% | currentTarget:${h.target}%`;
+      }).join("\n");
+
+      const regime      = marketPulse?.regime?.label    || "Unknown";
+      const riskScore   = marketPulse?.riskMeter?.score ?? 50;
+      const riskLabel   = riskScore < 40 ? "risk-off — bias defensive"
+                        : riskScore > 60 ? "risk-on — lean growth"
+                        : "neutral — balanced";
+
+      const acctRules = {
+        TFSA:   "Favour zero/low-dividend growth stocks — IRS withholding tax (15%) on US dividends is unrecoverable in a TFSA. US dividend payers should get lower targets. Canadian-listed ETFs and crypto ETFs are fine.",
+        RRSP:   "Favour US-listed dividend/income stocks — WHT is 0% under the Canada-US treaty in an RRSP. Balance income and growth. Bond ETFs/T-bills (SGOV) are good for capital preservation.",
+        RESP:   "Conservative and balanced. Mirror current market-value proportions. Bond ETFs should anchor at 20-30%.",
+        Crypto: "Split proportionally by current market value between BTC, ETH, and any crypto ETFs.",
+      };
+
+      const prompt = `You are a Canadian portfolio advisor. Suggest optimal target allocations for a ${account} account.
+
+Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskLabel})
+Account: ${account}
+Total value: C$${Math.round(totalCAD).toLocaleString()}
+USD/CAD: ${fxRate}
+
+Account-specific rule:
+${acctRules[account] || "Optimise for long-term growth."}
+
+Current holdings (ticker | name | currency | CAD value | divYield | currentTarget):
+${lines}
+
+Instructions:
+- Assign a "target" integer % to each ticker — they must sum to EXACTLY 100
+- Maximum 25% for any single equity; broad-market ETFs (XEQT, QQQM, QUU, etc.) may go up to 30%
+- Set target to 0 only if you have a strong reason to exit the position
+- Also provide updated "cagr" (5-yr estimate, integer 5-25) and "divYield" (%, one decimal) per ticker
+- "rationale": one sharp sentence — what drives the target change
+
+Return ONLY a JSON array, no markdown:
+[{"ticker":"NVDA","target":18,"cagr":18,"divYield":0.0,"rationale":"AI compute moat; TFSA-optimal growth with minimal WHT drag"}]`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": claudeApiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${res.status}`);
+      }
+
+      const data     = await res.json();
+      const rawText  = (data.content?.[0]?.text || "").trim();
+      const stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed   = JSON.parse(stripped);
+
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error("Claude returned no suggestions");
+
+      // Merge with current holdings so we keep the right order and old targets
+      const suggestions = snap.map(h => {
+        const s = parsed.find(x => x.ticker === h.ticker);
+        return {
+          ticker:     h.ticker,
+          name:       h.name,
+          oldTarget:  h.target,
+          target:     s ? Math.max(0, Math.round(Number(s.target) || 0)) : h.target,
+          cagr:       s ? Math.max(1, Math.round(Number(s.cagr)   || h.cagr || 10)) : (h.cagr || 10),
+          divYield:   s ? Math.max(0, Number(s.divYield) || 0) : (h.divYield || 0),
+          rationale:  s?.rationale || "",
+        };
+      });
+
+      setAiTargetsPreview({ suggestions, account });
+    } catch (err) {
+      setAiTargetsError(err.message || "Failed to get AI suggestions");
+    } finally {
+      setAiTargetsLoading(false);
+    }
+  }
+
+  function applyAiTargets() {
+    if (!aiTargetsPreview?.suggestions) return;
+    const { suggestions } = aiTargetsPreview;
+    const next = { ...holdings };
+    next[account] = next[account].map(h => {
+      const s = suggestions.find(x => x.ticker === h.ticker);
+      if (!s) return h;
+      return { ...h, target: s.target, cagr: s.cagr, divYield: s.divYield };
+    });
+    setHoldings(next);
+    persist(account, next[account]);
+    setAiTargetsPreview(null);
   }
 
   // ── FX helpers (close over usdCadRate state) ───────────────────────────
@@ -2417,7 +2570,32 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       {tab === "targets" && (
         <div style={{ padding:"22px 28px" }}>
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
-            <p className="sec" style={{ margin:0 }}>Edit holdings, cost basis &amp; targets — {account}</p>
+            <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+              <p className="sec" style={{ margin:0 }}>Edit holdings, cost basis &amp; targets — {account}</p>
+              <button
+                onClick={suggestTargetsWithAI}
+                disabled={aiTargetsLoading}
+                style={{
+                  display:"flex", alignItems:"center", gap:6,
+                  padding:"6px 14px", fontSize:12, fontWeight:600, borderRadius:8,
+                  border:"1px solid rgba(167,139,250,0.45)",
+                  background: aiTargetsLoading ? "rgba(167,139,250,0.06)" : "rgba(167,139,250,0.1)",
+                  color:"#a78bfa", cursor: aiTargetsLoading ? "wait" : "pointer",
+                  opacity: aiTargetsLoading ? 0.7 : 1, transition:"all 0.15s",
+                }}
+                title="Send current holdings to Claude and get suggested target allocations"
+              >
+                <span style={{ fontSize:14 }}>{aiTargetsLoading ? "⏳" : "✨"}</span>
+                {aiTargetsLoading ? "Analysing…" : "Suggest Targets with AI"}
+              </button>
+              {aiTargetsError && (
+                <span style={{ fontSize:11, color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
+                  ⚠ {aiTargetsError}
+                  <button onClick={() => setAiTargetsError(null)}
+                    style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", padding:0, lineHeight:1 }}>✕</button>
+                </span>
+              )}
+            </div>
             <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"6px 10px" }}>
                 <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>Rows</span>
@@ -5764,6 +5942,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <p style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginBottom:16 }}>
               Claude analysed your holdings CSV. Review the summary below, then confirm to load into the app.
               Existing holdings in these accounts will be replaced.
+              {brokerImportPreview.skipped > 0 && (
+                <span style={{ display:"block", marginTop:6, color:"#94a3b8" }}>
+                  ✂ {brokerImportPreview.skipped} managed / private-equity position{brokerImportPreview.skipped !== 1 ? "s" : ""} excluded automatically.
+                </span>
+              )}
             </p>
             <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:20 }}>
               {Object.entries(brokerImportPreview.byAccount).map(([acct, { count, totalCAD }]) => (
@@ -5793,6 +5976,98 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </div>
         </div>
       )}
+
+      {/* ── AI Targets preview modal ── */}
+      {aiTargetsPreview && (() => {
+        const { suggestions } = aiTargetsPreview;
+        const newSum = suggestions.reduce((s, x) => s + x.target, 0);
+        const oldSum = suggestions.reduce((s, x) => s + x.oldTarget, 0);
+        return (
+          <div style={{
+            position:"fixed", inset:0, background:"rgba(0,0,0,0.75)", zIndex:9999,
+            display:"flex", alignItems:"center", justifyContent:"center", padding:24,
+          }} onClick={() => setAiTargetsPreview(null)}>
+            <div style={{
+              background:"#1e293b", border:"1px solid rgba(167,139,250,0.35)",
+              borderRadius:14, padding:"28px 32px", maxWidth:680, width:"100%",
+              maxHeight:"85vh", overflowY:"auto",
+              boxShadow:"0 24px 60px rgba(0,0,0,0.65)",
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
+                <p style={{ fontSize:15, fontWeight:700, color:"#f1f5f9", margin:0 }}>
+                  ✨ AI Target Suggestions — {aiTargetsPreview.account}
+                </p>
+                <span style={{
+                  fontSize:11, padding:"3px 10px", borderRadius:20,
+                  background: Math.abs(newSum - 100) <= 1 ? "rgba(52,211,153,0.15)" : "rgba(239,68,68,0.15)",
+                  border: `1px solid ${Math.abs(newSum - 100) <= 1 ? "rgba(52,211,153,0.4)" : "rgba(239,68,68,0.4)"}`,
+                  color: Math.abs(newSum - 100) <= 1 ? "#34d399" : "#ef4444",
+                  fontWeight:600,
+                }}>
+                  Total: {newSum}%
+                </span>
+              </div>
+              <p style={{ fontSize:12, color:"rgba(255,255,255,0.45)", marginBottom:18 }}>
+                Review before applying — targets, CAGR, and dividend yield will be updated. Cost basis and current values are unchanged.
+              </p>
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                  <thead>
+                    <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
+                      {["Ticker","Was →  Now","Δ","CAGR","Div%","Rationale"].map(h => (
+                        <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:"rgba(255,255,255,0.4)", fontWeight:500, fontSize:10, letterSpacing:"0.08em", whiteSpace:"nowrap" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suggestions.map(s => {
+                      const delta = s.target - s.oldTarget;
+                      const deltaColor = delta > 0 ? "#34d399" : delta < 0 ? "#f87171" : "rgba(255,255,255,0.25)";
+                      return (
+                        <tr key={s.ticker} style={{ borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                          <td style={{ padding:"8px 10px", fontWeight:700, color:"#a78bfa" }}>{s.ticker}</td>
+                          <td style={{ padding:"8px 10px", whiteSpace:"nowrap", fontFamily:"'JetBrains Mono',monospace", fontSize:11 }}>
+                            <span style={{ color:"rgba(255,255,255,0.35)" }}>{s.oldTarget}%</span>
+                            <span style={{ color:"rgba(255,255,255,0.2)", margin:"0 4px" }}>→</span>
+                            <span style={{ color:"#f1f5f9", fontWeight:600 }}>{s.target}%</span>
+                          </td>
+                          <td style={{ padding:"8px 10px", color:deltaColor, fontWeight:600, fontFamily:"'JetBrains Mono',monospace", fontSize:11 }}>
+                            {delta === 0 ? "—" : `${delta > 0 ? "+" : ""}${delta}%`}
+                          </td>
+                          <td style={{ padding:"8px 10px", color:"#a78bfa" }}>{s.cagr}%</td>
+                          <td style={{ padding:"8px 10px", color:"rgba(255,255,255,0.55)" }}>{s.divYield}%</td>
+                          <td style={{ padding:"8px 10px", color:"rgba(255,255,255,0.5)", fontSize:11, maxWidth:240 }}>{s.rationale}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ borderTop:"1px solid rgba(255,255,255,0.12)", background:"rgba(255,255,255,0.02)" }}>
+                      <td style={{ padding:"8px 10px", fontWeight:700, color:"rgba(255,255,255,0.6)", fontSize:11 }}>TOTAL</td>
+                      <td style={{ padding:"8px 10px", fontFamily:"'JetBrains Mono',monospace", fontSize:11 }}>
+                        <span style={{ color:"rgba(255,255,255,0.35)" }}>{oldSum}%</span>
+                        <span style={{ color:"rgba(255,255,255,0.2)", margin:"0 4px" }}>→</span>
+                        <span style={{ color: Math.abs(newSum - 100) <= 1 ? "#34d399" : "#ef4444", fontWeight:700 }}>{newSum}%</span>
+                      </td>
+                      <td colSpan={4}/>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                <button className="btn btn-primary" style={{ flex:1, padding:"10px 0", fontSize:13 }}
+                  onClick={applyAiTargets}>
+                  ✓ Apply targets
+                </button>
+                <button className="btn" style={{ padding:"10px 16px", fontSize:13 }}
+                  onClick={() => setAiTargetsPreview(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
