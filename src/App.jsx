@@ -1268,21 +1268,21 @@ Return ONLY a JSON array, no markdown:
                       : riskScore > 60 ? "risk-on — lean growth, accept more volatility"
                       : "neutral — balance growth and quality";
 
-      const prompt = `You are a diversification advisor for a Canadian investor with TFSA, RRSP, and other registered accounts.
+      const prompt = `You are a portfolio advisor for a Canadian investor with TFSA, RRSP, and other registered accounts.
 
 Combined portfolio: C$${Math.round(grandTotal).toLocaleString()} across ${portfolios.length} accounts
 Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskCtx})
 Detected sector gaps: ${gapList.length ? gapList.join(", ") : "none — well covered"}
 USD/CAD rate: ${fxRate}
 
-Current holdings by account:
+Current holdings by account (ticker | name | currency | CAD value (% of account) | div yield):
 ${accountSummaries}
 
-Already held tickers (NEVER suggest these): ${[...heldTickers].join(", ")}
+Already held tickers: ${[...heldTickers].join(", ")}
 
-Task: Suggest exactly 3–6 NEW positions that would meaningfully diversify this portfolio.
+TASK A — Suggest exactly 3–6 NEW positions that would meaningfully diversify this portfolio.
 
-Rules:
+Addition rules:
 - NEVER suggest a ticker already in the held list above
 - Prefer broad ETFs over single stocks for filling sector/geographic gaps
 - Do not duplicate exposure (e.g. if QQQM is held, don't suggest QQQ or ONEQ)
@@ -1295,19 +1295,39 @@ Rules:
 - Consider the regime: in risk-off, lean toward defensive ETFs, bonds, gold; in risk-on, lean toward growth sectors
 - Stop at 6 — do not pad with unnecessary positions
 
-Return ONLY a valid JSON array, no markdown:
-[{
-  "ticker": "ENB",
-  "name": "Enbridge Inc.",
-  "account": "TFSA",
-  "targetPct": 5,
-  "sector": "Energy Infrastructure",
-  "divYield": 7.2,
-  "cagr": 8,
-  "fillsGap": "Energy infrastructure — pipeline/midstream completely absent from portfolio",
-  "thesis": "North America's largest pipeline operator with 30+ years of dividend growth. Regulated cash flows make it bond-like in volatility. CAD-listed, so no WHT in TFSA.",
-  "placementReason": "CAD-listed — zero WHT drag regardless of account; TFSA preferred for tax-free dividend compounding"
-}]`;
+TASK B — Identify any existing positions that should be trimmed or removed.
+
+Trim rules (flag a position if ANY of these apply):
+- Single-stock position exceeds 20% of its account (concentration risk)
+- Single-stock position exceeds 15% of total portfolio
+- Two or more positions with substantially overlapping exposure (e.g. QQQ + QQQM, multiple semi ETFs)
+- Position is misplaced for tax efficiency (high-dividend US stock in TFSA instead of RRSP)
+- Position is speculative/high-risk and oversized given the current risk score
+- Only flag genuine concerns — do NOT invent trims; return an empty array if holdings are well-balanced
+
+Return ONLY a valid JSON object, no markdown:
+{
+  "additions": [{
+    "ticker": "ENB",
+    "name": "Enbridge Inc.",
+    "account": "TFSA",
+    "targetPct": 5,
+    "sector": "Energy Infrastructure",
+    "divYield": 7.2,
+    "cagr": 8,
+    "fillsGap": "Energy infrastructure — pipeline/midstream completely absent from portfolio",
+    "thesis": "North America's largest pipeline operator with 30+ years of dividend growth. Regulated cash flows make it bond-like in volatility. CAD-listed, so no WHT in TFSA.",
+    "placementReason": "CAD-listed — zero WHT drag regardless of account; TFSA preferred for tax-free dividend compounding"
+  }],
+  "trims": [{
+    "ticker": "NVDA",
+    "account": "TFSA",
+    "currentPct": 28.5,
+    "suggestedPct": 15,
+    "action": "Reduce",
+    "reason": "At 28.5% of TFSA this single semi position dominates the account. A 15% cap reduces concentration risk while keeping meaningful upside exposure."
+  }]
+}`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -1334,12 +1354,13 @@ Return ONLY a valid JSON array, no markdown:
       const stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
       const parsed   = JSON.parse(stripped);
 
-      if (!Array.isArray(parsed) || !parsed.length) throw new Error("Claude returned no suggestions");
+      if (!parsed.additions || !Array.isArray(parsed.additions)) throw new Error("Claude returned no suggestions");
 
       // Safety: strip any tickers that are already held
-      const clean = parsed.filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+      const clean      = parsed.additions.filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+      const cleanTrims = (parsed.trims || []).filter(s => s.ticker && heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
 
-      const result = { suggestions: clean, generatedAt: new Date().toISOString(), regime, riskScore };
+      const result = { suggestions: clean, trims: cleanTrims, generatedAt: new Date().toISOString(), regime, riskScore };
       setDiversifySuggestions(result);
       localStorage.setItem("diversify:suggestions", JSON.stringify(result));
     } catch (err) {
@@ -3330,8 +3351,84 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </p>
                 )}
 
+                {/* ── Trim / Reduce alerts ── */}
+                {ds?.trims?.length > 0 && (
+                  <div style={{ marginBottom:14 }}>
+                    <p style={{ fontSize:11, fontWeight:600, color:"#f97316", marginBottom:8,
+                      display:"flex", alignItems:"center", gap:6 }}>
+                      ✂ Trim / Reduce Alerts
+                      <span style={{ fontSize:10, fontWeight:400, color:"rgba(255,255,255,0.35)" }}>
+                        — positions flagged for concentration or tax-placement concerns
+                      </span>
+                    </p>
+                    <div style={{ display:"grid", gap:8,
+                      gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))" }}>
+                      {ds.trims.map((tr, i) => {
+                        const isRemove = tr.action === "Remove";
+                        const accentColor = isRemove ? "#ef4444" : "#f97316";
+                        return (
+                          <div key={i} style={{
+                            background:"rgba(249,115,22,0.06)",
+                            border:"1px solid rgba(249,115,22,0.2)",
+                            borderLeft:`3px solid ${accentColor}`,
+                            borderRadius:10, padding:"12px 14px",
+                          }}>
+                            <div style={{ display:"flex", justifyContent:"space-between",
+                              alignItems:"flex-start", marginBottom:6 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                                <span style={{ fontSize:16, fontWeight:800,
+                                  fontFamily:"'JetBrains Mono',monospace", color:accentColor }}>
+                                  {tr.ticker}
+                                </span>
+                                <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                  background:`${accentColor}15`, color:accentColor,
+                                  border:`1px solid ${accentColor}30`, fontWeight:600 }}>
+                                  {tr.account}
+                                </span>
+                                <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                                  background:"rgba(0,0,0,0.2)", color:accentColor, fontWeight:700 }}>
+                                  {tr.action}
+                                </span>
+                              </div>
+                              {!isRemove && tr.currentPct != null && tr.suggestedPct != null && (
+                                <div style={{ textAlign:"right", flexShrink:0, marginLeft:8 }}>
+                                  <p style={{ fontSize:11, fontFamily:"'JetBrains Mono',monospace",
+                                    color:"rgba(255,255,255,0.55)", margin:0 }}>
+                                    <span style={{ color:"#ef4444" }}>{tr.currentPct}%</span>
+                                    {" → "}
+                                    <span style={{ color:"#22c55e" }}>{tr.suggestedPct}%</span>
+                                  </p>
+                                  <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", margin:0 }}>of account</p>
+                                </div>
+                              )}
+                            </div>
+                            <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)",
+                              lineHeight:1.5, marginBottom:10 }}>
+                              {tr.reason}
+                            </p>
+                            <button
+                              onClick={() => setTab("targets")}
+                              style={{ width:"100%", padding:"6px 0", fontSize:10, fontWeight:600,
+                                background:`${accentColor}10`, border:`1px solid ${accentColor}30`,
+                                borderRadius:6, color:accentColor, cursor:"pointer" }}>
+                              Adjust in Edit Targets →
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Suggestion cards */}
                 {ds?.suggestions?.length > 0 && (
+                  <div>
+                  {ds.trims?.length > 0 && (
+                    <p style={{ fontSize:11, fontWeight:600, color:tealAccent, marginBottom:8,
+                      display:"flex", alignItems:"center", gap:6 }}>
+                      ✦ New Positions to Add
+                    </p>
+                  )}
                   <div style={{ display:"grid", gap:12,
                     gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))" }}>
                     {ds.suggestions.map((s, i) => {
@@ -3447,6 +3544,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         </div>
                       );
                     })}
+                  </div>
                   </div>
                 )}
               </div>
