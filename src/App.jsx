@@ -4,6 +4,15 @@ import marketPulseData from "./data/marketPulse.json";
 const RECOMMENDATIONS = portfolioIdeas.recommendations;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// LICENSE CONFIGURATION
+// 1. Create a product on lemonsqueezy.com — set price to $99 CAD, type = License
+// 2. Copy your checkout URL (Product → Share → Checkout URL) into LS_CHECKOUT_URL
+// 3. Copy your numeric Product ID from the LS Products dashboard into LS_PRODUCT_ID
+// ═══════════════════════════════════════════════════════════════════════════
+const LS_CHECKOUT_URL = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08";
+const LS_PRODUCT_ID   = 1087809; // e.g. 123456 — find this in LS dashboard › Products
+
+// ═══════════════════════════════════════════════════════════════════════════
 // INITIAL PORTFOLIO DATA
 // ═══════════════════════════════════════════════════════════════════════════
 const INITIAL_TFSA = [
@@ -168,6 +177,130 @@ const DEFAULT_OPT_TRADE = {
   strike:"", expiry:"", premium:"", underlyingPrice:"", notes:"",
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// LICENSE GATE — shown when no valid license is stored in localStorage
+// ═══════════════════════════════════════════════════════════════════════════
+function LicenseGate({ onActivate }) {
+  const [key,     setKey]     = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  async function activate() {
+    const trimmed = key.trim();
+    if (!trimmed) { setError("Please enter your license key."); return; }
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("https://api.lemonsqueezy.com/v1/licenses/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          license_key: trimmed,
+          instance_name: "Portfolio Rebalancer — " + navigator.userAgent.slice(0, 50),
+        }),
+      });
+      const data = await res.json();
+      if (data.activated) {
+        const record = {
+          key: trimmed,
+          activatedAt: new Date().toISOString(),
+          instanceId: data.instance?.id || "",
+          email: data.meta?.customer_email || "",
+        };
+        localStorage.setItem("portfolio:license", JSON.stringify(record));
+        setSuccess(true);
+        setTimeout(() => onActivate(record), 1200);
+      } else {
+        const msg = data.error || "license_key_invalid";
+        if (msg.includes("activation_limit"))
+          setError("This key has reached its activation limit. Each key activates on up to 3 devices — contact support if you need a reset.");
+        else
+          setError("Invalid license key. Check for typos or contact support if you need help.");
+      }
+    } catch {
+      setError("Could not reach the license server. Check your internet connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const card = { background:"#0d1526", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:"40px 36px", width:"100%", maxWidth:480 };
+  const inp  = { background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#f1f5f9", padding:"11px 14px", borderRadius:10, fontSize:14, fontFamily:"'JetBrains Mono',monospace", width:"100%", marginBottom:10 };
+  const btnS = (active) => ({ padding:"12px 20px", borderRadius:10, border:"none", cursor: active ? "pointer":"not-allowed", fontWeight:700, fontSize:14, fontFamily:"inherit", width:"100%", background: active ? "#fbbf24":"rgba(255,255,255,0.08)", color: active ? "#0d1117":"#64748b", transition:"all 0.2s" });
+
+  return (
+    <div style={{ minHeight:"100vh", background:"#060b18", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, fontFamily:"'DM Sans',system-ui,sans-serif", color:"#f1f5f9" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');`}</style>
+
+      {/* Logo */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:32 }}>
+        <div style={{ width:10, height:10, borderRadius:"50%", background:"#fbbf24" }}></div>
+        <span style={{ fontSize:18, fontWeight:800 }}>Portfolio Rebalancer Pro</span>
+      </div>
+
+      <div style={card}>
+        {success ? (
+          <div style={{ textAlign:"center", padding:"20px 0" }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>✅</div>
+            <div style={{ fontSize:20, fontWeight:700, marginBottom:8 }}>License activated!</div>
+            <div style={{ fontSize:14, color:"#94a3b8" }}>Loading your portfolio…</div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize:22, fontWeight:800, marginBottom:8 }}>Activate your license</div>
+            <div style={{ fontSize:14, color:"#94a3b8", marginBottom:28, lineHeight:1.6 }}>
+              Enter the license key from your purchase confirmation email to unlock Portfolio Rebalancer Pro.
+            </div>
+
+            <label style={{ fontSize:12, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:6 }}>License key</label>
+            <input
+              style={inp}
+              type="text"
+              placeholder="PFRA-XXXX-XXXX-XXXX"
+              value={key}
+              onChange={e => { setKey(e.target.value); setError(null); }}
+              onKeyDown={e => e.key === "Enter" && activate()}
+            />
+
+            {error && (
+              <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#fca5a5", marginBottom:12, lineHeight:1.6 }}>
+                ⚠ {error}
+              </div>
+            )}
+
+            <button style={btnS(!loading && key.trim().length > 0)} onClick={activate} disabled={loading || !key.trim()}>
+              {loading ? "Activating…" : "Activate License →"}
+            </button>
+
+            <div style={{ margin:"20px 0", height:1, background:"rgba(255,255,255,0.06)" }}></div>
+
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:13, color:"#64748b", marginBottom:14 }}>Don't have a license yet?</div>
+              <a
+                href={LS_CHECKOUT_URL}
+                target="_blank"
+                rel="noreferrer"
+                style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", background:"linear-gradient(135deg,#22c55e,#16a34a)", color:"#fff", borderRadius:10, fontWeight:700, fontSize:15, textDecoration:"none", transition:"all 0.2s" }}
+              >
+                Get Lifetime Access — $99 CAD →
+              </a>
+              <div style={{ fontSize:12, color:"#475569", marginTop:10 }}>
+                One-time payment · License key delivered instantly by email
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ marginTop:20, fontSize:12, color:"#334155", textAlign:"center", maxWidth:400 }}>
+        Already purchased? Check your email for a message from Lemon Squeezy with your key.
+        If you need help, reply to that email.
+      </div>
+    </div>
+  );
+}
+
 function DonutChart({ segments, size = 110, thickness = 16, centerLabel, centerSub }) {
   const cx = size / 2, cy = size / 2;
   const r = (size - thickness) / 2;
@@ -257,6 +390,11 @@ function AppLogo() {
 }
 
 export default function App() {
+  const [license, setLicense] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; }
+  });
+  if (!license) return <LicenseGate onActivate={setLicense} />;
+
   const [portfolios,       setPortfolios]      = useState(["TFSA","RRSP"]);
   const [account,          setAccount]         = useState("TFSA");
   const [cashHolding,      setCashHolding]     = useState({ TFSA: 0, RRSP: 0 });
