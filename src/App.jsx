@@ -1304,7 +1304,7 @@ Return ONLY a JSON array, no markdown:
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -1484,7 +1484,7 @@ Return ONLY a valid JSON object, no markdown:
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -1650,7 +1650,7 @@ Return ONLY a valid JSON object, no markdown:
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -2117,7 +2117,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+          max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -2128,10 +2128,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       }
 
       const data = await res.json();
+      if (data.stop_reason === "max_tokens") {
+        throw new Error("Response was too long and got cut off — try again. If this persists, reduce the number of holdings or shorten the prompt.");
+      }
       const text = data.content?.[0]?.text || "";
 
-      // Strip optional markdown fences then parse
-      const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      // Strip optional markdown fences, then extract the outermost { … } block
+      let stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const start = stripped.indexOf("{");
+      const end   = stripped.lastIndexOf("}");
+      if (start !== -1 && end > start) stripped = stripped.slice(start, end + 1);
+
       const parsed = JSON.parse(stripped);
 
       if (!parsed.regime || !parsed.macroSignals || !parsed.outlooks) {
