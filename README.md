@@ -45,9 +45,10 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
-> - **AI Target Suggestions** — a ✨ button in the Edit Targets tab sends your current holdings to Claude, which returns optimised target % allocations for the active account (TFSA growth vs RRSP income logic, WHT awareness, concentration limits). A before/after diff modal lets you review every change before applying. Requires an Anthropic API key.
-> - **Broker CSV Import** — upload your Wealthsimple holdings export directly. Claude reads every position, converts USD market values to CAD, groups by account, suggests targets, and automatically excludes managed/private-equity funds (MUTUAL_FUND, Managed classification). A preview modal shows what will be imported before anything changes.
-> - **Market Pulse** tab significantly enhanced with an **Action Center** (one-click Buy/Reduce panels), a **News Flash** panel sourcing Bloomberg/CNBC/Reuters/FT/WSJ headlines with per-ticker portfolio impact, two new macro signal categories (Credit & Risk; Global & Commodities), a persistent **Trade Log**, and a redesigned **Risk-On/Risk-Off gauge** that fills only up to the current score.
+> - **AI Diversification Analysis** — the Ideas tab now opens with an "Analyse my portfolio" button that sends your complete holdings across all accounts to Claude. It detects real gaps in sector, geography, and asset class coverage and returns 3–6 specific ticker suggestions — each with account placement rationale (TFSA vs RRSP), a suggested initial weight, and a one-click Add button. Suggestions persist across sessions and can be re-generated anytime.
+> - **AI Target Suggestions** — a ✨ button in the Edit Targets tab sends current holdings to Claude, returning optimised target % allocations with WHT awareness and a before/after diff modal.
+> - **Broker CSV Import** — upload your Wealthsimple CSV. Claude parses every position, converts currencies, groups by account, suggests targets, and auto-excludes managed/private-equity funds.
+> - **Market Pulse** tab with Action Center, News Flash, Trade Log, and redesigned Risk-On/Risk-Off gauge.
 
 ---
 

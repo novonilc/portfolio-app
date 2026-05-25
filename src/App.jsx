@@ -311,6 +311,11 @@ export default function App() {
   const [aiTargetsLoading,    setAiTargetsLoading]    = useState(false);
   const [aiTargetsError,      setAiTargetsError]      = useState(null);
   const [aiTargetsPreview,    setAiTargetsPreview]    = useState(null); // { suggestions, account }
+  const [diversifyLoading,    setDiversifyLoading]    = useState(false);
+  const [diversifyError,      setDiversifyError]      = useState(null);
+  const [diversifySuggestions,setDiversifySuggestions]= useState(() => {
+    try { return JSON.parse(localStorage.getItem("diversify:suggestions") || "null"); } catch { return null; }
+  });
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -1201,6 +1206,142 @@ Return ONLY a JSON array, no markdown:
     setHoldings(next);
     persist(account, next[account]);
     setAiTargetsPreview(null);
+  }
+
+  // ── AI diversification suggestions (cross-account) ───────────────────
+  async function fetchDiversificationSuggestions() {
+    if (!claudeApiKey.trim()) {
+      setDiversifyError("Enter your Anthropic API key in the Market Pulse tab first.");
+      return;
+    }
+    setDiversifyLoading(true);
+    setDiversifyError(null);
+
+    try {
+      const fxRate = usdCadRate || 1.38;
+
+      // Summarise every account — CAD values, currency, divYield
+      const accountSummaries = portfolios.map(p => {
+        const h = holdings[p] || [];
+        if (!h.length) return null;
+        const total = h.reduce((s, x) => {
+          const cur = getTickerCurrency(x.ticker, x.currencyOverride);
+          return s + (cur === "USD" ? x.current * fxRate : x.current);
+        }, 0);
+        const lines = h.map(x => {
+          const cur    = getTickerCurrency(x.ticker, x.currencyOverride);
+          const cadVal = cur === "USD" ? x.current * fxRate : x.current;
+          const pct    = total > 0 ? ((cadVal / total) * 100).toFixed(1) : "0.0";
+          return `  ${x.ticker} | ${x.name} | ${cur} | C$${Math.round(cadVal).toLocaleString()} (${pct}%) | div:${x.divYield ?? 0}%`;
+        }).join("\n");
+        return `${p} (total C$${Math.round(total).toLocaleString()}):\n${lines}`;
+      }).filter(Boolean).join("\n\n");
+
+      // All tickers currently held (to avoid duplicates)
+      const heldTickers = new Set(
+        portfolios.flatMap(p => (holdings[p] || []).map(x => x.ticker))
+      );
+
+      // Combined total for portfolio-level context
+      const grandTotal = portfolios.reduce((s, p) => {
+        return s + (holdings[p] || []).reduce((a, x) => {
+          const cur = getTickerCurrency(x.ticker, x.currencyOverride);
+          return a + (cur === "USD" ? x.current * fxRate : x.current);
+        }, 0);
+      }, 0);
+
+      // Detected gaps
+      const tfsaH = holdings.TFSA || [];
+      const rrspH = holdings.RRSP || [];
+      const gapList = Object.entries(SECTOR_TICKERS)
+        .filter(([, tickers]) => !tickers.some(t => [...heldTickers].includes(t)))
+        .map(([sector]) => sector);
+
+      const regime    = marketPulse?.regime?.label    || "Unknown";
+      const riskScore = marketPulse?.riskMeter?.score ?? 50;
+      const riskCtx   = riskScore < 40 ? "risk-off — prefer defensive, quality positions"
+                      : riskScore > 60 ? "risk-on — lean growth, accept more volatility"
+                      : "neutral — balance growth and quality";
+
+      const prompt = `You are a diversification advisor for a Canadian investor with TFSA, RRSP, and other registered accounts.
+
+Combined portfolio: C$${Math.round(grandTotal).toLocaleString()} across ${portfolios.length} accounts
+Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskCtx})
+Detected sector gaps: ${gapList.length ? gapList.join(", ") : "none — well covered"}
+USD/CAD rate: ${fxRate}
+
+Current holdings by account:
+${accountSummaries}
+
+Already held tickers (NEVER suggest these): ${[...heldTickers].join(", ")}
+
+Task: Suggest exactly 3–6 NEW positions that would meaningfully diversify this portfolio.
+
+Rules:
+- NEVER suggest a ticker already in the held list above
+- Prefer broad ETFs over single stocks for filling sector/geographic gaps
+- Do not duplicate exposure (e.g. if QQQM is held, don't suggest QQQ or ONEQ)
+- Account assignment:
+  - TFSA: only zero/minimal dividend payers (avoid IRS 15% WHT drain)
+  - RRSP: US dividend payers welcome (WHT = 0% under Canada-US treaty)
+  - CAD-listed ETFs can go in either
+- Suggest initial target % of 3–8% of the target account — keep each position modest
+- Focus on filling real gaps: geography, asset class, sector
+- Consider the regime: in risk-off, lean toward defensive ETFs, bonds, gold; in risk-on, lean toward growth sectors
+- Stop at 6 — do not pad with unnecessary positions
+
+Return ONLY a valid JSON array, no markdown:
+[{
+  "ticker": "ENB",
+  "name": "Enbridge Inc.",
+  "account": "TFSA",
+  "targetPct": 5,
+  "sector": "Energy Infrastructure",
+  "divYield": 7.2,
+  "cagr": 8,
+  "fillsGap": "Energy infrastructure — pipeline/midstream completely absent from portfolio",
+  "thesis": "North America's largest pipeline operator with 30+ years of dividend growth. Regulated cash flows make it bond-like in volatility. CAD-listed, so no WHT in TFSA.",
+  "placementReason": "CAD-listed — zero WHT drag regardless of account; TFSA preferred for tax-free dividend compounding"
+}]`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": claudeApiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${res.status}`);
+      }
+
+      const data     = await res.json();
+      const rawText  = (data.content?.[0]?.text || "").trim();
+      const stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed   = JSON.parse(stripped);
+
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error("Claude returned no suggestions");
+
+      // Safety: strip any tickers that are already held
+      const clean = parsed.filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+
+      const result = { suggestions: clean, generatedAt: new Date().toISOString(), regime, riskScore };
+      setDiversifySuggestions(result);
+      localStorage.setItem("diversify:suggestions", JSON.stringify(result));
+    } catch (err) {
+      setDiversifyError(err.message || "Failed to generate suggestions");
+    } finally {
+      setDiversifyLoading(false);
+    }
   }
 
   // ── FX helpers (close over usdCadRate state) ───────────────────────────
@@ -2934,6 +3075,211 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "recommend" && (
         <div style={{ padding:"22px 28px" }}>
+
+          {/* ── AI Diversification panel ───────────────────────────────── */}
+          {(() => {
+            const ds = diversifySuggestions;
+            const tealAccent = "#2dd4bf";
+            const relAge = ds?.generatedAt
+              ? (() => {
+                  const m = Math.round((Date.now() - new Date(ds.generatedAt).getTime()) / 60000);
+                  if (m < 1)  return "just now";
+                  if (m < 60) return `${m}m ago`;
+                  const h = Math.floor(m / 60);
+                  return h < 24 ? `${h}h ago` : `${Math.floor(h/24)}d ago`;
+                })()
+              : null;
+
+            return (
+              <div className="card" style={{
+                marginBottom:16, padding:"16px 20px",
+                background:"rgba(45,212,191,0.03)",
+                border:"1px solid rgba(45,212,191,0.18)",
+              }}>
+                {/* Header row */}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                  flexWrap:"wrap", gap:10, marginBottom: ds ? 16 : 0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:tealAccent }}>
+                      🤖 AI Diversification Analysis
+                    </p>
+                    {ds && (
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.35)",
+                        fontFamily:"'JetBrains Mono',monospace" }}>
+                        {ds.regime} · risk {ds.riskScore}/100 · {relAge}
+                      </span>
+                    )}
+                    {diversifyError && (
+                      <span style={{ fontSize:11, color:"#f87171", display:"flex",
+                        alignItems:"center", gap:4 }}>
+                        ⚠ {diversifyError}
+                        <button onClick={() => setDiversifyError(null)}
+                          style={{ background:"none", border:"none", color:"#f87171",
+                            cursor:"pointer", padding:0, lineHeight:1 }}>✕</button>
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    {ds && (
+                      <button onClick={() => {
+                        setDiversifySuggestions(null);
+                        localStorage.removeItem("diversify:suggestions");
+                      }} style={{ fontSize:10, padding:"4px 10px", borderRadius:6,
+                        background:"rgba(255,255,255,0.04)",
+                        border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.4)",
+                        cursor:"pointer" }}>
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      onClick={fetchDiversificationSuggestions}
+                      disabled={diversifyLoading}
+                      style={{
+                        display:"flex", alignItems:"center", gap:6,
+                        padding:"7px 16px", fontSize:12, fontWeight:600, borderRadius:8,
+                        border:`1px solid ${tealAccent}55`,
+                        background: diversifyLoading ? `rgba(45,212,191,0.06)` : `rgba(45,212,191,0.1)`,
+                        color: tealAccent, cursor: diversifyLoading ? "wait" : "pointer",
+                        opacity: diversifyLoading ? 0.7 : 1,
+                      }}
+                    >
+                      <span style={{ fontSize:14 }}>{diversifyLoading ? "⏳" : "✨"}</span>
+                      {diversifyLoading ? "Analysing portfolio…" : ds ? "Re-analyse" : "Analyse my portfolio"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Empty state */}
+                {!ds && !diversifyLoading && (
+                  <p style={{ fontSize:12, color:"rgba(255,255,255,0.3)", lineHeight:1.6, margin:0 }}>
+                    Claude will analyse your complete portfolio across all accounts, identify real gaps in
+                    sector, geography, and asset class coverage, and suggest 3–6 specific additions — with
+                    account placement rationale and a suggested initial weight each.
+                  </p>
+                )}
+
+                {/* Suggestion cards */}
+                {ds?.suggestions?.length > 0 && (
+                  <div style={{ display:"grid", gap:12,
+                    gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))" }}>
+                    {ds.suggestions.map((s, i) => {
+                      const alreadyHeld = portfolios.some(p =>
+                        (holdings[p] || []).some(h => h.ticker === s.ticker)
+                      );
+                      const acctColor = s.account === "RRSP" ? "#22d3ee" : "#fbbf24";
+                      return (
+                        <div key={i} style={{
+                          background:"rgba(255,255,255,0.03)",
+                          border:`1px solid rgba(45,212,191,0.14)`,
+                          borderLeft:`3px solid ${tealAccent}`,
+                          borderRadius:10, padding:"14px 16px",
+                        }}>
+                          {/* Card header */}
+                          <div style={{ display:"flex", justifyContent:"space-between",
+                            alignItems:"flex-start", marginBottom:8 }}>
+                            <div>
+                              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+                                <span style={{ fontSize:16, fontWeight:800,
+                                  fontFamily:"'JetBrains Mono',monospace", color:tealAccent }}>
+                                  {s.ticker}
+                                </span>
+                                <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                  background:`${acctColor}15`, color:acctColor,
+                                  border:`1px solid ${acctColor}30`, fontWeight:600 }}>
+                                  {s.account}
+                                </span>
+                                <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                  background:"rgba(45,212,191,0.08)",
+                                  color:"rgba(45,212,191,0.7)",
+                                  border:"1px solid rgba(45,212,191,0.2)" }}>
+                                  {s.sector}
+                                </span>
+                              </div>
+                              <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)",
+                                margin:0 }}>{s.name}</p>
+                            </div>
+                            <div style={{ textAlign:"right", flexShrink:0, marginLeft:8 }}>
+                              <p style={{ fontSize:14, fontWeight:700, color:tealAccent,
+                                fontFamily:"'JetBrains Mono',monospace", margin:0 }}>
+                                {s.targetPct}%
+                              </p>
+                              <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)",
+                                margin:0 }}>suggested</p>
+                            </div>
+                          </div>
+
+                          {/* Fills gap pill */}
+                          <div style={{ fontSize:10, color:"rgba(45,212,191,0.75)",
+                            background:"rgba(45,212,191,0.06)",
+                            border:"1px solid rgba(45,212,191,0.15)",
+                            borderRadius:5, padding:"3px 8px", marginBottom:8,
+                            display:"inline-block", lineHeight:1.4 }}>
+                            🎯 {s.fillsGap}
+                          </div>
+
+                          {/* Thesis */}
+                          <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)",
+                            lineHeight:1.55, marginBottom:8 }}>{s.thesis}</p>
+
+                          {/* Placement reason */}
+                          {s.placementReason && (
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
+                              lineHeight:1.4, marginBottom:10,
+                              borderTop:"1px solid rgba(255,255,255,0.05)",
+                              paddingTop:7, margin:"0 0 10px" }}>
+                              📍 {s.placementReason}
+                            </p>
+                          )}
+
+                          {/* Metrics row */}
+                          <div style={{ display:"flex", gap:12, marginBottom:10 }}>
+                            {[
+                              ["Div yield", `${s.divYield ?? 0}%`],
+                              ["Est. CAGR",  `${s.cagr ?? 10}%`],
+                            ].map(([label, val]) => (
+                              <div key={label}>
+                                <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)",
+                                  margin:0, textTransform:"uppercase",
+                                  letterSpacing:"0.07em" }}>{label}</p>
+                                <p style={{ fontSize:12, fontWeight:600,
+                                  color:"rgba(255,255,255,0.7)", margin:0,
+                                  fontFamily:"'JetBrains Mono',monospace" }}>{val}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Add button */}
+                          {alreadyHeld ? (
+                            <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>
+                              ✓ Already in portfolio
+                            </span>
+                          ) : (
+                            <button
+                              className="btn btn-primary"
+                              style={{ width:"100%", fontSize:11, padding:"7px 0",
+                                borderColor:`${acctColor}50`, color:acctColor,
+                                background:`${acctColor}10` }}
+                              onClick={() => {
+                                addRecommendedTicker({
+                                  ticker:   s.ticker,
+                                  name:     s.name,
+                                  divYield: s.divYield ?? 0,
+                                  thesis:   s.thesis,
+                                  bestFor:  s.account,
+                                }, s.account);
+                              }}
+                            >
+                              + Add to {s.account}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Gap analysis banner */}
           {gaps.length > 0 && (
