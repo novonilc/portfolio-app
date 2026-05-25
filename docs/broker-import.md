@@ -78,9 +78,20 @@ A file picker opens filtered to `.csv` files. Select your broker export.
 
 The button label changes to **⏳ Analysing…** while Claude processes the file (typically 5–15 seconds depending on portfolio size).
 
-### Step 3 — Review the preview modal
+### Step 3 — Map your accounts
 
-A modal appears with a summary of what Claude found:
+Before the preview, an **account mapping modal** appears. For each account type detected in the CSV, you can:
+
+- **Rename** — the broker's raw account label (e.g. "Tax-Free Savings Account", "Retirement Savings Plan") is matched to your app portfolio. The app pre-fills a normalised name (TFSA, RRSP, RESP, Crypto) — override it if needed.
+- **Mode** — choose how the import interacts with existing data in that portfolio:
+  - **Replace** — overwrites all existing holdings in that portfolio with the imported rows. Use this for a clean re-import.
+  - **Merge** — updates holdings that already exist (matching by ticker), appends new tickers, and leaves everything else untouched. Use this to top-up without wiping the portfolio.
+
+Click **Continue** when the mapping is set.
+
+### Step 4 — Review the preview modal
+
+A modal appears with a summary of what will be imported:
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -88,19 +99,19 @@ A modal appears with a summary of what Claude found:
 │                                                 │
 │  Claude analysed your holdings CSV.             │
 │                                                 │
-│  TFSA     15 positions  ·  C$42,318             │
-│  RRSP     17 positions  ·  C$88,741             │
-│  RESP     11 positions  ·  C$39,617             │
-│  Crypto    2 positions  ·     C$93              │
+│  TFSA     15 positions  ·  C$42,318  (Replace)  │
+│  RRSP     17 positions  ·  C$88,741  (Replace)  │
+│  RESP     11 positions  ·  C$39,617  (Merge)    │
+│  Crypto    2 positions  ·     C$93   (Merge)    │
 │                                                 │
 │  [ ✓ Import 45 holdings ]  [ Cancel ]           │
 └─────────────────────────────────────────────────┘
 ```
 
-- Click **✓ Import** to apply — existing holdings in those accounts are replaced
+- Click **✓ Import** to apply
 - Click **Cancel** (or click outside the modal) to discard without changes
 
-### Step 4 — Review targets in Edit Targets
+### Step 5 — Review targets in Edit Targets
 
 After import, switch to the **Edit Targets** tab and review:
 
@@ -109,9 +120,37 @@ After import, switch to the **Edit Targets** tab and review:
 3. **Cost basis** — verify these match your actual average cost from your brokerage.
 4. **CAGR** — Claude estimates these; override with your own view.
 
-### Step 5 — Run a rebalance
+### Step 6 — Run a rebalance
 
 Once targets are set, go to **Rebalance** tab. Enter your available cash and review the buy/sell recommendations before executing any trades.
+
+---
+
+## Multi-account import workflow
+
+Wealthsimple exports all accounts in a single CSV. But if you manage separate accounts at different brokers, or if you want to import your accounts incrementally, here is the recommended pattern:
+
+### All accounts in one file (standard Wealthsimple export)
+
+1. Click **🏦 Import from Broker** and select the CSV
+2. In the mapping modal, confirm each account name is mapped correctly
+3. Set all accounts to **Replace** for a clean first import, or **Merge** to update without overwriting
+4. Click **Continue → ✓ Import**
+
+### Separate files per account
+
+1. Import the first file (e.g. TFSA). Set TFSA → **Replace**. All other accounts: leave unmapped or set to **Merge** (harmless if they don't exist yet).
+2. Import the second file (e.g. RRSP). Set RRSP → **Replace**. The TFSA data is untouched because Replace only affects the mapped account.
+3. Repeat for additional accounts (RESP, Crypto, non-registered).
+
+### Incremental update (top-up without wiping)
+
+Use **Merge** mode for any account you want to partially update:
+- Tickers that already exist in the portfolio are updated to the imported value
+- New tickers from the CSV are appended
+- Tickers you added manually (not in the CSV) are left alone
+
+This is useful after a partial portfolio change — you don't need to re-import your entire history, just the updated positions.
 
 ---
 
@@ -170,7 +209,15 @@ This is expected if Claude's estimates are imprecise. Go to **Edit Targets**, ch
 
 ### Positions are in the wrong account
 
-The importer uses the `Account Type` column from your broker CSV. If Wealthsimple labels a managed RRSP account differently (e.g. as `RRSP` vs. `Managed RRSP`), those positions may land in a separate portfolio bucket. You can rename or merge portfolios manually via the `+ Portfolio` controls.
+Use the **account mapping modal** (Step 3) to rename accounts before applying. The app pre-fills normalised names (TFSA, RRSP, etc.) but you can override any mapping. If you already applied an import with the wrong account name, re-import with the correct mapping and use **Replace** mode to overwrite.
+
+### I accidentally overwrote my existing holdings
+
+Re-import the original file with **Replace** mode, or restore from a `portfolio-backup-YYYY-MM-DD.json` export. This is why exporting a backup before any import is strongly recommended.
+
+### I want to import TFSA and RRSP from separate files without losing either
+
+Use **Merge** mode for the second import (after the first has already loaded one account). Merge updates existing tickers by value, appends new ones, and leaves everything else unchanged — so the first account's data is safe when you import the second file.
 
 ---
 

@@ -29,6 +29,7 @@ Then open `http://localhost:5173`.
 - [Customizing for Your Portfolio](#customizing-for-your-portfolio)
 - [Updating Curated Data](#updating-curated-data)
 - [Data Backup and Portability](#data-backup-and-portability)
+- [Investor Profile](#investor-profile)
 - [Broker CSV Import](#broker-csv-import)
 - [Disclaimer](#disclaimer)
 - [License](#license)
@@ -42,10 +43,19 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
 | [Market Pulse & Claude API](docs/market-pulse.md) | Set up your Anthropic API key, configure Market Pulse, and use the Action Center |
 | [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
+| [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
-> - **AI Diversification Analysis** — the Ideas tab now opens with an "Analyse my portfolio" button that sends your complete holdings across all accounts to Claude. It detects real gaps in sector, geography, and asset class coverage and returns 3–6 specific ticker suggestions — each with account placement rationale (TFSA vs RRSP), a suggested initial weight, and a one-click Add button. Suggestions persist across sessions and can be re-generated anytime.
+> - **Morning Radar** — a 4-cell status panel at the top of the Dashboard shows today's estimated day P&L (after a live price refresh), allocation drift alerts, expiring options count, and WHT status. One-click **📡 Refresh Prices** fetches closing prices for all holdings via Yahoo Finance.
+> - **Live Price Refresh** — fetches the latest price for every ticker across all accounts in parallel. A day-change column (green/red) appears in the Combined Top Holdings table when prices are available.
+> - **Dividend Income Calendar** — 12-month bar chart in the Dashboard projecting monthly dividend income with quarterly seasonality weighting, current-month highlight, and per-account breakdown.
+> - **Contribution Room Tracker** — TFSA and RRSP room inputs with progress bars in the Dashboard health section; values persist across sessions.
+> - **FX Sensitivity** — Dashboard shows the estimated CAD portfolio impact of a 5% USD/CAD move.
+> - **Investor Profile** — one-time questionnaire (age, risk tolerance, goal, monthly contribution) personalises the Ideas tab and all three AI features. Access via **👤 Set Profile** in the header.
+> - **Multi-CSV Import with Account Mapping** — import CSVs from multiple Wealthsimple accounts without overwriting existing holdings. A mapping modal lets you rename each account and choose Replace or Merge mode per account.
+> - **AI Diversification Trim Alerts** — the Ideas tab Diversification Analysis now returns both new position suggestions *and* a Trim / Reduce Alerts section flagging overweight, misplaced, or redundant existing positions.
+> - **AI Options Analysis** — a new sub-tab in the Options tab where Claude suggests specific Covered Call and Cash-Secured Put trades for your holdings, each rated Low / Medium / High risk with premium estimates and a pre-fill button.
 > - **AI Target Suggestions** — a ✨ button in the Edit Targets tab sends current holdings to Claude, returning optimised target % allocations with WHT awareness and a before/after diff modal.
 > - **Broker CSV Import** — upload your Wealthsimple CSV. Claude parses every position, converts currencies, groups by account, suggests targets, and auto-excludes managed/private-equity funds.
 > - **Market Pulse** tab with Action Center, News Flash, Trade Log, and redesigned Risk-On/Risk-Off gauge.
@@ -88,6 +98,21 @@ The dominant portfolio trackers (Empower, Wealthica, Personal Capital, Mint) req
 ### Dashboard Tab
 A combined portfolio overview that sits above the per-account tabs. It shows both your TFSA and RRSP together in a single view — no switching required.
 
+**Morning Radar (top of Dashboard):**
+
+A 4-cell status panel designed to be the first thing you check each morning:
+
+| Cell | What it shows |
+|---|---|
+| Today's Est. P&L | Live day gain/loss in C$ across all accounts (requires a price refresh) |
+| Allocation Drift | Count of positions drifted >30% above or >35% below their target weight |
+| Expiring Options | Count of open option trades expiring within the next 14 days |
+| WHT Status | Whether any TFSA positions are actively losing dividends to IRS withholding |
+
+Click **📡 Refresh Prices** in the Morning Radar to fetch the latest closing price for every ticker in parallel via Yahoo Finance (~5–15 seconds). This also populates the day-change column in the Combined Top Holdings table.
+
+---
+
 **Summary stat cards (always visible at the top):**
 
 | Card | What it shows |
@@ -115,13 +140,18 @@ Each panel shows:
 - **Target weight health** — shows the sum of your target percentages and flags when they deviate from 100%
 - **Concentration warnings** — highlights any single position exceeding 20% of that account
 
-**Combined top holdings table:** All positions from both accounts ranked together by market value in CAD, with account badge, proportional bar, native value, percentage of total portfolio, and currency tag. Covers up to 12 positions.
+**Combined top holdings table:** All positions from both accounts ranked together by market value in CAD, with account badge, proportional bar, native value, percentage of total portfolio, currency tag, and — when live prices have been refreshed — a **day change column** showing today's gain/loss percentage in green (positive) or red (negative). Covers up to 12 positions.
 
 **Portfolio health cards:**
 - **WHT recovery** — dollar amount reclaimed per year if US dividend payers are moved from TFSA to RRSP
 - **Income breakdown** — TFSA dividends, WHT deducted, RRSP dividends, and net combined income in a single waterfall
 - **Sector gaps** — sectors with no coverage across both accounts
 - **Cost basis summary** — invested capital by account and combined total
+- **FX Sensitivity** — estimated C$ portfolio impact of a 5% move in the CAD/USD rate, based on current USD-denominated holdings
+- **Contribution Room Tracker** — editable TFSA and RRSP remaining room fields with a progress bar showing how much of the annual limit is still available; values persist across sessions
+
+**Dividend Income Calendar (below health cards):**
+A 12-month bar chart projecting monthly dividend income using quarterly seasonality weighting (Q1/Q3 months typically pay higher distributions). The current calendar month is highlighted in purple. Below the chart: per-account annual breakdown (TFSA net of WHT, RRSP gross), a quarterly income estimate, and the effective yield across all dividend-paying positions.
 
 ---
 
@@ -179,6 +209,12 @@ Each recommendation card shows:
 
 **Filters**: All ideas, Best for TFSA, Best for RRSP, Fills Gaps — already-owned tickers are automatically excluded from results.
 
+**Investor Profile banner**: When a profile is set (see [Investor Profile](#investor-profile)), a coloured strip at the top of the tab shows your risk level, goal, and age context. Claude's diversification suggestions are weighted to match your situation. Without a profile, a dashed prompt invites you to set one up.
+
+**AI Diversification Analysis**: The "Analyse my portfolio" button returns two sections:
+- **New Positions to Add** — 3–6 sector-gap-filling suggestions with account placement rationale (TFSA vs RRSP), a suggested initial target weight, and a one-click Add button. Suggestions persist across sessions.
+- **Trim / Reduce Alerts** — existing positions flagged as overweight (>30% above target), in the wrong account for tax efficiency, or redundant with a better alternative. Each alert shows the current allocation, a suggested reduced weight, and Claude's rationale for trimming.
+
 ### Ticker Search Tab
 Look up any ticker symbol against the curated database.
 
@@ -187,6 +223,29 @@ Look up any ticker symbol against the curated database.
 - **Unknown tickers**: If the ticker isn't in the database, the app gives you a ready-to-paste prompt formatted for Claude AI (claude.ai) — asking for a Canadian investor analysis covering business model, fair value, dividend treatment, TFSA vs RRSP placement, and CAGR estimate.
 - **Add to any portfolio**: From a search result, add the security directly to any of your portfolios.
 - **Browse view**: When no search is active, shows all 20 curated tickers as a scannable grid.
+
+---
+
+### Options Tab
+
+A covered-call and cash-secured-put planning tool for generating premium income on existing holdings. Four sub-tabs:
+
+**Covered Calls (CC):** Enter ticker, current price, strike, DTE, and contracts. The calculator shows estimated premium, monthly yield, annualised yield, and assignment risk (in-the-money flag).
+
+**Cash-Secured Puts (CSP):** Same fields. Shows cash required to secure the put, estimated premium, and effective purchase cost if assigned.
+
+**Open Trades:** A log of active option positions with strike, DTE remaining, premium received, and a countdown to expiry. Positions expiring within 14 days trigger the **Expiring Options** Morning Radar cell.
+
+**AI Analysis:** Claude scans every holding across all accounts and returns a ranked list of Covered Call and Cash-Secured Put trade suggestions. Each card shows:
+- **Risk rating**: Low (far OTM, short DTE) / Medium / High (near/ITM, concentrated)
+- **Verdict badge**: Recommended / Caution / Avoid
+- Strike, DTE, contracts, estimated premium per share and total, monthly yield %
+- Rationale and risk factors specific to that position
+- **Pre-fill** button — auto-populates the CC or CSP calculator tab with the suggested parameters
+
+Requires the same Anthropic API key as Market Pulse and Broker Import. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels).
+
+---
 
 ### Market Pulse Tab
 A curated market dashboard that answers two questions — where is the market right now, and where is it likely heading — and then lets you act on the answers directly without leaving the tab.
@@ -293,13 +352,15 @@ The Action Center, News Flash, and Trade Log mean this tab is now a two-way tool
 
 ### Step 1 — Get the portfolio picture (Dashboard tab)
 
-Open the Dashboard before making any changes. It answers the three questions that should drive every portfolio decision:
+Open the Dashboard and start with the **Morning Radar** panel at the top. Click **📡 Refresh Prices** to fetch live closing prices for all holdings — the panel then shows today's estimated P&L, any positions that have drifted significantly from targets, options expiring within 14 days, and your WHT status. These four cells tell you immediately whether today requires active decisions.
+
+Then check the three deeper questions below the Morning Radar:
 
 1. **Am I losing money to WHT?** — The orange "WHT Annual Drag" card shows exactly how much the IRS is withholding from TFSA dividends each year. If the number is above $100/yr, moving the offending positions to RRSP should be your first action.
 2. **Are my accounts growing proportionally?** — The TFSA/RRSP allocation bar shows the split. If one account has grown far beyond your intent, that account needs more attention in the rebalance.
 3. **Is anything dangerously concentrated?** — The per-account panels flag any position above 20%. If you see a concentration warning, revisit that position's target percentage before running a rebalance.
 
-Only after checking these three points should you proceed to the other tabs.
+Only after checking these points should you proceed to the other tabs.
 
 ---
 
@@ -525,7 +586,7 @@ To verify this yourself: open DevTools → Network tab → use the app → see t
 | Data persistence | Browser localStorage |
 | Fonts | Google Fonts (DM Sans, JetBrains Mono, Instrument Serif) |
 | Hosting | Vercel or GitHub Pages (free) |
-| Bundle size | < 200KB gzipped |
+| Bundle size | ~125KB gzipped |
 
 No backend. No database. No authentication library. No state management library. Charts (the Dashboard currency donuts and allocation bars) are rendered as pure SVG and CSS — no charting library dependency. The entire application logic is in a single file: `src/App.jsx`.
 
@@ -623,13 +684,13 @@ portfolio-app/
 ├── vite.config.js        # Vite configuration
 └── src/
     ├── main.jsx          # React root mount
-    ├── App.jsx           # Entire application (~3,400 lines)
+    ├── App.jsx           # Entire application (~7,500 lines)
     └── data/
         ├── recommendations.json   # Ideas tab — curated stock/ETF analysis
         └── marketPulse.json       # Market Pulse tab — regime, signals, outlooks
 ```
 
-The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~5,800 lines; the most recently modified sections are the broker import functions (`importBrokerHoldings`, `applyBrokerImport`) and the Market Pulse Action Center trade logic (`executePulseBuy`, `executePulseReduce`).
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~7,500 lines; the most recently modified sections are the Morning Radar and live price fetch logic (`fetchLivePrices`), investor profile modal and `profileContext()` helper, multi-account CSV import mapping (`applyCsvImport`, `brokerImportMapping`), AI diversification trim alerts, and the Options tab AI Analysis renderer.
 
 In-depth feature guides live in `docs/`:
 
@@ -1010,6 +1071,44 @@ Click **✓ Apply targets** to update all targets, CAGRs, and dividend yields at
 
 ---
 
+## Investor Profile
+
+The **👤 Set Profile** button in the app header opens a four-question questionnaire. Answering it tells Claude who you are so every AI feature returns advice calibrated to your actual situation instead of a generic portfolio.
+
+### The four questions
+
+| Question | Options |
+|---|---|
+| Your current age | Free-text number |
+| Target retirement age | Free-text number (default 65) |
+| Risk tolerance | Conservative · Balanced · Growth · Aggressive |
+| Primary investment goal | Retirement income · Wealth accumulation · Dividend income · Capital preservation |
+| Monthly contribution capacity | Free-text CAD amount |
+
+Answers are saved to `localStorage` immediately. The header button updates to a summary chip (e.g. `👤 38yr · growth`) so the active profile is always visible. Click it to re-open the questionnaire pre-filled with your current answers.
+
+### How the profile personalises each AI feature
+
+| Feature | Without profile | With profile |
+|---|---|---|
+| AI Diversification Analysis | Generic sector-gap suggestions | Sectors and weightings match your risk level and years-to-retirement |
+| AI Target Suggestions | WHT-aware allocation defaults | Also factors income vs. growth weighting from your stated goal |
+| AI Options Analysis | Standard premium suggestions | Conservative profiles receive Low-risk trades only; Aggressive profiles see all risk levels |
+| Ideas Tab | Unfiltered recommendations | Profile strip shows context; Claude weights suggestions to your goal and timeline |
+
+### Risk tolerance levels
+
+| Level | What it means |
+|---|---|
+| Conservative | Capital preservation; heavier bonds, Canadian defensives, minimal volatility |
+| Balanced | Mix of growth and income; moderate equity exposure, Low-risk options only |
+| Growth | Maximise long-term wealth; tech-heavy, higher equity concentration, Medium-risk options |
+| Aggressive | Maximum growth; concentrated positions, accepts significant drawdowns, all option risk levels |
+
+> See [docs/investor-profile.md](docs/investor-profile.md) for the full guide including worked examples of how each risk level changes AI output.
+
+---
+
 ## Broker CSV Import
 
 The **🏦 Import from Broker** button (gold, next to Restore / Import) lets you upload your brokerage's holdings export directly. Claude reads the file, maps every column to the app's internal format, converts currencies, and suggests target allocations — all in one step.
@@ -1036,10 +1135,18 @@ Any CSV export that contains the columns below works. Tested with **Wealthsimple
 
 1. Make sure your **Anthropic API key** is entered in the Market Pulse tab
 2. Click **🏦 Import from Broker** in the header
-3. Select your broker CSV file
+3. Select your broker CSV file — you can import from multiple Wealthsimple accounts in separate passes
 4. Claude analyses the file (~5–10 seconds)
-5. A **preview modal** appears showing each account with position count and total CAD value
-6. Click **✓ Import** to load everything in — or **Cancel** to discard
+5. An **account mapping modal** appears. For each account detected in the CSV (e.g. "Tax-Free Savings Account", "Retirement Savings Plan"), you can:
+   - **Rename** — map the broker's account type string to your preferred portfolio name (TFSA, RRSP, Crypto, etc.)
+   - **Mode** — choose **Replace** (overwrite existing holdings in that portfolio) or **Merge** (update existing tickers, append new ones, leave everything else untouched)
+6. Click **Continue** to see the preview — position count and total CAD value per mapped account
+7. Click **✓ Import** to apply — or **Cancel** to discard
+
+**Multi-account import workflow** — importing TFSA and RRSP from separate CSV files:
+1. Import the TFSA file. Set TFSA → Replace, skip or ignore any RRSP rows.
+2. Import the RRSP file. Set RRSP → Replace. Because the mode is per-account, TFSA holdings are untouched.
+3. To top-up a single account without wiping it: use **Merge** mode — tickers already present are updated by value; new tickers are appended; everything else is left exactly as it was.
 
 ### What Claude does automatically
 
