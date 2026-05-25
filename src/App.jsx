@@ -322,6 +322,15 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("options:aiAnalysis") || "null"); } catch { return null; }
   });
 
+  // ── Live prices + contribution room ───────────────────────────────────────
+  const [liveHoldingPrices,   setLiveHoldingPrices]   = useState({});
+  const [livePrevPrices,      setLivePrevPrices]       = useState({});
+  const [livePricesFetching,  setLivePricesFetching]  = useState(false);
+  const [livePricesFetchedAt, setLivePricesFetchedAt] = useState(null);
+  const [contribRoom,         setContribRoom]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:contribRoom") || "{}"); } catch { return {}; }
+  });
+
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
     try {
@@ -437,6 +446,36 @@ export default function App() {
     const next = optionWatchlist.filter(s => s !== sym);
     setOptionWatchlist(next);
     persistWatchlist(next);
+  }
+
+  async function fetchLivePrices() {
+    setLivePricesFetching(true);
+    const tickers = [...new Set(portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker)))];
+    const last = {}, prev = {};
+    await Promise.allSettled(tickers.map(async sym => {
+      try {
+        const r = await fetch(
+          `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`,
+          { signal: AbortSignal.timeout(8000) }
+        );
+        if (!r.ok) return;
+        const d = await r.json();
+        const closes = d.chart?.result?.[0]?.indicators?.quote?.[0]?.close?.filter(Boolean);
+        if (closes?.length >= 1) last[sym] = closes[closes.length - 1];
+        if (closes?.length >= 2) prev[sym] = closes[closes.length - 2];
+      } catch {}
+    }));
+    setLiveHoldingPrices(last);
+    setLivePrevPrices(prev);
+    setOptionPrices(p => ({ ...p, ...last }));
+    setLivePricesFetchedAt(new Date().toISOString());
+    setLivePricesFetching(false);
+  }
+
+  function updateContribRoom(key, val) {
+    const next = { ...contribRoom, [key]: Number(val) || 0 };
+    setContribRoom(next);
+    localStorage.setItem("portfolio:contribRoom", JSON.stringify(next));
   }
 
   async function fetchOptionPrices() {
@@ -5151,6 +5190,67 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const pnlColor = (v) => v === null ? "#64748b" : v >= 0 ? "#34d399" : "#ef4444";
         const pnlSign  = (v) => v >= 0 ? "+" : "";
 
+        // ── Morning Radar: drift alerts ───────────────────────────────────
+        const driftAlerts = portfolios.flatMap(p => {
+          const acctH = holdings[p] || [];
+          const total = acctH.reduce((s, h) => s + toCAD(h.current, h.ticker, h.currencyOverride), 0);
+          if (!total) return [];
+          return acctH.flatMap(h => {
+            if (!h.target || h.target === 0 || h.current <= 0) return [];
+            const actualPct = (toCAD(h.current, h.ticker, h.currencyOverride) / total) * 100;
+            const drift = h.target > 0 ? actualPct / h.target : 0;
+            if (drift > 1.3)  return [{ ticker: h.ticker, acct: p, actualPct, target: h.target, drift, dir: "over" }];
+            if (drift < 0.65) return [{ ticker: h.ticker, acct: p, actualPct, target: h.target, drift, dir: "under" }];
+            return [];
+          });
+        }).sort((a, b) => Math.abs(b.drift - 1) - Math.abs(a.drift - 1)).slice(0, 5);
+
+        // ── Morning Radar: expiring options (within 14 days) ─────────────
+        const nowMs = Date.now();
+        const in14Ms = nowMs + 14 * 86400000;
+        const expiringOptions = optionTrades.filter(t => {
+          if (t.status !== "open" || !t.expiry) return false;
+          const ms = new Date(t.expiry).getTime();
+          return ms >= nowMs && ms <= in14Ms;
+        }).sort((a, b) => new Date(a.expiry) - new Date(b.expiry));
+
+        // ── Morning Radar: today's estimated P&L from live prices ─────────
+        const hasPrices = Object.keys(liveHoldingPrices).length > 0;
+        const allHeldFlat = portfolios.flatMap(p => (holdings[p] || []).map(h => ({ ...h, acct: p })));
+        const liveDayPnLCAD = hasPrices ? allHeldFlat.reduce((s, h) => {
+          const price = liveHoldingPrices[h.ticker];
+          const prev  = livePrevPrices[h.ticker];
+          if (!price || !prev || prev === 0) return s;
+          const changePct = (price - prev) / prev;
+          return s + toCAD(h.current, h.ticker, h.currencyOverride) * changePct;
+        }, 0) : null;
+        const liveDayPct = liveDayPnLCAD !== null && combTotalCAD > 0
+          ? (liveDayPnLCAD / combTotalCAD) * 100 : null;
+
+        // ── Live price age label ──────────────────────────────────────────
+        const priceAgeLabel = livePricesFetchedAt
+          ? (() => {
+              const m = Math.round((Date.now() - new Date(livePricesFetchedAt).getTime()) / 60000);
+              if (m < 1)  return "just now";
+              if (m < 60) return `${m}m ago`;
+              return `${Math.floor(m / 60)}h ago`;
+            })()
+          : null;
+
+        // ── FX sensitivity ─────────────────────────────────────────────────
+        const fxSensitivity5 = combUSDValCAD * 0.05; // 5% CAD appreciation impact in CAD
+
+        // ── Dividend income by month (uniform estimate) ───────────────────
+        const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const monthlyDivBase = combDivCAD / 12;
+        // Weight months slightly for quarter-end spikes (most dividends quarterly)
+        const MONTH_WEIGHTS = [1,0.6,1.4, 1,0.6,1.4, 1,0.6,1.4, 1,0.6,1.4];
+        const divByMonth = MONTH_NAMES.map((m, i) => ({
+          month: m, amount: (combDivCAD * MONTH_WEIGHTS[i]) / MONTH_WEIGHTS.reduce((a,b) => a+b, 0),
+        }));
+        const maxMonthlyDiv = Math.max(...divByMonth.map(d => d.amount), 1);
+        const curMonth = new Date().getMonth();
+
         // Account panel renderer (used for both TFSA and RRSP)
         function AccountPanel({ label, color, rgb, holdings: acctH, totalCAD, grandTotal, cash,
                                 usdValCAD, cadValCAD, usdNative,
@@ -5440,6 +5540,157 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
         return (
           <div style={{ padding:"22px 28px" }}>
+
+            {/* ════ MORNING RADAR ══════════════════════════════════════════ */}
+            <div style={{ marginBottom:18, padding:"14px 18px", borderRadius:12,
+              background:"rgba(167,139,250,0.04)", border:"1px solid rgba(167,139,250,0.18)" }}>
+              {/* Radar header */}
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                flexWrap:"wrap", gap:8, marginBottom:12 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:15 }}>🌅</span>
+                  <p style={{ fontSize:13, fontWeight:700, color:"rgba(255,255,255,0.9)", margin:0 }}>
+                    Morning Radar
+                  </p>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                    {new Date().toLocaleDateString("en-CA", { weekday:"long", month:"long", day:"numeric", year:"numeric" })}
+                  </span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  {priceAgeLabel && (
+                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                      prices: {priceAgeLabel}
+                    </span>
+                  )}
+                  <button onClick={fetchLivePrices} disabled={livePricesFetching}
+                    style={{ fontSize:10, fontWeight:600, padding:"5px 14px", borderRadius:7,
+                      background: livePricesFetching ? "rgba(167,139,250,0.06)" : "rgba(167,139,250,0.14)",
+                      border:"1px solid rgba(167,139,250,0.35)", color:"#a78bfa",
+                      cursor: livePricesFetching ? "wait" : "pointer",
+                      opacity: livePricesFetching ? 0.6 : 1 }}>
+                    {livePricesFetching ? "⏳ Fetching…" : "📡 Refresh Prices"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Radar grid */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:10 }}>
+
+                {/* Today's P&L */}
+                <div style={{ padding:"10px 14px", borderRadius:8,
+                  background: liveDayPnLCAD === null ? "rgba(255,255,255,0.02)"
+                    : liveDayPnLCAD >= 0 ? "rgba(34,197,94,0.07)" : "rgba(239,68,68,0.07)",
+                  border:`1px solid ${liveDayPnLCAD === null ? "rgba(255,255,255,0.08)"
+                    : liveDayPnLCAD >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+                  <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.09em",
+                    color:"rgba(255,255,255,0.3)", fontWeight:600, marginBottom:5 }}>Today's Est. P&L</p>
+                  {liveDayPnLCAD !== null ? (
+                    <>
+                      <p style={{ fontSize:20, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                        color: liveDayPnLCAD >= 0 ? "#22c55e" : "#ef4444", margin:0, lineHeight:1 }}>
+                        {liveDayPnLCAD >= 0 ? "+" : ""}C${fmt(liveDayPnLCAD)}
+                      </p>
+                      <p style={{ fontSize:10, color: liveDayPnLCAD >= 0 ? "#22c55e" : "#ef4444",
+                        opacity:0.8, marginTop:3 }}>
+                        {liveDayPnLCAD >= 0 ? "+" : ""}{liveDayPct?.toFixed(2)}% · {allHeldFlat.filter(h => liveHoldingPrices[h.ticker]).length} positions priced
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize:12, color:"rgba(255,255,255,0.22)", fontFamily:"'JetBrains Mono',monospace" }}>
+                      — click Refresh Prices
+                    </p>
+                  )}
+                </div>
+
+                {/* Drift alerts */}
+                <div style={{ padding:"10px 14px", borderRadius:8,
+                  background: driftAlerts.length > 0 ? "rgba(249,115,22,0.06)" : "rgba(34,197,94,0.05)",
+                  border:`1px solid ${driftAlerts.length > 0 ? "rgba(249,115,22,0.22)" : "rgba(34,197,94,0.18)"}` }}>
+                  <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.09em",
+                    color:"rgba(255,255,255,0.3)", fontWeight:600, marginBottom:5 }}>Allocation Drift</p>
+                  {driftAlerts.length === 0 ? (
+                    <p style={{ fontSize:12, color:"#22c55e" }}>✓ All positions on target</p>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                      {driftAlerts.slice(0, 4).map(a => (
+                        <div key={`${a.acct}-${a.ticker}`} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <span style={{ fontSize:10, fontWeight:700,
+                            fontFamily:"'JetBrains Mono',monospace",
+                            color: a.dir === "over" ? "#f97316" : "#60a5fa" }}>
+                            {a.ticker}
+                          </span>
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.35)" }}>
+                            {a.actualPct.toFixed(1)}% vs {a.target}% target
+                          </span>
+                          <span style={{ fontSize:9,
+                            color: a.dir === "over" ? "#f97316" : "#60a5fa" }}>
+                            {a.dir === "over" ? "▲ over" : "▼ under"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expiring options */}
+                <div style={{ padding:"10px 14px", borderRadius:8,
+                  background: expiringOptions.length > 0 ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.02)",
+                  border:`1px solid ${expiringOptions.length > 0 ? "rgba(251,191,36,0.22)" : "rgba(255,255,255,0.08)"}` }}>
+                  <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.09em",
+                    color:"rgba(255,255,255,0.3)", fontWeight:600, marginBottom:5 }}>Expiring Options</p>
+                  {expiringOptions.length === 0 ? (
+                    <p style={{ fontSize:12, color:"rgba(255,255,255,0.3)" }}>No options expiring this week</p>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                      {expiringOptions.map(t => {
+                        const daysLeft = Math.ceil((new Date(t.expiry) - Date.now()) / 86400000);
+                        return (
+                          <div key={t.id} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:10, fontWeight:700,
+                              fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>
+                              {t.ticker}
+                            </span>
+                            <span style={{ fontSize:9, padding:"1px 5px", borderRadius:3,
+                              background:"rgba(251,191,36,0.12)", color:"#fbbf24",
+                              border:"1px solid rgba(251,191,36,0.25)" }}>
+                              {(t.type || "").toUpperCase()}
+                            </span>
+                            <span style={{ fontSize:9, color:"rgba(255,255,255,0.4)" }}>
+                              exp {t.expiry} · <span style={{ color: daysLeft <= 3 ? "#ef4444" : "#fbbf24" }}>{daysLeft}d</span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* WHT alert */}
+                {tfsaWHTCAD > 50 ? (
+                  <div style={{ padding:"10px 14px", borderRadius:8,
+                    background:"rgba(249,115,22,0.06)", border:"1px solid rgba(249,115,22,0.22)" }}>
+                    <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.09em",
+                      color:"rgba(255,255,255,0.3)", fontWeight:600, marginBottom:5 }}>WHT Drag</p>
+                    <p style={{ fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color:"#f97316", margin:0, lineHeight:1 }}>
+                      −C${fmt(tfsaWHTCAD)}/yr
+                    </p>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.35)", marginTop:3 }}>
+                      US dividends in TFSA · move to RRSP to recover
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ padding:"10px 14px", borderRadius:8,
+                    background:"rgba(34,197,94,0.04)", border:"1px solid rgba(34,197,94,0.15)" }}>
+                    <p style={{ fontSize:9, textTransform:"uppercase", letterSpacing:"0.09em",
+                      color:"rgba(255,255,255,0.3)", fontWeight:600, marginBottom:5 }}>WHT Status</p>
+                    <p style={{ fontSize:12, color:"#22c55e" }}>✓ Minimal WHT drag</p>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginTop:2 }}>Tax placement looks good</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* ── Header label ── */}
             <div style={{ marginBottom:18, display:"flex", alignItems:"flex-end",
               justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
@@ -5676,6 +5927,24 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </p>
                   </div>
                 )}
+
+                <div style={{ width:1, height:60, background:"rgba(255,255,255,0.07)", flexShrink:0 }}/>
+
+                {/* FX sensitivity */}
+                <div style={{ background:"rgba(96,165,250,0.04)", border:"1px solid rgba(96,165,250,0.18)",
+                  borderRadius:8, padding:"10px 14px", minWidth:170 }}>
+                  <p style={{ fontSize:9, color:"#60a5fa", letterSpacing:"0.1em",
+                    textTransform:"uppercase", marginBottom:5 }}>FX Sensitivity</p>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.6)", lineHeight:1.5 }}>
+                    5% CAD rise →{" "}
+                    <span style={{ color:"#ef4444", fontFamily:"'JetBrains Mono',monospace", fontWeight:700 }}>
+                      −C${fmt(fxSensitivity5)}
+                    </span>
+                  </p>
+                  <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginTop:3, lineHeight:1.4 }}>
+                    {combGrandTotal > 0 ? ((combUSDValCAD / combGrandTotal) * 100).toFixed(0) : 0}% USD exposure on C${fmt(combGrandTotal)} portfolio
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -5721,6 +5990,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     const acctColor = h.acct === "TFSA" ? "#fbbf24" : "#22d3ee";
                     const pct = combTotalCAD > 0 ? (h.valueCAD / combTotalCAD) * 100 : 0;
                     const dispVal = isUSD ? `US$${fmt(h.current)}` : `C$${fmt(h.current)}`;
+                    const livePrice = liveHoldingPrices[h.ticker];
+                    const prevPrice = livePrevPrices[h.ticker];
+                    const dayChgPct = livePrice && prevPrice && prevPrice > 0
+                      ? ((livePrice - prevPrice) / prevPrice) * 100 : null;
                     return (
                       <div key={`${h.acct}-${h.ticker}`} style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)",
@@ -5746,6 +6019,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           color:"rgba(255,255,255,0.7)", minWidth:96, textAlign:"right" }}>
                           {dispVal}
                         </span>
+                        {dayChgPct !== null ? (
+                          <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace",
+                            fontWeight:600, minWidth:52, textAlign:"right",
+                            color: dayChgPct >= 0 ? "#22c55e" : "#ef4444" }}>
+                            {dayChgPct >= 0 ? "+" : ""}{dayChgPct.toFixed(2)}%
+                          </span>
+                        ) : (
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.15)", minWidth:52, textAlign:"right" }}>
+                            —
+                          </span>
+                        )}
                         <span style={{ fontSize:9, color:"rgba(255,255,255,0.28)",
                           minWidth:38, textAlign:"right" }}>
                           {pct.toFixed(1)}%
@@ -5882,7 +6166,139 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               )}
 
+              {/* Contribution Room tracker */}
+              <div style={{ background:"rgba(34,197,94,0.04)", border:"1px solid rgba(34,197,94,0.18)",
+                borderLeft:"3px solid #22c55e", borderRadius:10, padding:"12px 14px" }}>
+                <p style={{ fontSize:9, color:"#22c55e", fontWeight:700, letterSpacing:"0.08em",
+                  textTransform:"uppercase", marginBottom:8 }}>Contribution Room</p>
+                {[["TFSA","#fbbf24","7,000"], ["RRSP","#22d3ee","32,490"]].map(([key, color, limit]) => {
+                  const room = contribRoom[key] || 0;
+                  const usedPct = Math.max(0, Math.min(100, room > 0
+                    ? 100 - (room / (key === "TFSA" ? 7000 : 32490)) * 100 : 0));
+                  return (
+                    <div key={key} style={{ marginBottom:10 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>
+                          {key} · C${limit}/yr limit
+                        </span>
+                        <input
+                          type="number"
+                          value={room || ""}
+                          placeholder="room left"
+                          onChange={e => updateContribRoom(key, e.target.value)}
+                          style={{ width:96, fontSize:10, padding:"2px 6px", textAlign:"right",
+                            background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                            borderRadius:4, color, fontFamily:"'JetBrains Mono',monospace",
+                            boxSizing:"border-box" }}
+                        />
+                      </div>
+                      {room > 0 && (
+                        <div style={{ height:5, borderRadius:3, background:"rgba(255,255,255,0.06)", overflow:"hidden" }}>
+                          <div style={{ height:5, borderRadius:3, width:`${usedPct}%`,
+                            background:`linear-gradient(90deg,${color}99,${color}44)`, transition:"width 0.4s" }}/>
+                        </div>
+                      )}
+                      {room > 0 && (
+                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginTop:3 }}>
+                          C${fmt(room)} remaining
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:4, lineHeight:1.4 }}>
+                  Enter your remaining room from CRA My Account
+                </p>
+              </div>
+
             </div>
+
+            {/* ════ DIVIDEND INCOME CALENDAR ══════════════════════════════ */}
+            {combDivCAD > 1 && (
+              <div className="card" style={{ marginBottom:16, padding:"16px 20px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between",
+                  alignItems:"flex-start", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+                  <div>
+                    <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                      color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:3 }}>
+                      Dividend Income Projection
+                    </p>
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                      Estimated monthly income (quarter-end weighted) · net of WHT
+                    </p>
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    <p style={{ fontSize:20, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color:"#a78bfa", lineHeight:1 }}>
+                      C${fmt(combDivCAD - tfsaWHTCAD)}/yr
+                    </p>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginTop:2 }}>
+                      ≈ C${fmt((combDivCAD - tfsaWHTCAD) / 12)}/mo net
+                    </p>
+                  </div>
+                </div>
+
+                {/* Monthly bars */}
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(12, 1fr)", gap:4, alignItems:"end", height:80 }}>
+                  {divByMonth.map((d, idx) => {
+                    const netAmt = d.amount - (tfsaWHTCAD / 12) * MONTH_WEIGHTS[idx] / (MONTH_WEIGHTS.reduce((a,b)=>a+b,0)/12);
+                    const barH = Math.max(4, (d.amount / maxMonthlyDiv) * 70);
+                    const isCur = idx === curMonth;
+                    return (
+                      <div key={d.month} style={{ display:"flex", flexDirection:"column",
+                        alignItems:"center", height:80, justifyContent:"flex-end" }}>
+                        <p style={{ fontSize:8, color: isCur ? "#a78bfa" : "rgba(255,255,255,0.45)",
+                          fontFamily:"'JetBrains Mono',monospace", marginBottom:3, fontWeight: isCur ? 700 : 400 }}>
+                          C${Math.round(netAmt)}
+                        </p>
+                        <div style={{ width:"100%", borderRadius:"3px 3px 0 0",
+                          height:`${barH}px`,
+                          background: isCur
+                            ? "linear-gradient(180deg,#a78bfa,#7c3aed)"
+                            : "linear-gradient(180deg,rgba(167,139,250,0.5),rgba(167,139,250,0.2))",
+                          border: isCur ? "1px solid rgba(167,139,250,0.6)" : "1px solid rgba(167,139,250,0.15)",
+                          transition:"height 0.4s" }}/>
+                        <p style={{ fontSize:8, color: isCur ? "#a78bfa" : "rgba(255,255,255,0.25)",
+                          marginTop:3, fontWeight: isCur ? 700 : 400 }}>{d.month}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Per-account breakdown row */}
+                <div style={{ display:"flex", gap:20, marginTop:12, paddingTop:10,
+                  borderTop:"1px solid rgba(255,255,255,0.06)", flexWrap:"wrap" }}>
+                  {[
+                    ["TFSA", "#fbbf24", tfsaDivCAD, tfsaWHTCAD],
+                    ["RRSP", "#22d3ee", rrspDivCAD, 0],
+                  ].map(([label, color, gross, wht]) => (
+                    <div key={label}>
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:3 }}>{label}</p>
+                      <p style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                        color }}>C${fmt(gross - wht)}/yr</p>
+                      {wht > 0 && (
+                        <p style={{ fontSize:9, color:"#f97316" }}>−C${fmt(wht)}/yr WHT</p>
+                      )}
+                    </div>
+                  ))}
+                  <div>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:3 }}>Quarterly est.</p>
+                    <p style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color:"rgba(255,255,255,0.7)" }}>
+                      C${fmt((combDivCAD - tfsaWHTCAD) / 4)}/qtr
+                    </p>
+                  </div>
+                  <div>
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:3 }}>Effective yield</p>
+                    <p style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                      color:"rgba(255,255,255,0.7)" }}>
+                      {combGrandTotal > 0
+                        ? (((combDivCAD - tfsaWHTCAD) / combGrandTotal) * 100).toFixed(2) : "0.00"}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", lineHeight:1.5 }}>
               ⚠ Not financial advice. Data stored locally in your browser. Export regularly to back up. Consult a licensed CFP before trading.
