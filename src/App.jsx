@@ -316,6 +316,11 @@ export default function App() {
   const [diversifySuggestions,setDiversifySuggestions]= useState(() => {
     try { return JSON.parse(localStorage.getItem("diversify:suggestions") || "null"); } catch { return null; }
   });
+  const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
+  const [aiOptionsError,      setAiOptionsError]      = useState(null);
+  const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem("options:aiAnalysis") || "null"); } catch { return null; }
+  });
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -1341,6 +1346,173 @@ Return ONLY a valid JSON array, no markdown:
       setDiversifyError(err.message || "Failed to generate suggestions");
     } finally {
       setDiversifyLoading(false);
+    }
+  }
+
+  // ── AI Options Analysis ───────────────────────────────────────────────
+  async function fetchAIOptionsAnalysis() {
+    if (!claudeApiKey.trim()) {
+      setAiOptionsError("Enter your Anthropic API key in the Market Pulse tab first.");
+      return;
+    }
+    setAiOptionsLoading(true);
+    setAiOptionsError(null);
+
+    try {
+      const fxRate = usdCadRate || 1.38;
+      const mp     = marketPulse;
+      const vix    = Number(mp.macroSignals?.find(c => c.category === "Equities")
+        ?.signals?.find(s => s.label === "VIX")?.value?.replace(/[^0-9.]/g, "")) || 17;
+      const riskScore  = mp.riskMeter?.score ?? 50;
+      const regime     = mp.regime?.label || "Unknown";
+
+      // ── Pre-compute CC candidates ──────────────────────────────────────
+      // TFSA = non-registered-linked, so TFSA + RRSP are both options-eligible
+      const ccCandidates = portfolios.flatMap(acct =>
+        (holdings[acct] || []).map(h => {
+          const price = optionPrices[h.ticker];
+          if (!price) return null;
+          const estShares = Math.round(h.current / price);
+          const contracts = Math.floor(estShares / 100);
+          if (contracts < 1) return null;
+          const iv      = estimateIV(h.ticker, vix);
+          const strikes = getStrikeSuggestions(price, "cc", 30, iv);
+          const cur     = getTickerCurrency(h.ticker, h.currencyOverride);
+          return { ticker: h.ticker, name: h.name || h.ticker, acct, cur, price, estShares, contracts, iv: Math.round(iv), strikes };
+        }).filter(Boolean)
+      ).filter((x, i, arr) => arr.findIndex(y => y.ticker === x.ticker) === i); // dedupe
+
+      // ── Cash buying power for CSPs ─────────────────────────────────────
+      const cashBlocks = portfolios.map(p => {
+        const cadCash = cashHolding[p] || 0;
+        const usdCash = cadCash / fxRate;
+        return { account: p, cadCash: Math.round(cadCash), usdCash: Math.round(usdCash) };
+      }).filter(x => x.cadCash > 100);
+
+      const totalCashCAD = cashBlocks.reduce((s, x) => s + x.cadCash, 0);
+
+      // ── Format CC section for prompt ──────────────────────────────────
+      const ccLines = ccCandidates.length
+        ? ccCandidates.map(h => {
+            const [cons, mod, agg] = h.strikes;
+            return [
+              `${h.ticker} (${h.acct}, ${h.cur}) — price $${h.price.toFixed(2)} | ${h.contracts} contract${h.contracts>1?"s":""} | IV ~${h.iv}%`,
+              `  Conservative: strike $${cons.strike} (+${cons.pct}% OTM) | ~$${cons.premiumPerShare}/sh | $${cons.contractPremium}/contract | ${cons.monthlyYield}%/mo`,
+              `  Moderate:     strike $${mod.strike}  (+${mod.pct}% OTM) | ~$${mod.premiumPerShare}/sh | $${mod.contractPremium}/contract | ${mod.monthlyYield}%/mo`,
+              `  Aggressive:   strike $${agg.strike}  (+${agg.pct}% OTM) | ~$${agg.premiumPerShare}/sh | $${agg.contractPremium}/contract | ${agg.monthlyYield}%/mo`,
+            ].join("\n");
+          }).join("\n\n")
+        : "No positions with 100+ shares currently available for covered calls. (Load live prices first if you haven't.)";
+
+      // ── Format cash section ───────────────────────────────────────────
+      const cashLines = cashBlocks.length
+        ? cashBlocks.map(x =>
+            `${x.account}: C$${x.cadCash.toLocaleString()} (≈ US$${x.usdCash.toLocaleString()}) — can secure 1 CSP on stocks priced up to $${x.usdCash} (or C$${x.cadCash} for CAD names)`
+          ).join("\n")
+        : "No significant cash available. Focus on covered calls only.";
+
+      // ── Existing open option trades ────────────────────────────────────
+      const openTrades = optionTrades.filter(t => t.status === "open");
+      const openLines  = openTrades.length
+        ? openTrades.map(t => `  ${t.type.toUpperCase()} ${t.ticker} ${t.account} strike $${t.strike} exp ${t.expiry}`).join("\n")
+        : "  None";
+
+      const prompt = `You are an options strategy advisor for a Canadian investor.
+
+ACCOUNT CONTEXT:
+- TFSA acts as a non-registered account for options (covered calls and CSPs are permitted)
+- RRSP: covered calls and cash-secured puts permitted per broker rules
+- Treat TFSA + RRSP holdings equally as options-eligible
+
+MARKET ENVIRONMENT:
+- VIX: ${vix} | Regime: ${regime} | Risk score: ${riskScore}/100
+- IV environment: ${vix >= 25 ? "High — excellent for selling premium" : vix >= 18 ? "Elevated — good conditions" : vix >= 14 ? "Low — be selective" : "Very low — consider skipping"}
+- Regime bias: ${riskScore >= 60 ? "Risk-On: CCs on extended positions; be cautious on new CSPs" : riskScore >= 40 ? "Neutral: balanced premium selling" : "Risk-Off: prefer CSPs on quality; avoid CCs that cap upside recovery"}
+
+COVERED CALL CANDIDATES (pre-computed — only positions with 100+ shares):
+${ccLines}
+
+CASH AVAILABLE FOR CASH-SECURED PUTS:
+${cashLines}
+Total cash across accounts: C$${Math.round(totalCashCAD).toLocaleString()}
+
+CURRENTLY OPEN OPTION TRADES (do not double up on these tickers):
+${openLines}
+
+TASK:
+Generate 4–8 specific options trade recommendations. Mix CCs and CSPs based on what the portfolio and market support.
+
+RISK CLASSIFICATION RULES (apply carefully):
+- LOW risk: Conservative strike (5% OTM), IV < 25%, stable sector (ETFs, Financials, Utilities), DTE 30–45
+- MEDIUM risk: Moderate strike (8% OTM), IV 25–40%, diversified sector, DTE 21–30
+- HIGH risk: Aggressive strike (12%+ OTM) OR IV > 40% OR volatile sector (Semis, Biotech) OR DTE < 21
+
+For CSPs: suggest specific tickers the investor might want to own at a discount (from their existing wish-list or quality names). Use the cash available per account to size.
+
+VERDICT OPTIONS: "Strong" (execute now), "Consider" (good setup, minor reservations), "Skip" (unfavorable risk/reward)
+
+Return ONLY a valid JSON object, no markdown:
+{
+  "summary": "2-3 sentence overall strategy recommendation given the regime and IV environment",
+  "trades": [
+    {
+      "type": "cc",
+      "ticker": "XEQT",
+      "account": "TFSA",
+      "risk": "Low",
+      "strike": 46.00,
+      "dte": 30,
+      "premiumEst": 0.45,
+      "contractPremium": 45,
+      "contracts": 1,
+      "monthlyYieldPct": 1.0,
+      "rationale": "One paragraph explaining why this trade makes sense given regime, IV, and position size",
+      "risks": ["Risk 1", "Risk 2"],
+      "verdict": "Strong"
+    }
+  ]
+}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": claudeApiKey.trim(),
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${res.status}`);
+      }
+
+      const data     = await res.json();
+      const rawText  = (data.content?.[0]?.text || "").trim();
+      const stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      const parsed   = JSON.parse(stripped);
+
+      if (!parsed.trades || !Array.isArray(parsed.trades)) throw new Error("Invalid response structure");
+
+      const result = {
+        ...parsed,
+        generatedAt: new Date().toISOString(),
+        regime,
+        riskScore,
+        vix,
+      };
+      setAiOptionsAnalysis(result);
+      localStorage.setItem("options:aiAnalysis", JSON.stringify(result));
+    } catch (err) {
+      setAiOptionsError(err.message || "Failed to generate analysis");
+    } finally {
+      setAiOptionsLoading(false);
     }
   }
 
@@ -6226,6 +6398,247 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           );
         };
 
+        // Sub-tab: AI Analysis
+        const renderAIAnalysis = () => {
+          const riskColor  = { Low:"#22c55e", Medium:"#fbbf24", High:"#ef4444" };
+          const riskBg     = { Low:"rgba(34,197,94,0.12)", Medium:"rgba(251,191,36,0.12)", High:"rgba(239,68,68,0.12)" };
+          const riskBorder = { Low:"rgba(34,197,94,0.25)", Medium:"rgba(251,191,36,0.25)", High:"rgba(239,68,68,0.25)" };
+          const verdictColor = { Strong:"#22c55e", Consider:"#fbbf24", Skip:"rgba(255,255,255,0.35)" };
+          const typeColor    = { cc:"#22d3ee", csp:"#a78bfa" };
+          const typeBg      = { cc:"rgba(34,211,238,0.10)", csp:"rgba(167,139,250,0.10)" };
+          const an = aiOptionsAnalysis;
+
+          return (
+            <div>
+              {/* Header */}
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+                <div style={{ flex:1 }}>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.5 }}>
+                    Claude analyses your holdings and cash to surface specific CC and CSP trades, rated by risk.
+                    Load live prices first for best results.
+                  </p>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                  <button className="btn btn-primary" onClick={fetchAIOptionsAnalysis}
+                    disabled={aiOptionsLoading}
+                    style={{ fontSize:11, padding:"7px 18px",
+                      background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.4)",
+                      color:"#a78bfa", opacity: aiOptionsLoading ? 0.6 : 1 }}>
+                    {aiOptionsLoading ? "⏳ Analysing…" : an ? "⟳ Regenerate" : "🤖 Generate Analysis"}
+                  </button>
+                  {an?.generatedAt && (
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>
+                      Last generated {new Date(an.generatedAt).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {aiOptionsError && (
+                <div style={{ padding:"10px 14px", background:"rgba(239,68,68,0.08)",
+                  border:"1px solid rgba(239,68,68,0.25)", borderRadius:8, marginBottom:12,
+                  fontSize:11, color:"#ef4444" }}>
+                  ⚠ {aiOptionsError}
+                </div>
+              )}
+
+              {!an && !aiOptionsLoading && (
+                <div className="card" style={{ textAlign:"center", padding:"48px 24px" }}>
+                  <p style={{ fontSize:28, marginBottom:10 }}>🤖</p>
+                  <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>No analysis yet</p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", maxWidth:360, margin:"0 auto" }}>
+                    Click "Generate Analysis" to have Claude evaluate your holdings and cash and recommend
+                    specific CC and CSP trades rated Low / Medium / High risk.
+                  </p>
+                </div>
+              )}
+
+              {an && (
+                <>
+                  {/* Context pills + summary */}
+                  <div className="card" style={{ padding:"14px 18px", marginBottom:14,
+                    background:"rgba(167,139,250,0.05)", borderColor:"rgba(167,139,250,0.18)" }}>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+                      <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20,
+                        background:"rgba(167,139,250,0.12)", color:"#a78bfa", border:"1px solid rgba(167,139,250,0.3)" }}>
+                        {an.regime}
+                      </span>
+                      <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20,
+                        background:"rgba(234,179,8,0.10)", color:"#fbbf24", border:"1px solid rgba(234,179,8,0.25)" }}>
+                        VIX {an.vix}
+                      </span>
+                      <span style={{ fontSize:10, padding:"2px 9px", borderRadius:20,
+                        background: an.riskScore >= 60 ? "rgba(34,197,94,0.1)" : an.riskScore >= 40 ? "rgba(234,179,8,0.1)" : "rgba(239,68,68,0.1)",
+                        color:      an.riskScore >= 60 ? "#22c55e"             : an.riskScore >= 40 ? "#fbbf24"             : "#ef4444",
+                        border:`1px solid ${an.riskScore >= 60 ? "rgba(34,197,94,0.25)" : an.riskScore >= 40 ? "rgba(234,179,8,0.25)" : "rgba(239,68,68,0.25)"}` }}>
+                        Risk score {an.riskScore}/100
+                      </span>
+                    </div>
+                    <p style={{ fontSize:12, color:"rgba(255,255,255,0.7)", lineHeight:1.65, margin:0 }}>
+                      {an.summary}
+                    </p>
+                  </div>
+
+                  {/* Trade cards */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(440px, 1fr))", gap:12 }}>
+                    {(an.trades || []).map((tr, i) => {
+                      const rc = riskColor[tr.risk]  || "#fbbf24";
+                      const rb = riskBg[tr.risk]     || "rgba(251,191,36,0.08)";
+                      const rbo= riskBorder[tr.risk] || "rgba(251,191,36,0.2)";
+                      const tc = typeColor[tr.type]  || "#a78bfa";
+                      const tb = typeBg[tr.type]     || "rgba(167,139,250,0.08)";
+                      const vc = verdictColor[tr.verdict] || "#fbbf24";
+                      const cashReq = tr.type === "csp"
+                        ? `$${(tr.strike * 100 * (tr.contracts || 1)).toLocaleString()} collateral`
+                        : null;
+
+                      return (
+                        <div key={i} className="card" style={{ padding:"16px 18px",
+                          background: rb, border:`1px solid ${rbo}` }}>
+                          {/* Card top row */}
+                          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:10, flexWrap:"wrap" }}>
+                            {/* Type badge */}
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:4,
+                              background: tb, color: tc, border:`1px solid ${tc}30`, textTransform:"uppercase" }}>
+                              {tr.type === "cc" ? "CC" : "CSP"}
+                            </span>
+                            {/* Risk badge */}
+                            <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                              background:"rgba(0,0,0,0.25)", color: rc, border:`1px solid ${rc}50` }}>
+                              {tr.risk} Risk
+                            </span>
+                            {/* Verdict */}
+                            <span style={{ fontSize:10, padding:"2px 8px", borderRadius:4,
+                              background:"rgba(0,0,0,0.2)", color: vc }}>
+                              {tr.verdict === "Strong" ? "✓ Strong" : tr.verdict === "Consider" ? "○ Consider" : "✕ Skip"}
+                            </span>
+                            <span style={{ flex:1 }} />
+                            {/* Account chip */}
+                            <span style={{ fontSize:9, padding:"1px 7px", borderRadius:3,
+                              background:"rgba(255,255,255,0.07)", color:"rgba(255,255,255,0.45)",
+                              border:"1px solid rgba(255,255,255,0.1)", letterSpacing:"0.04em" }}>
+                              {tr.account}
+                            </span>
+                          </div>
+
+                          {/* Ticker + name */}
+                          <p style={{ fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                            color:"rgba(255,255,255,0.92)", marginBottom:2 }}>
+                            {tr.ticker}
+                          </p>
+                          {tr.name && (
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:10 }}>{tr.name}</p>
+                          )}
+
+                          {/* Strike / DTE / contracts grid */}
+                          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, marginBottom:12 }}>
+                            {[
+                              ["Strike",    `$${tr.strike}`],
+                              ["DTE",       `${tr.dte}d`],
+                              ["Contracts", tr.contracts],
+                              tr.type === "csp"
+                                ? ["Collateral", cashReq]
+                                : ["Yield/mo",   `${tr.monthlyYieldPct?.toFixed(1)}%`],
+                            ].map(([label, val]) => (
+                              <div key={label} style={{ textAlign:"center", padding:"6px 4px",
+                                background:"rgba(0,0,0,0.18)", borderRadius:6, border:"1px solid rgba(255,255,255,0.06)" }}>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", textTransform:"uppercase",
+                                  letterSpacing:"0.06em", marginBottom:2 }}>{label}</p>
+                                <p style={{ fontSize:13, fontWeight:600, color:"rgba(255,255,255,0.85)",
+                                  fontFamily:"'JetBrains Mono',monospace" }}>{val}</p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Premium row */}
+                          <div style={{ display:"flex", gap:16, marginBottom:12, padding:"8px 12px",
+                            background:"rgba(34,197,94,0.06)", borderRadius:8, border:"1px solid rgba(34,197,94,0.12)" }}>
+                            <div>
+                              <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>Per share</p>
+                              <p style={{ fontSize:14, fontWeight:700, color:"#22c55e",
+                                fontFamily:"'JetBrains Mono',monospace" }}>
+                                ${tr.premiumEst?.toFixed(2)}
+                              </p>
+                            </div>
+                            <div>
+                              <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>Per contract</p>
+                              <p style={{ fontSize:14, fontWeight:700, color:"#22c55e",
+                                fontFamily:"'JetBrains Mono',monospace" }}>
+                                ${tr.contractPremium}
+                              </p>
+                            </div>
+                            {tr.contracts > 1 && (
+                              <div>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>Total est.</p>
+                                <p style={{ fontSize:14, fontWeight:700, color:"#22c55e",
+                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                  ${(tr.contractPremium * tr.contracts).toLocaleString()}
+                                </p>
+                              </div>
+                            )}
+                            {tr.type === "cc" && tr.monthlyYieldPct && (
+                              <div>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>Monthly yield</p>
+                                <p style={{ fontSize:14, fontWeight:700, color:"#84cc16",
+                                  fontFamily:"'JetBrains Mono',monospace" }}>
+                                  {tr.monthlyYieldPct.toFixed(1)}%
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Rationale */}
+                          <p style={{ fontSize:11, color:"rgba(255,255,255,0.6)", lineHeight:1.6, marginBottom:10 }}>
+                            {tr.rationale}
+                          </p>
+
+                          {/* Risks */}
+                          {tr.risks?.length > 0 && (
+                            <div style={{ marginBottom:12 }}>
+                              <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", textTransform:"uppercase",
+                                letterSpacing:"0.06em", marginBottom:4 }}>Key risks</p>
+                              <ul style={{ margin:0, paddingLeft:16 }}>
+                                {tr.risks.map((r, ri) => (
+                                  <li key={ri} style={{ fontSize:10, color:"rgba(255,255,255,0.45)", marginBottom:2 }}>{r}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Log Trade button */}
+                          {tr.verdict !== "Skip" && (
+                            <button
+                              onClick={() => {
+                                setOptionNewTrade({
+                                  type:     tr.type,
+                                  ticker:   tr.ticker,
+                                  account:  tr.account,
+                                  strike:   String(tr.strike),
+                                  premium:  String(tr.premiumEst?.toFixed(2) || ""),
+                                  contracts:String(tr.contracts || 1),
+                                  dte:      String(tr.dte),
+                                  expiry:   "",
+                                  notes:    tr.rationale?.slice(0, 120) || "",
+                                  status:   "open",
+                                });
+                                setOptionSubTab(tr.type === "cc" ? "cc" : "csp");
+                              }}
+                              style={{ width:"100%", padding:"7px 0", fontSize:11, fontWeight:600,
+                                background:`${tc}18`, border:`1px solid ${tc}40`, borderRadius:7,
+                                color: tc, cursor:"pointer", letterSpacing:"0.03em" }}>
+                              ↗ Pre-fill in {tr.type === "cc" ? "Covered Calls" : "CSP"} tab
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        };
+
         return (
           <div style={{ padding:"22px 28px" }}>
 
@@ -6248,11 +6661,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
 
             {/* ── Sub-tab navigation ── */}
-            <div style={{ display:"flex", gap:6, marginBottom:16 }}>
-              {[["cc","📞 Covered Calls"],["csp","🛡 Cash-Secured Puts"],["trades","📋 Trade Log"]].map(([v,l]) => (
+            <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+              {[
+                ["cc",     "📞 Covered Calls"],
+                ["csp",    "🛡 Cash-Secured Puts"],
+                ["trades", "📋 Trade Log"],
+                ["ai",     "🤖 AI Analysis"],
+              ].map(([v,l]) => (
                 <button key={v} className={`tab-btn ${optionSubTab===v?"on":""}`}
                   onClick={() => setOptionSubTab(v)}
-                  style={{ padding:"6px 14px", fontSize:11 }}>
+                  style={{
+                    padding:"6px 14px", fontSize:11,
+                    ...(v === "ai" && optionSubTab !== "ai"
+                      ? { borderColor:"rgba(167,139,250,0.35)", color:"rgba(167,139,250,0.8)" }
+                      : {}),
+                  }}>
                   {l}
                 </button>
               ))}
@@ -6261,6 +6684,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             {optionSubTab === "cc"     && renderCC()}
             {optionSubTab === "csp"    && renderCSP()}
             {optionSubTab === "trades" && renderTradeLog()}
+            {optionSubTab === "ai"     && renderAIAnalysis()}
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.15)", marginTop:20, lineHeight:1.6 }}>
               ⚠ Not financial advice. Premium estimates are mathematical approximations based on VIX-derived IV and are not live options quotes —
