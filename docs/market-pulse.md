@@ -1,28 +1,14 @@
-# Market Pulse & Claude API
+# Market Pulse & Claude AI
 
 The Market Pulse tab is the app's AI-powered market dashboard. It shows the current market regime, macro signals, recent news with portfolio impact, 3/6-month scenarios, and an Action Center where you can buy and reduce positions without leaving the tab.
 
 ---
 
-## Setting up your Anthropic API key
+## Requirements
 
-The Market Pulse AI refresh and the Broker CSV Import both require an Anthropic API key.
+**AI refresh requires the Pro plan.** Basic plan users see an upgrade link in place of the Refresh button.
 
-### Get a key
-
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign up for a free account (no credit card required for limited usage)
-3. Navigate to **API Keys** → **Create Key**
-4. Copy the key (starts with `sk-ant-...`)
-
-### Enter the key in the app
-
-1. Open the **Market Pulse** tab
-2. Scroll to the field labelled **Anthropic API Key**
-3. Paste your key — it saves automatically to `localStorage` on every keystroke
-4. The key field uses `type="password"` so it is masked on screen
-
-The key is stored only in your browser's `localStorage`. It is never sent anywhere except directly to `api.anthropic.com` when you trigger a refresh or a broker import.
+No Anthropic API key is needed — Claude is accessed through the app's secure backend proxy, included in the Pro subscription. You get **10 AI calls per day** (resets midnight UTC). Typical usage is 2–3 calls per day.
 
 ---
 
@@ -32,9 +18,9 @@ The key is stored only in your browser's `localStorage`. It is never sent anywhe
 
 Market Pulse data does **not** refresh automatically. The data in `src/data/marketPulse.json` is the baseline — it displays until you trigger a refresh or paste a Claude response.
 
-### Option 1 — Direct API refresh (recommended)
+### Option 1 — One-click AI refresh (Pro plan)
 
-Click **⚡ Refresh with Claude** in the Market Pulse tab.
+Click **⚡ Refresh with AI** in the Market Pulse tab.
 
 The app:
 1. Fetches live data from Yahoo Finance, FRED, and the CNN Fear & Greed API
@@ -45,15 +31,15 @@ The app:
 
 This takes 10–30 seconds. The "last refreshed" timestamp appears next to the button.
 
-### Option 2 — Copy prompt / paste response
+### Option 2 — Copy prompt / paste response (any plan)
 
-If you prefer to use [claude.ai](https://claude.ai) directly (free tier, no API key needed):
+If you prefer to use [claude.ai](https://claude.ai) directly, or if you've used your daily AI calls:
 
 1. Click **📋 Copy Prompt** — the full prompt is copied to your clipboard
-2. Open [claude.ai](https://claude.ai) and paste the prompt
+2. Open [claude.ai](https://claude.ai) (free account works) and paste the prompt
 3. Copy Claude's response (the raw JSON)
 4. Click **📥 Paste Response** in the app and paste the JSON
-5. The tab updates immediately
+5. The tab updates immediately — no AI call is counted against your daily limit
 
 ### How often to refresh
 
@@ -150,9 +136,13 @@ The log persists across sessions (stored in `localStorage`). Clear it with the *
 
 ## Troubleshooting
 
-### "Enter your Anthropic API key first"
+### "AI Market Pulse refresh requires the Pro plan"
 
-Scroll to the API key field in Market Pulse, paste your key, and try again.
+Your active license is Basic. Click **Upgrade →** next to the button to go to the Pro checkout, or use the Copy Prompt / Paste Response fallback with [claude.ai](https://claude.ai) instead.
+
+### "Daily AI limit reached"
+
+You've used all 10 AI calls for today. The limit resets at midnight UTC. In the meantime, use the Copy Prompt / Paste Response fallback — it doesn't consume a daily call.
 
 ### "Response is missing required fields — try again"
 

@@ -1,8 +1,25 @@
-# Portfolio ReBalancer & DCA Planner
+# Portfolio Rebalancer Pro
 
-**The privacy-first portfolio rebalancer built for Canadian investors.**
+**The AI-powered portfolio tool built for Canadian TFSA & RRSP investors.**
 
-A free, open-source web app that helps you manage your TFSA, RRSP, and custom investment accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding tax optimization, and curated stock recommendations — all without connecting a single bank account.
+Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, and Claude AI — all in your browser, no bank connection ever.
+
+### Subscription plans
+
+| | Basic — $49 CAD/yr | Pro — $99 CAD/yr |
+|---|---|---|
+| Dashboard (Morning Radar, WHT, live prices) | ✓ | ✓ |
+| Rebalance & DCA Calendar | ✓ | ✓ |
+| Ideas & curated recommendations | ✓ | ✓ |
+| Options Calculator (CC + CSP) | ✓ | ✓ |
+| Investor Profile | ✓ | ✓ |
+| ⚡ Market Pulse AI refresh | — | ✓ |
+| ✨ AI Target Suggestions | — | ✓ |
+| 🤖 AI Diversification Analysis | — | ✓ |
+| 🤖 AI Options Analysis | — | ✓ |
+| 🏦 Broker CSV Import (AI-parsed) | — | ✓ |
+| AI calls per day | — | 10 (resets midnight UTC) |
+| No Anthropic API key needed | ✓ | ✓ |
 
 ## Quick Start
 
@@ -570,7 +587,7 @@ The only network requests the app makes are:
 
 All Claude API requests are never made automatically — only when you explicitly trigger them. The proxy enforces a **fair-use limit of 10 AI calls per user per 24 hours** (resets midnight UTC). Typical usage is 2–3 calls per day; the limit protects against runaway costs. To adjust it, change `RL_MAX` in `api/claude.js`.
 
-**Two-tier gating:** The proxy also checks the Lemon Squeezy variant name. If the activated license is a "Basic" variant, the proxy returns HTTP 403. All AI features are Pro-only; the app UI also gates at the button level for a clean UX.
+**Two-tier gating:** The proxy checks the Lemon Squeezy `product_id` of the activating license key against `LS_PRODUCT_ID_BASIC` (set in Vercel env vars). If it matches, the request is rejected with HTTP 403 — Basic plan holders cannot call AI features even if they construct a raw request. The app UI also gates at the button level: AI buttons become upgrade links for Basic users. Tier detection uses `product_id` (reliable, set by LS), not variant name (which defaults to `"Default"` and can be renamed arbitrarily).
 
 To verify this yourself: open DevTools → Network tab → use the app → see that no requests go to any server containing your portfolio data.
 
@@ -634,13 +651,19 @@ npm run preview
 1. Fork this repository to your GitHub account (keep it **Private** — your portfolio data is in your browser, but keeping the repo private is good practice)
 2. Go to vercel.com → Add New Project → select your fork
 3. Vercel auto-detects Vite. Click **Deploy**
-4. **Add the Anthropic API key** — in your Vercel project go to **Settings → Environment Variables** and add:
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: your key from [console.anthropic.com](https://console.anthropic.com)
-   - Environment: Production (and Preview if needed)
-5. Redeploy once after adding the env var — done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
+4. **Add environment variables** — in your Vercel project go to **Settings → Environment Variables** and add:
 
-> The `ANTHROPIC_API_KEY` lives only in Vercel's server environment. It is **never** sent to the browser or included in any build output. The `/api/claude` serverless function validates each user's license key before forwarding requests, enforces the Pro-tier check, and applies a 10 AI calls/day fair-use limit per user.
+   | Name | Value | Notes |
+   |---|---|---|
+   | `ANTHROPIC_API_KEY` | `sk-ant-...` | From [console.anthropic.com](https://console.anthropic.com) |
+   | `GATE_ENABLED` | `true` | Enables license validation on all non-localhost requests |
+   | `LS_PRODUCT_ID_BASIC` | e.g. `1234567` | Your Basic plan product ID from LS dashboard — leave blank until Basic product is created |
+
+   Set Environment to **Production** (and Preview if needed).
+
+5. Redeploy once after adding the env vars — done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
+
+> `ANTHROPIC_API_KEY` lives only in Vercel's server environment — never in the browser or any build output. The `/api/claude` function validates the license key, checks the product ID against `LS_PRODUCT_ID_BASIC` to enforce the Pro-only AI gate, then applies a 10 AI calls/day fair-use limit.
 
 Any push to `main` auto-deploys to Vercel. Your data in localStorage is unaffected by deployments.
 
@@ -680,6 +703,63 @@ Once hosted on Vercel or GitHub Pages:
 - **Android**: Chrome → Menu → "Add to Home Screen"
 
 The app opens fullscreen like a native app with no browser chrome.
+
+---
+
+## Setting up Lemon Squeezy (subscription management)
+
+The app uses [Lemon Squeezy](https://lemonsqueezy.com) for license key delivery and tier gating. Follow these steps once when deploying for the first time.
+
+### 1. Create your products
+
+Create **two separate products** in the LS dashboard — one for each tier:
+
+| Product | Price | What to name it |
+|---|---|---|
+| Pro | $99 CAD/yr | Anything — name doesn't affect tier detection |
+| Basic | $49 CAD/yr | Anything — name doesn't affect tier detection |
+
+Set each product type to **License Key** so LS delivers a key by email on purchase.
+
+### 2. Get the product IDs
+
+In LS dashboard → **Products** → click each product → the numeric ID appears in the URL: `lemonsqueezy.com/products/1234567`.
+
+### 3. Update `src/App.jsx`
+
+```js
+const LS_CHECKOUT_PRO    = "https://...your-pro-checkout-url...";
+const LS_CHECKOUT_BASIC  = "https://...your-basic-checkout-url...";
+const LS_PRODUCT_ID_PRO  = 1087809;   // ← your Pro product ID
+const LS_PRODUCT_ID_BASIC = 1234567;  // ← your Basic product ID
+```
+
+### 4. Update Vercel env vars
+
+Add `LS_PRODUCT_ID_BASIC` to Vercel → Settings → Environment Variables:
+
+```
+LS_PRODUCT_ID_BASIC = 1234567
+```
+
+### How tier detection works
+
+When a user activates a license key, the Lemon Squeezy activation API returns `meta.product_id`. The app compares this against `LS_PRODUCT_ID_BASIC`:
+
+- `product_id === LS_PRODUCT_ID_BASIC` → **Basic** tier stored in localStorage
+- anything else → **Pro** tier stored in localStorage
+
+The server-side proxy (`api/claude.js`) repeats this check on every AI request using the `LS_PRODUCT_ID_BASIC` Vercel env var — so the gate is enforced even if someone manipulates localStorage.
+
+### Testing tiers locally
+
+On `localhost`, the license gate is bypassed. Use URL parameters to simulate each tier:
+
+```
+http://localhost:5173?tier=basic   ← AI buttons show upgrade links
+http://localhost:5173?tier=pro     ← full AI features active
+http://localhost:5173              ← defaults to pro (dev mode)
+```
 
 ---
 
@@ -1074,7 +1154,7 @@ Click **✓ Apply targets** to update all targets, CAGRs, and dividend yields at
 
 ### Requirements
 
-- Active subscription (AI is routed through the `/api/claude` proxy validated by your license key)
+- **Pro subscription** — AI Target Suggestions are not available on the Basic plan. Basic users see an upgrade link in place of the ✨ button.
 - At least one holding in the active account
 
 ---

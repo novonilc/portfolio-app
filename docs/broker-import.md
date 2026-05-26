@@ -20,10 +20,10 @@ A preview modal shows the result before anything is applied, so you can review a
 
 ## Prerequisites
 
-- Your **Anthropic API key** must be entered in the Market Pulse tab before using this feature.
-  - Get a free key at [console.anthropic.com](https://console.anthropic.com)
-  - In the app: go to **Market Pulse** tab → paste your key in the "Anthropic API Key" field → the key saves automatically to localStorage
+- An active **Pro subscription** — Broker CSV Import uses Claude AI and is not available on the Basic plan. If you're on Basic, the Import button shows an upgrade link.
 - A holdings CSV from your broker (see export instructions below)
+
+No Anthropic API key is needed — Claude access is included in the Pro plan and routed through the app's secure backend proxy.
 
 ---
 
@@ -187,17 +187,17 @@ Targets are split proportionally to current market value between BTC, ETH, and a
 
 ## Troubleshooting
 
-### "Enter your Anthropic API key in the Market Pulse tab first"
+### "AI Broker Import requires the Pro plan"
 
-You haven't entered an API key yet. Go to the **Market Pulse** tab, scroll to the API key field, and paste your key.
+Your active license is Basic. Click the **Import from Broker — Pro only →** link to upgrade, then re-activate your new Pro license key.
 
-### "API error 401"
+### "Daily AI limit reached"
 
-Your API key is invalid or has been revoked. Generate a new key at [console.anthropic.com](https://console.anthropic.com).
+You've used all 10 AI calls for today. The limit resets at midnight UTC. Try the import again tomorrow, or export your CSV and manually enter the key positions in Edit Targets.
 
-### "API error 429"
+### "Invalid or expired license"
 
-You've hit the Anthropic rate limit. Wait 30–60 seconds and try again. If you're on the free tier, usage may be exhausted for the day.
+Your license key failed validation. Re-enter it in the license gate, or check your subscription status at [lemonsqueezy.com](https://app.lemonsqueezy.com).
 
 ### "Claude returned no holdings"
 
@@ -223,4 +223,4 @@ Use **Merge** mode for the second import (after the first has already loaded one
 
 ## Privacy note
 
-The raw CSV text (ticker symbols, quantities, market values) is sent to the Anthropic API. No account numbers, names, or SINs are included in the broker CSV export. Your API key is stored only in your browser's localStorage — it is never transmitted to this app's server (there is no server). See [Privacy Model](../README.md#privacy-model) in the README for full details.
+When you click Import, the raw CSV text (ticker symbols, quantities, and market values) is sent from your browser to the app's secure `/api/claude` backend proxy, which validates your Pro license key and forwards only the prompt to Claude. No account numbers, names, or SINs are included in the Wealthsimple CSV export. Your Anthropic API key is never in your browser — it lives only in the Vercel server environment. See [Privacy Model](../README.md#privacy-model) in the README for full details.

@@ -545,6 +545,11 @@ export default function App() {
   });
   const [showProfileModal,  setShowProfileModal]  = useState(false);
   const [profileDraft,      setProfileDraft]      = useState(null); // working copy while modal open
+  const [showLicenseModal,  setShowLicenseModal]  = useState(false);
+  const [licenseModalKey,   setLicenseModalKey]   = useState("");
+  const [licenseModalLoading, setLicenseModalLoading] = useState(false);
+  const [licenseModalError,  setLicenseModalError]  = useState(null);
+  const [licenseModalSuccess, setLicenseModalSuccess] = useState(false);
 
   // ── CSV import account mapping ─────────────────────────────────────────────
   // { [csvAcctName]: { target: appPortfolioName, mode: "replace"|"merge" } }
@@ -2259,6 +2264,54 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 }`;
   }
 
+  async function reactivateLicense() {
+    const trimmed = licenseModalKey.trim();
+    if (!trimmed) { setLicenseModalError("Please enter your new license key."); return; }
+    setLicenseModalLoading(true);
+    setLicenseModalError(null);
+    try {
+      const res = await fetch("https://api.lemonsqueezy.com/v1/licenses/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({
+          license_key: trimmed,
+          instance_name: "Portfolio Rebalancer — " + navigator.userAgent.slice(0, 50),
+        }),
+      });
+      const data = await res.json();
+      if (data.activated) {
+        const productId = data.meta?.product_id;
+        const tier = (LS_PRODUCT_ID_BASIC && productId === LS_PRODUCT_ID_BASIC) ? "basic" : "pro";
+        const record = {
+          key: trimmed,
+          activatedAt: new Date().toISOString(),
+          instanceId: data.instance?.id || "",
+          email: data.meta?.customer_email || "",
+          tier,
+        };
+        localStorage.setItem("portfolio:license", JSON.stringify(record));
+        setLicenseTier(tier);
+        setLicenseModalSuccess(true);
+        setTimeout(() => {
+          setShowLicenseModal(false);
+          setLicenseModalSuccess(false);
+          setLicenseModalKey("");
+          setLicenseModalError(null);
+        }, 2000);
+      } else {
+        const msg = data.error || "license_key_invalid";
+        if (msg.includes("activation_limit"))
+          setLicenseModalError("This key has reached its activation limit. Contact support to reset it.");
+        else
+          setLicenseModalError("Invalid license key. Check for typos, or contact support.");
+      }
+    } catch {
+      setLicenseModalError("Could not reach the license server. Check your internet connection and try again.");
+    } finally {
+      setLicenseModalLoading(false);
+    }
+  }
+
   async function refreshMarketPulse() {
     if (licenseTier === "basic") {
       setPulseError("AI Market Pulse refresh requires the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
@@ -2568,6 +2621,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 color: investorProfile ? "#a78bfa" : "rgba(255,255,255,0.45)" }}
               title="Set your investor profile — personalises all AI suggestions">
               {investorProfile ? `👤 ${investorProfile.age}yr · ${investorProfile.riskTolerance}` : "👤 Set Profile"}
+            </button>
+
+            {/* License tier indicator */}
+            <button
+              onClick={() => { setLicenseModalKey(""); setLicenseModalError(null); setLicenseModalSuccess(false); setShowLicenseModal(true); }}
+              style={{ fontSize:11, padding:"5px 10px", borderRadius:7, cursor:"pointer",
+                background: licenseTier === "basic" ? "rgba(251,191,36,0.12)" : "rgba(34,197,94,0.08)",
+                border: licenseTier === "basic" ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(34,197,94,0.2)",
+                color: licenseTier === "basic" ? "#fbbf24" : "#4ade80" }}
+              title={licenseTier === "basic" ? "Basic plan — click to upgrade to Pro" : "Pro plan — click to manage license"}>
+              {licenseTier === "basic" ? "⬆ Basic → Pro" : "✓ Pro"}
             </button>
             {brokerImportError && (
               <span style={{ fontSize:11, color:"#f87171", maxWidth:260 }}>
@@ -7963,6 +8027,99 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </div>
         );
       })()}
+
+      {/* ── License management modal ── */}
+      {showLicenseModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.80)", zIndex:10000,
+          display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}
+          onClick={() => setShowLicenseModal(false)}>
+          <div style={{ background:"#0d1526", border:"1px solid rgba(255,255,255,0.08)",
+            borderRadius:20, padding:"36px", maxWidth:460, width:"100%",
+            boxShadow:"0 32px 80px rgba(0,0,0,0.7)", fontFamily:"'DM Sans',system-ui,sans-serif" }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:24 }}>
+              <div style={{ fontSize:16, fontWeight:700, color:"#f1f5f9" }}>🔑 License</div>
+              <button onClick={() => setShowLicenseModal(false)}
+                style={{ background:"none", border:"none", color:"#64748b", cursor:"pointer", fontSize:18, lineHeight:1 }}>✕</button>
+            </div>
+
+            {/* Current tier status */}
+            <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+              borderRadius:10, padding:"12px 16px", marginBottom:24, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+              <span style={{ fontSize:13, color:"#94a3b8" }}>Current plan</span>
+              <span style={{ fontSize:13, fontWeight:700,
+                color: licenseTier === "basic" ? "#fbbf24" : "#4ade80",
+                background: licenseTier === "basic" ? "rgba(251,191,36,0.1)" : "rgba(34,197,94,0.1)",
+                border: `1px solid ${licenseTier === "basic" ? "rgba(251,191,36,0.3)" : "rgba(34,197,94,0.25)"}`,
+                padding:"3px 12px", borderRadius:99 }}>
+                {licenseTier === "basic" ? "Basic" : "Pro"}
+              </span>
+            </div>
+
+            {licenseTier === "basic" && (
+              <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.2)",
+                borderRadius:10, padding:"12px 16px", marginBottom:20, fontSize:13, color:"#fbbf24", lineHeight:1.6 }}>
+                Upgrade to Pro to unlock AI features — Market Pulse refresh, Target Suggestions,
+                Diversification Analysis, Options AI, and Broker Import.{" "}
+                <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                  style={{ color:"#fbbf24", fontWeight:700, textDecoration:"underline" }}>
+                  Buy Pro ($99 CAD/yr) →
+                </a>
+              </div>
+            )}
+
+            {licenseModalSuccess ? (
+              <div style={{ textAlign:"center", padding:"20px 0" }}>
+                <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+                <div style={{ fontSize:16, fontWeight:700, color:"#f1f5f9" }}>
+                  {licenseTier === "pro" ? "Upgraded to Pro!" : "License updated!"}
+                </div>
+                <div style={{ fontSize:13, color:"#94a3b8", marginTop:6 }}>AI features are now active.</div>
+              </div>
+            ) : (
+              <>
+                <label style={{ fontSize:12, fontWeight:700, color:"#64748b",
+                  textTransform:"uppercase", letterSpacing:"0.07em", display:"block", marginBottom:6 }}>
+                  {licenseTier === "basic" ? "Enter your new Pro license key" : "Enter a different license key"}
+                </label>
+                <input
+                  type="text"
+                  placeholder="PFRA-XXXX-XXXX-XXXX"
+                  value={licenseModalKey}
+                  onChange={e => { setLicenseModalKey(e.target.value); setLicenseModalError(null); }}
+                  onKeyDown={e => e.key === "Enter" && reactivateLicense()}
+                  style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                    color:"#f1f5f9", padding:"11px 14px", borderRadius:10, fontSize:14,
+                    fontFamily:"'JetBrains Mono',monospace", width:"100%", marginBottom:10 }}
+                />
+                {licenseModalError && (
+                  <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.25)",
+                    borderRadius:8, padding:"10px 14px", fontSize:13, color:"#fca5a5", marginBottom:12, lineHeight:1.6 }}>
+                    ⚠ {licenseModalError}
+                  </div>
+                )}
+                <button
+                  onClick={reactivateLicense}
+                  disabled={licenseModalLoading || !licenseModalKey.trim()}
+                  style={{ width:"100%", padding:"12px", borderRadius:10, border:"none",
+                    fontWeight:700, fontSize:14, fontFamily:"inherit",
+                    cursor: licenseModalLoading || !licenseModalKey.trim() ? "not-allowed" : "pointer",
+                    background: licenseModalKey.trim() && !licenseModalLoading ? "#22c55e" : "rgba(255,255,255,0.07)",
+                    color: licenseModalKey.trim() && !licenseModalLoading ? "#fff" : "#64748b",
+                    transition:"all 0.2s" }}>
+                  {licenseModalLoading ? "Activating…" : "Activate new key →"}
+                </button>
+                <p style={{ fontSize:11, color:"#334155", marginTop:14, textAlign:"center", lineHeight:1.6 }}>
+                  Your license key is in the confirmation email from Lemon Squeezy.
+                  Check spam if not visible within 2 minutes.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );
