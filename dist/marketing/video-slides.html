@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Portfolio Rebalancer Pro — Marketing Slides</title>
+  <meta name="viewport" content="width=1920">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#060b18; --card:#0d1526; --card2:#111827;
+      --border:rgba(255,255,255,0.08);
+      --gold:#fbbf24; --cyan:#22d3ee; --purple:#a78bfa;
+      --green:#22c55e; --red:#ef4444; --orange:#f97316;
+      --text:#f1f5f9; --muted:#94a3b8; --dim:#475569;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{width:100%;height:100%;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;overflow:hidden}
+
+    /* ── Deck ── */
+    .deck{width:100vw;height:100vh;position:relative}
+    .slide{
+      position:absolute;inset:0;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:48px 80px;
+      opacity:0;transform:translateX(50px);
+      transition:opacity .4s ease,transform .4s ease;
+      pointer-events:none;
+    }
+    .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+    .slide.out{opacity:0;transform:translateX(-50px)}
+
+    /* ── Chrome ── */
+    .progress{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:7px;z-index:100}
+    .pdot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.18);cursor:pointer;transition:all .3s}
+    .pdot.on{background:var(--gold);transform:scale(1.35)}
+    .arrow{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;transition:all .2s;z-index:100;user-select:none}
+    .arrow:hover{background:rgba(255,255,255,0.12);color:var(--text)}
+    .arrow.lft{left:16px}.arrow.rgt{right:16px}
+    .ctr{position:fixed;top:18px;right:24px;font-size:11px;color:var(--dim);z-index:100;font-family:'JetBrains Mono',monospace}
+    .notes{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.93);border-top:1px solid var(--border);padding:14px 48px 18px;font-size:13px;color:var(--muted);line-height:1.6;max-height:160px;overflow-y:auto;z-index:200;display:none}
+    .notes.on{display:block}
+    .notes-lbl{font-size:10px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-bottom:5px}
+    .hint{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);font-size:11px;color:var(--dim);z-index:99;transition:opacity 1s;pointer-events:none}
+
+    /* ── Type ── */
+    .eye{font-size:12px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+    .eye.c{color:var(--cyan)}
+    h1{font-size:68px;font-weight:900;line-height:1.05;letter-spacing:-2px}
+    h2{font-size:50px;font-weight:800;line-height:1.1;letter-spacing:-1.5px}
+    .sub{font-size:18px;color:var(--muted);line-height:1.65;margin-top:16px}
+    .gg{background:linear-gradient(135deg,#fcd34d,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .gc{background:linear-gradient(135deg,#67e8f9,#0891b2);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    .gn{background:linear-gradient(135deg,#4ade80,#16a34a);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+    /* ── Layout ── */
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;width:100%;max-width:1160px}
+    .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;width:100%;max-width:1160px}
+
+    /* ── Cards ── */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px}
+    .card.gold{border-color:rgba(251,191,36,.3)}
+    .card.cyan{border-color:rgba(34,211,238,.3)}
+    .card.red{border-color:rgba(239,68,68,.3)}
+
+    /* ── Badge ── */
+    .bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700}
+    .bdg.g{background:rgba(251,191,36,.14);color:var(--gold);border:1px solid rgba(251,191,36,.3)}
+    .bdg.c{background:rgba(34,211,238,.12);color:var(--cyan);border:1px solid rgba(34,211,238,.28)}
+    .bdg.r{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+    .bdg.n{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+
+    /* ── Radar mockup ── */
+    .radar{display:grid;grid-template-columns:1fr 1fr;gap:2px;border-radius:12px;overflow:hidden}
+    .rc{background:var(--card);padding:16px 18px}
+    .rc-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+    .rc-val{font-size:21px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .rc-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+    /* ── Stat row ── */
+    .srow{display:flex;gap:10px;margin-top:10px}
+    .sc{flex:1;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px}
+    .sc-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px}
+    .sc-val{font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace}
+    .sc.alert{border-color:rgba(249,115,22,.4)}
+    .sc.alert .sc-val{color:var(--orange)}
+
+    /* ── Account compare ── */
+    .acmp{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%;max-width:860px}
+    .acard{border-radius:14px;padding:24px}
+    .acard.t{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.28)}
+    .acard.r{background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.25)}
+    .aname{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px}
+    .acard.t .aname{color:var(--red)}
+    .acard.r .aname{color:var(--green)}
+    .arow{display:flex;justify-content:space-between;font-size:14px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+    .arow:last-child{border-bottom:none;font-weight:700;padding-top:10px}
+
+    /* ── Alloc bars ── */
+    .alrow{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+    .albg{flex:1;height:7px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}
+    .alfill{height:100%;border-radius:4px}
+    .al-lbl{width:48px;color:var(--muted)}
+    .al-val{width:80px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px}
+
+    /* ── Feat list ── */
+    .fl{display:flex;flex-direction:column;gap:13px}
+    .fi{display:flex;gap:12px;align-items:flex-start}
+    .ficon{width:34px;height:34px;border-radius:10px;background:rgba(251,191,36,.12);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .ficon.c{background:rgba(34,211,238,.12);color:var(--cyan)}
+    .ficon.n{background:rgba(34,197,94,.12);color:var(--green)}
+    .ficon.r{background:rgba(239,68,68,.1);color:var(--red)}
+    .ftitle{font-weight:700;font-size:14px;margin-bottom:2px}
+    .fdesc{font-size:12px;color:var(--muted);line-height:1.5}
+
+    /* ── Price card ── */
+    .pcard{background:var(--card);border:2px solid rgba(251,191,36,.4);border-radius:20px;padding:36px;text-align:center;min-width:320px}
+    .pbadge{display:inline-block;padding:5px 16px;background:var(--gold);border-radius:999px;font-size:12px;font-weight:800;color:#0a1628;letter-spacing:.05em;margin-bottom:18px}
+    .pbig{font-size:76px;font-weight:900;line-height:1;font-family:'JetBrains Mono',monospace}
+    .pbig sup{font-size:34px;vertical-align:super}
+    .psub{font-size:14px;color:var(--muted);margin-top:3px}
+
+    /* ── Opt rows ── */
+    .orow{display:flex;justify-content:space-between;align-items:center;padding:11px 16px;border-bottom:1px solid rgba(255,255,255,.06);font-size:13px}
+    .orow:last-child{border-bottom:none}
+    .obdg{padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700}
+    .obdg.l{background:rgba(34,197,94,.15);color:var(--green)}
+    .obdg.m{background:rgba(251,191,36,.15);color:var(--gold)}
+
+    /* ── Profile ── */
+    .pq{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:14px 18px;margin-bottom:9px}
+    .pq-lbl{font-size:11px;color:var(--dim);margin-bottom:7px}
+    .chips{display:flex;gap:7px;flex-wrap:wrap}
+    .chip{padding:4px 13px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(255,255,255,.06);border:1px solid var(--border)}
+    .chip.on{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.45);color:var(--gold)}
+
+    /* ── Animations ── */
+    @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes cnt{from{opacity:0}to{opacity:1}}
+    .a1{animation:up .55s .1s both}
+    .a2{animation:up .55s .25s both}
+    .a3{animation:up .55s .4s both}
+    .a4{animation:up .55s .55s both}
+    .a5{animation:up .55s .7s both}
+    .slide:not(.active) .a1,.slide:not(.active) .a2,.slide:not(.active) .a3,.slide:not(.active) .a4,.slide:not(.active) .a5{animation:none;opacity:0}
+  </style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ════════════════════════════════════════════
+     SLIDE 1 · Hook
+════════════════════════════════════════════ -->
+<div class="slide active" id="s0"
+  data-vo="Every single year, Canadian investors lose hundreds of dollars — sometimes thousands — to a tax they don't even know they're paying. It's called withholding tax. If you hold US dividend stocks in your TFSA, the IRS takes 15% of every dividend before you ever see it. It's legal, it's silent, and almost every portfolio app completely ignores it.">
+  <div style="text-align:center">
+    <div class="eye a1" style="font-size:13px;margin-bottom:28px">Built exclusively for Canadian investors</div>
+    <div class="a2" style="font-size:20px;color:var(--muted);margin-bottom:12px">Every year, Canadian investors silently lose</div>
+    <div class="a3 gg" id="ctr0" style="font-size:130px;font-weight:900;line-height:1;letter-spacing:-4px;font-family:'JetBrains Mono',monospace">$0</div>
+    <div class="a4" style="font-size:20px;color:var(--muted);margin-top:14px">to a tax they don't know they're paying.</div>
+    <div class="a5" style="margin-top:28px">
+      <span class="bdg r" style="font-size:14px;padding:7px 18px">⚠ IRS Withholding Tax on TFSA dividends</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 2 · The Problem
+════════════════════════════════════════════ -->
+<div class="slide" id="s1"
+  data-vo="In a TFSA, US dividends lose 15% to IRS withholding — permanently. The Canada-US Tax Treaty exempts RRSP accounts. So the same stock in your RRSP pays zero withholding. That's the single most important decision you can make as a Canadian investor: which security goes in which account.">
+  <div style="width:100%;max-width:1100px">
+    <div class="eye a1">The Problem</div>
+    <h2 class="a2" style="margin-bottom:32px">Canadian investing is <span class="gg">quietly expensive.</span></h2>
+    <div class="acmp a3">
+      <div class="acard t">
+        <div class="aname">🇨🇦 TFSA — US dividend stock</div>
+        <div class="arow"><span>Dividend paid</span><span style="color:var(--muted)">$100</span></div>
+        <div class="arow"><span>IRS withholding (15%)</span><span style="color:var(--red)">−$15</span></div>
+        <div class="arow"><span>You receive</span><span style="color:var(--red)">$85 ✗</span></div>
+        <div style="font-size:12px;color:var(--red);opacity:.8;margin-top:10px">Non-recoverable. Every year. Forever.</div>
+      </div>
+      <div class="acard r">
+        <div class="aname">🏦 RRSP — same stock</div>
+        <div class="arow"><span>Dividend paid</span><span style="color:var(--muted)">$100</span></div>
+        <div class="arow"><span>IRS withholding</span><span style="color:var(--green)">$0 (Treaty)</span></div>
+        <div class="arow"><span>You receive</span><span style="color:var(--green)">$100 ✓</span></div>
+        <div style="font-size:12px;color:var(--green);opacity:.8;margin-top:10px">Canada-US Tax Treaty exemption applies.</div>
+      </div>
+    </div>
+    <div class="a4" style="margin-top:24px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.3);border-radius:12px;padding:18px 24px;max-width:560px">
+      <div style="font-size:12px;color:var(--orange);font-weight:700;margin-bottom:6px">Example · $100k TFSA · 1.5% US dividend yield</div>
+      <div style="font-size:26px;font-weight:800;color:var(--orange)">−C$225/year to the IRS <span style="font-size:13px;color:var(--muted);font-weight:400">· never recoverable</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 3 · Solution intro
+════════════════════════════════════════════ -->
+<div class="slide" id="s2"
+  data-vo="Today I'm going to show you Portfolio Rebalancer Pro — the only portfolio tool built specifically for Canadian TFSA and RRSP investors. It finds your withholding tax leak, tells you exactly how to fix it, and gives you every other tool you need to manage your portfolio intelligently.">
+  <div style="text-align:center;max-width:760px">
+    <div class="a1" style="margin-bottom:28px">
+      <img src="logo-square.svg" alt="" style="width:108px;height:108px;border-radius:22px">
+    </div>
+    <h1 class="a2" style="font-size:54px">Portfolio Rebalancer <span class="gg">Pro</span></h1>
+    <p class="sub a3" style="text-align:center;margin:18px auto">The complete AI-powered portfolio tool built exclusively for Canadian TFSA &amp; RRSP investors.</p>
+    <div class="a4" style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:28px">
+      <span class="bdg g">🔒 100% Private</span>
+      <span class="bdg c">🤖 Claude AI Built-in</span>
+      <span class="bdg n">🍁 TFSA &amp; RRSP Aware</span>
+      <span class="bdg g">📊 Live Market Pulse</span>
+      <span class="bdg c">⚡ Smart Rebalancing</span>
+      <span class="bdg n">📈 Options Income</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 4 · Dashboard — Morning Radar
+════════════════════════════════════════════ -->
+<div class="slide" id="s3"
+  data-vo="The first thing you see every morning is the Dashboard — specifically the Morning Radar at the top. One click fetches live closing prices for every holding across all accounts simultaneously. You can see today's P&L, positions that have drifted from targets, options expiring this week, and your WHT status — all in four cells. I know within seconds whether today needs attention.">
+  <div class="two">
+    <div>
+      <div class="eye a1">Dashboard</div>
+      <h2 class="a2" style="margin-bottom:14px">Morning Radar —<br><span class="gc">know in seconds.</span></h2>
+      <p class="sub a3" style="font-size:15px;margin:0 0 22px">One click. Live prices across all accounts. P&amp;L, drift, expiring options, WHT status — at a glance.</p>
+      <div class="fl a4">
+        <div class="fi"><div class="ficon">📈</div><div><div class="ftitle">Live Price Refresh</div><div class="fdesc">Closing prices for all holdings across TFSA + RRSP in one click</div></div></div>
+        <div class="fi"><div class="ficon c">⚡</div><div><div class="ftitle">Drift Alerts</div><div class="fdesc">Flags positions that moved more than 5% from target allocation</div></div></div>
+        <div class="fi"><div class="ficon" style="background:rgba(249,115,22,.12);color:var(--orange)">⚠</div><div><div class="ftitle">WHT Status</div><div class="fdesc">Annual withholding tax drag shown in dollars — updated live</div></div></div>
+      </div>
+    </div>
+    <div class="a1" style="background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px">
+      <div style="font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">🌅 Morning Radar</div>
+      <div class="radar">
+        <div class="rc">
+          <div class="rc-lbl">Today's P&amp;L</div>
+          <div class="rc-val" style="color:var(--green)">+C$834</div>
+          <div class="rc-sub">+0.61% all accounts</div>
+        </div>
+        <div class="rc" style="background:rgba(249,115,22,.07)">
+          <div class="rc-lbl">WHT Drain</div>
+          <div class="rc-val" style="color:var(--orange)">C$312/yr</div>
+          <div class="rc-sub" style="color:var(--orange)">⚠ 3 positions in TFSA</div>
+        </div>
+        <div class="rc">
+          <div class="rc-lbl">Drift Alert</div>
+          <div class="rc-val" style="color:var(--cyan)">2 tickers</div>
+          <div class="rc-sub">VFV +3.2% · XEI −2.8%</div>
+        </div>
+        <div class="rc">
+          <div class="rc-lbl">Options Expiring</div>
+          <div class="rc-val" style="color:var(--purple)">1 this week</div>
+          <div class="rc-sub">SHOP CC · exp Fri</div>
+        </div>
+      </div>
+      <div class="srow">
+        <div class="sc"><div class="sc-lbl">TFSA</div><div class="sc-val">C$87,440</div></div>
+        <div class="sc"><div class="sc-lbl">RRSP</div><div class="sc-val">C$49,210</div></div>
+        <div class="sc alert"><div class="sc-lbl">WHT/Year</div><div class="sc-val">−C$312</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 5 · Holdings + Import
+════════════════════════════════════════════ -->
+<div class="slide" id="s4"
+  data-vo="Everything in the app flows from Edit Targets. Enter your positions — it takes about 5 minutes for a typical portfolio. Or click Import from Broker: upload your Wealthsimple CSV, and Claude AI reads every position, converts USD to CAD, groups by account, and suggests initial target allocations. You get an account mapping modal so TFSA and RRSP never overwrite each other.">
+  <div class="two">
+    <div>
+      <div class="eye a1">Setup</div>
+      <h2 class="a2" style="margin-bottom:14px">Holdings in <span class="gg">5 minutes.</span></h2>
+      <p class="sub a3" style="font-size:15px;margin:0 0 22px">Enter manually or import your Wealthsimple CSV — Claude AI reads and maps every position automatically.</p>
+      <div class="a4" style="display:flex;flex-direction:column;gap:12px">
+        <div style="background:var(--card2);border:1px solid rgba(251,191,36,.2);border-radius:11px;padding:15px 18px">
+          <div style="font-size:11px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">🏦 Import from Broker</div>
+          <div style="font-size:13px;color:var(--muted)">Upload CSV → Claude AI parses positions, converts USD→CAD, groups by account. Choose Replace or Merge per account.</div>
+        </div>
+        <div style="background:var(--card2);border:1px solid rgba(34,211,238,.2);border-radius:11px;padding:15px 18px">
+          <div style="font-size:11px;color:var(--dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em">✨ AI Target Suggestions</div>
+          <div style="font-size:13px;color:var(--muted)">Claude reviews your full portfolio and suggests optimised allocation targets with WHT logic built in. Before/after diff shown.</div>
+        </div>
+      </div>
+    </div>
+    <div class="a1" style="background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--muted)">Edit Targets</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="background:rgba(255,255,255,.03)">
+          <td style="padding:8px 14px;color:var(--dim)">Ticker</td>
+          <td style="padding:8px 14px;color:var(--dim)">Account</td>
+          <td style="padding:8px 14px;color:var(--dim);text-align:right">Value</td>
+          <td style="padding:8px 14px;color:var(--dim);text-align:right">Target</td>
+        </tr></thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 14px;font-weight:600">VFV</td>
+            <td style="padding:8px 14px"><span class="bdg g" style="font-size:11px;padding:2px 8px">TFSA</span></td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">$42,100</td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">30%</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 14px;font-weight:600">XEI</td>
+            <td style="padding:8px 14px"><span class="bdg g" style="font-size:11px;padding:2px 8px">TFSA</span></td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">$28,450</td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">20%</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px 14px;font-weight:600">VYM</td>
+            <td style="padding:8px 14px"><span class="bdg c" style="font-size:11px;padding:2px 8px">RRSP</span></td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">$31,200</td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">22%</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 14px;font-weight:600">SHOP</td>
+            <td style="padding:8px 14px"><span class="bdg c" style="font-size:11px;padding:2px 8px">RRSP</span></td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">$18,010</td>
+            <td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace">13%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 6 · Rebalance + DCA
+════════════════════════════════════════════ -->
+<div class="slide" id="s5"
+  data-vo="The Rebalance tab is the core of the app. Enter your available cash — let's say $5,000 — and it immediately calculates exactly what to buy across your portfolio to move toward your targets. Cash-only mode: the app only shows buys, never forces a sell. Then bring the total to the DCA Plan tab, set a 4-to-16 week deployment window, and get a period-by-period purchase calendar.">
+  <div class="two">
+    <div>
+      <div class="eye a1">Rebalance &amp; DCA</div>
+      <h2 class="a2" style="margin-bottom:14px">Buy the right thing.<br><span class="gc">Every time.</span></h2>
+      <p class="sub a3" style="font-size:15px;margin:0 0 22px">Cash-only mode — the app only ever shows buys. Never triggers a sell in your registered accounts.</p>
+      <div class="a4" style="display:flex;flex-direction:column;gap:8px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px">
+          <div style="font-size:11px;color:var(--dim);margin-bottom:3px">Available cash to deploy</div>
+          <div style="font-size:26px;font-weight:700;font-family:'JetBrains Mono',monospace">C$5,000</div>
+        </div>
+        <div class="alrow"><div class="al-lbl">VFV</div><div class="albg"><div class="alfill" style="width:45%;background:var(--gold)"></div></div><div class="al-val" style="color:var(--gold)">Buy $2,250</div></div>
+        <div class="alrow"><div class="al-lbl">XEI</div><div class="albg"><div class="alfill" style="width:24%;background:var(--cyan)"></div></div><div class="al-val" style="color:var(--cyan)">Buy $1,200</div></div>
+        <div class="alrow"><div class="al-lbl">CNR</div><div class="albg"><div class="alfill" style="width:31%;background:var(--green)"></div></div><div class="al-val" style="color:var(--green)">Buy $1,550</div></div>
+      </div>
+    </div>
+    <div class="a1">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px">
+        <div style="font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">📅 DCA Calendar · 8 weeks</div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 10px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:8px">
+            <span style="color:var(--muted)">Week 1 · Jun 2</span><span style="font-family:'JetBrains Mono',monospace;color:var(--gold)">C$625</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 10px;background:rgba(255,255,255,.03);border-radius:8px">
+            <span style="color:var(--muted)">Week 2 · Jun 9</span><span style="font-family:'JetBrains Mono',monospace">C$625</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 10px;background:rgba(255,255,255,.03);border-radius:8px">
+            <span style="color:var(--muted)">Week 3 · Jun 16</span><span style="font-family:'JetBrains Mono',monospace">C$625</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:7px 10px;opacity:.45">
+            <span style="color:var(--muted)">+ 5 more weeks</span><span style="font-family:'JetBrains Mono',monospace">C$3,125</span>
+          </div>
+        </div>
+      </div>
+      <div style="background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.3);border-radius:10px;padding:13px 16px">
+        <div style="font-size:12px;font-weight:700;color:var(--orange);margin-bottom:4px">⚠ WHT Alert — VYM in TFSA</div>
+        <div style="font-size:12px;color:var(--muted)">Costs $47/yr in IRS withholding. In-kind transfer to RRSP eliminates it permanently.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 7 · AI Features
+════════════════════════════════════════════ -->
+<div class="slide" id="s6"
+  data-vo="The Ideas tab has 20+ curated picks for Canadian investors — each one tells you whether it belongs in TFSA or RRSP and why. But the real power is AI Diversification Analysis. Claude scans your complete holdings, returns gap-fillers and Trim Alerts. Market Pulse shows the current regime with a Risk-On/Off gauge and an Action Center with prioritised trades filtered to your specific holdings.">
+  <div style="width:100%;max-width:1120px">
+    <div class="eye c a1">AI Features</div>
+    <h2 class="a2" style="margin-bottom:28px">Your AI portfolio <span class="gc">co-pilot.</span></h2>
+    <div class="three">
+      <div class="card gold a3">
+        <div style="font-size:22px;margin-bottom:10px">💡</div>
+        <div style="font-weight:700;margin-bottom:7px">Ideas &amp; Diversification</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:14px">Claude scans your full holdings and returns gap-fillers plus Trim Alerts with one-click adds.</div>
+        <div style="font-size:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:7px;padding:7px 10px;color:var(--red);margin-bottom:7px">✂ Trim · VFV overweight 8.2% in TFSA</div>
+        <div style="font-size:12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);border-radius:7px;padding:7px 10px;color:var(--green)">+ Add ZRE · fills real estate gap</div>
+      </div>
+      <div class="card cyan a4">
+        <div style="font-size:22px;margin-bottom:10px">📡</div>
+        <div style="font-weight:700;margin-bottom:7px">Market Pulse</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Regime reading, risk gauge, Action Center with priority trades — all filtered to your holdings.</div>
+        <svg viewBox="0 0 200 100" width="100%" height="56">
+          <defs><linearGradient id="gg" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#ef4444"/><stop offset="50%" stop-color="#fbbf24"/><stop offset="100%" stop-color="#22c55e"/></linearGradient></defs>
+          <path d="M20 90 A80 80 0 0 1 180 90" stroke="url(#gg)" stroke-width="12" fill="none" stroke-linecap="round"/>
+          <line x1="100" y1="90" x2="150" y2="40" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="100" cy="90" r="5" fill="#fbbf24"/>
+        </svg>
+        <div style="text-align:center;font-size:26px;font-weight:800;color:var(--gold);margin-top:-6px">62 <span style="font-size:13px;color:var(--muted);font-weight:400">Risk-On · Cautious Bull</span></div>
+      </div>
+      <div class="card a5">
+        <div style="font-size:22px;margin-bottom:10px">📰</div>
+        <div style="font-weight:700;margin-bottom:7px">News Flash</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Every headline names the specific tickers in your portfolio that are affected.</div>
+        <div style="font-size:12px;line-height:1.5;padding:8px;background:rgba(255,255,255,.04);border-radius:7px;margin-bottom:6px"><span style="color:var(--cyan)">VFV</span> · <span style="color:var(--gold)">Fed holds rates</span><br><span style="color:var(--muted)">S&amp;P exposure neutral · hold</span></div>
+        <div style="font-size:12px;line-height:1.5;padding:8px;background:rgba(255,255,255,.04);border-radius:7px"><span style="color:var(--cyan)">SHOP</span> · <span style="color:var(--orange)">Earnings beat</span><br><span style="color:var(--muted)">Consider covered call at $120</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 8 · Options
+════════════════════════════════════════════ -->
+<div class="slide" id="s7"
+  data-vo="The Options tab is for investors who want to generate premium income on top of their existing holdings. The Covered Call and Cash-Secured Put calculators let you model any trade — enter the ticker, strike, DTE, contracts — and you get estimated premium, monthly yield, and annualized yield instantly. The AI Analysis sub-tab sends your portfolio to Claude and returns a ranked list of suggested trades with risk levels and reasoning.">
+  <div class="two">
+    <div>
+      <div class="eye a1">Options Income</div>
+      <h2 class="a2" style="margin-bottom:14px">Generate income <span class="gg">on your holdings.</span></h2>
+      <p class="sub a3" style="font-size:15px;margin:0 0 20px">CC + CSP calculators. AI suggests the best trades ranked by yield, risk, and portfolio fit.</p>
+      <div class="a4" style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;gap:10px">
+          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Strategy</div><div style="font-weight:700;font-size:14px">Covered Call</div></div>
+          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Ticker</div><div style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:14px">SHOP</div></div>
+          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Strike</div><div style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:14px">$120</div></div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <div style="flex:1;background:rgba(34,197,94,.09);border:1px solid rgba(34,197,94,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Est. Premium</div><div style="font-size:22px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">$3.40</div></div>
+          <div style="flex:1;background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Monthly Yield</div><div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'JetBrains Mono',monospace">2.8%</div></div>
+          <div style="flex:1;background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Annualised</div><div style="font-size:22px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace">33.6%</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="a1" style="background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--muted)">✨ AI Options Analysis</div>
+      <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">SHOP · CC $120 · 30 DTE</div><div style="font-size:11px;color:var(--muted)">Strong IV. OTM buffer gives upside room.</div></div><span class="obdg l">Low Risk</span></div>
+      <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">VFV · CC $105 · 21 DTE</div><div style="font-size:11px;color:var(--muted)">Consistent premium. Low volatility play.</div></div><span class="obdg l">Low Risk</span></div>
+      <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">CNR · CSP $170 · 14 DTE</div><div style="font-size:11px;color:var(--muted)">Near support. Good entry if assigned.</div></div><span class="obdg m">Med Risk</span></div>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;color:var(--dim)">⚡ Morning Radar flags options expiring within 14 days</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 9 · Profile + Privacy
+════════════════════════════════════════════ -->
+<div class="slide" id="s8"
+  data-vo="The Investor Profile. Answer 4 quick questions — your age, retirement target, risk tolerance, and primary goal — and every AI feature adjusts to match your situation. If you're conservative and near retirement, Claude emphasises income stability. If you're 30 and growth-focused, it leans into high-CAGR names. No API key needed — AI is included in your subscription and routes through our secure backend.">
+  <div class="two">
+    <div>
+      <div class="eye a1">Investor Profile</div>
+      <h2 class="a2" style="margin-bottom:14px">AI that knows <span class="gg">your situation.</span></h2>
+      <p class="sub a3" style="font-size:15px;margin:0 0 18px">4 questions. Every AI feature adapts — conservative near-retiree gets income focus; 30-year-old growth investor gets high-CAGR picks.</p>
+      <div class="a4" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px">
+        <div class="pq"><div class="pq-lbl">How old are you?</div><div class="chips"><div class="chip">Under 30</div><div class="chip on">30–45</div><div class="chip">46–55</div><div class="chip">56+</div></div></div>
+        <div class="pq"><div class="pq-lbl">Risk tolerance?</div><div class="chips"><div class="chip">Conservative</div><div class="chip on">Moderate</div><div class="chip">Aggressive</div></div></div>
+        <div class="pq" style="margin-bottom:0"><div class="pq-lbl">Primary goal?</div><div class="chips"><div class="chip on">Growth</div><div class="chip">Income</div><div class="chip">Balanced</div></div></div>
+        <div style="margin-top:14px;display:inline-flex;align-items:center;gap:7px;padding:5px 13px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:999px;font-size:12px;font-weight:600;color:var(--gold)">👤 Moderate · 30–45 · Growth</div>
+      </div>
+    </div>
+    <div>
+      <div class="eye c a1" style="margin-top:0">Privacy</div>
+      <h2 class="a2" style="font-size:36px;margin-bottom:16px">Zero data <span class="gc">leaves your device.</span></h2>
+      <div class="a4" style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);border-radius:11px;padding:14px 16px"><div style="font-weight:700;color:var(--green);margin-bottom:3px;font-size:14px">✓ Portfolio data: never transmitted</div><div style="font-size:12px;color:var(--muted)">Stored only in your browser's localStorage — not on any server.</div></div>
+        <div style="background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:11px;padding:14px 16px"><div style="font-weight:700;color:var(--cyan);margin-bottom:3px;font-size:14px">✓ AI calls: ticker + value only</div><div style="font-size:12px;color:var(--muted)">Sent only when you click an AI button. No account numbers, SINs, or personal info.</div></div>
+        <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:11px;padding:14px 16px"><div style="font-weight:700;color:var(--gold);margin-bottom:3px;font-size:14px">✓ Backup: one-click JSON export</div><div style="font-size:12px;color:var(--muted)">Download your full portfolio. Restore instantly on any device.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     SLIDE 10 · Pricing CTA
+════════════════════════════════════════════ -->
+<div class="slide" id="s9"
+  data-vo="That's Portfolio Rebalancer Pro. Annual plan — $99 Canadian per year. All features included from day one. Your license key arrives by email instantly. Paste it into the app and you're in. The link to purchase is in the description. If this video helped you find a WHT leak you didn't know about, let me know in the comments.">
+  <div style="text-align:center;width:100%;max-width:960px">
+    <div class="eye a1" style="margin-bottom:20px">Get started today</div>
+    <h2 class="a2" style="margin-bottom:32px">Stop leaving money <span class="gg">on the table.</span></h2>
+    <div class="a3" style="display:flex;justify-content:center;gap:28px;align-items:flex-start;flex-wrap:wrap">
+      <div class="pcard">
+        <div class="pbadge">Annual Plan</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Portfolio Rebalancer Pro</div>
+        <div class="pbig"><sup>$</sup>99</div>
+        <div class="psub">CAD per year</div>
+        <div style="font-size:12px;color:var(--muted);margin:8px 0 20px">✓ Billed annually · cancel anytime</div>
+        <div style="display:flex;flex-direction:column;gap:7px;text-align:left;margin-bottom:22px;font-size:13px">
+          <div style="display:flex;gap:8px"><span style="color:var(--green)">✓</span> All features — Dashboard, AI, Options, Pulse</div>
+          <div style="display:flex;gap:8px"><span style="color:var(--green)">✓</span> Claude AI included — no API key needed</div>
+          <div style="display:flex;gap:8px"><span style="color:var(--green)">✓</span> Activate on up to 3 devices</div>
+          <div style="display:flex;gap:8px"><span style="color:var(--green)">✓</span> License key by email · instant access</div>
+        </div>
+        <div onclick="window.open('https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08')"
+          style="background:var(--gold);color:#0a1628;font-weight:800;font-size:16px;padding:13px 24px;border-radius:12px;cursor:pointer">
+          Start Annual Plan →
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-top:10px">Secure checkout · Visa · Mastercard · PayPal</div>
+      </div>
+      <div style="text-align:left;max-width:300px;padding-top:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:18px">What you get</div>
+        <div class="fl">
+          <div class="fi"><div class="ficon">🌅</div><div><div class="ftitle">Morning Radar</div></div></div>
+          <div class="fi"><div class="ficon c">🤖</div><div><div class="ftitle">Claude AI Built-in</div></div></div>
+          <div class="fi"><div class="ficon n">📡</div><div><div class="ftitle">Market Pulse + Action Center</div></div></div>
+          <div class="fi"><div class="ficon r">💸</div><div><div class="ftitle">WHT Optimizer</div></div></div>
+          <div class="fi"><div class="ficon" style="background:rgba(167,139,250,.12);color:var(--purple)">📈</div><div><div class="ftitle">Options Income Planner</div></div></div>
+          <div class="fi"><div class="ficon">🔒</div><div><div class="ftitle">100% Private — no bank link</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Chrome -->
+<div class="progress" id="prog"></div>
+<div class="arrow lft" onclick="go(-1)">‹</div>
+<div class="arrow rgt" onclick="go(1)">›</div>
+<div class="ctr" id="ctr">1 / 10</div>
+<div class="notes" id="notes"><div class="notes-lbl">Voiceover · press N to hide</div><div id="ntext"></div></div>
+<div class="hint" id="hint">← → or Space to navigate · N for voiceover notes · F for fullscreen</div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const N = slides.length;
+let cur = 0;
+let nvis = false;
+
+// Build dots
+const prog = document.getElementById('prog');
+slides.forEach((_,i) => {
+  const d = document.createElement('div');
+  d.className = 'pdot' + (i===0?' on':'');
+  d.onclick = () => goTo(i);
+  prog.appendChild(d);
+});
+
+function goTo(n) {
+  if (n < 0 || n >= N) return;
+  slides[cur].classList.remove('active');
+  slides[cur].classList.add('out');
+  const prev = cur;
+  cur = n;
+  slides[cur].classList.add('active');
+  setTimeout(() => slides[prev].classList.remove('out'), 420);
+  // re-trigger animations
+  slides[cur].querySelectorAll('[class*="a"]').forEach(el => {
+    const m = el.className.match(/\ba[1-5]\b/);
+    if (!m) return;
+    el.style.animationName = 'none';
+    void el.offsetHeight;
+    el.style.animationName = '';
+  });
+  // counter
+  document.getElementById('ctr').textContent = (cur+1) + ' / ' + N;
+  // dots
+  document.querySelectorAll('.pdot').forEach((d,i) => d.classList.toggle('on', i===cur));
+  // notes
+  document.getElementById('ntext').textContent = slides[cur].dataset.vo || '';
+  // WHT counter on slide 0
+  if (cur === 0) animateWHT();
+}
+
+function go(d) { goTo(cur + d); }
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowRight'||e.key===' '){e.preventDefault();go(1);}
+  if (e.key==='ArrowLeft') go(-1);
+  if (e.key==='n'||e.key==='N'){nvis=!nvis;document.getElementById('notes').classList.toggle('on',nvis);}
+  if (e.key==='f'||e.key==='F') document.documentElement.requestFullscreen?.();
+});
+
+// WHT counter
+function animateWHT() {
+  const el = document.getElementById('ctr0');
+  if (!el) return;
+  let v = 0;
+  const tgt = 225;
+  const step = () => {
+    v = Math.min(v + Math.ceil(tgt/40), tgt);
+    el.textContent = '$' + v;
+    if (v < tgt) requestAnimationFrame(step);
+  };
+  setTimeout(step, 300);
+}
+
+// Init
+document.getElementById('ntext').textContent = slides[0].dataset.vo || '';
+setTimeout(animateWHT, 500);
+// Fade hint
+setTimeout(() => { const h=document.getElementById('hint'); h.style.opacity='0'; }, 5000);
+</script>
+</body>
+</html>
