@@ -6,7 +6,7 @@ import App, { LicenseGate } from "./App.jsx";
 // ── License gate toggle ──────────────────────────────────────────────────
 // true  = gate is active on all non-localhost URLs (public/paid mode)
 // false = gate disabled everywhere (open/free mode)
-const GATE_ENABLED = false;
+const GATE_ENABLED = true;
 // ─────────────────────────────────────────────────────────────────────────
 
 function Root() {
