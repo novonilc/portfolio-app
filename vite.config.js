@@ -4,5 +4,5 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   base: process.env.VITE_BASE_URL ?? (process.env.NODE_ENV === "production" ? "/app/" : "/"),
-  build: { outDir: "app" },
+  build: { outDir: "dist/app" },
 });
