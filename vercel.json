@@ -1,16 +1,14 @@
 {
-  "buildCommand": "",
-  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)",        "destination": "/api/$1" },
-    { "source": "/app/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/app",             "destination": "/index.html" },
-    { "source": "/app/(.*)",        "destination": "/index.html" },
+    { "source": "/app/assets/(.*)", "destination": "/dist/assets/$1" },
+    { "source": "/app",             "destination": "/dist/index.html" },
+    { "source": "/app/(.*)",        "destination": "/dist/index.html" },
     { "source": "/(.*)",            "destination": "/marketing/index.html" }
   ],
   "headers": [
     {
-      "source": "/assets/(.*)",
+      "source": "/dist/assets/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
   ]
