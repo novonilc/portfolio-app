@@ -424,7 +424,15 @@ export default function App() {
   });
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
   const [targetsFilter,    setTargetsFilter]   = useState("all");
-  const [claudeApiKey,     setClaudeApiKey]    = useState(() => localStorage.getItem("pulse:apiKey") || "");
+  // Proxy helper — all AI calls route through /api/claude (key never in browser)
+  function callClaude(body) {
+    const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
+    return fetch("/api/claude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(lic?.key ? { "x-license-key": lic.key } : {}) },
+      body: JSON.stringify(body),
+    });
+  }
   const [marketPulse,      setMarketPulse]     = useState(() => {
     try {
       const c = localStorage.getItem("pulse:cache");
@@ -1189,11 +1197,6 @@ export default function App() {
     if (!file) return;
     event.target.value = "";
 
-    if (!claudeApiKey.trim()) {
-      setBrokerImportError("Enter your Anthropic API key in the Market Pulse tab first.");
-      return;
-    }
-
     setBrokerImportLoading(true);
     setBrokerImportError(null);
     setBrokerImportPreview(null);
@@ -1270,19 +1273,10 @@ Example element:
 
         // Client-side safety filter applied after Claude responds (see below)
 
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": claudeApiKey.trim(),
-            "anthropic-version": "2023-06-01",
-            "anthropic-dangerous-direct-browser-access": "true",
-          },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-6",
-            max_tokens: 8000,
-            messages: [{ role: "user", content: prompt }],
-          }),
+        const res = await callClaude({
+          model: "claude-sonnet-4-6",
+          max_tokens: 8000,
+          messages: [{ role: "user", content: prompt }],
         });
 
         if (!res.ok) {
@@ -1364,10 +1358,6 @@ Example element:
 
   // ── AI target suggestions for the active account ──────────────────────
   async function suggestTargetsWithAI() {
-    if (!claudeApiKey.trim()) {
-      setAiTargetsError("Enter your Anthropic API key in the Market Pulse tab first.");
-      return;
-    }
     const snap = holdings[account];
     if (!snap || !snap.length) { setAiTargetsError("No holdings to analyse."); return; }
 
@@ -1427,19 +1417,10 @@ Instructions:
 Return ONLY a JSON array, no markdown:
 [{"ticker":"NVDA","target":18,"cagr":18,"divYield":0.0,"rationale":"AI compute moat; TFSA-optimal growth with minimal WHT drag"}]`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": claudeApiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8192,
-          messages: [{ role: "user", content: prompt }],
-        }),
+      const res = await callClaude({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
       });
 
       if (!res.ok) {
@@ -1492,10 +1473,6 @@ Return ONLY a JSON array, no markdown:
 
   // ── AI diversification suggestions (cross-account) ───────────────────
   async function fetchDiversificationSuggestions() {
-    if (!claudeApiKey.trim()) {
-      setDiversifyError("Enter your Anthropic API key in the Market Pulse tab first.");
-      return;
-    }
     setDiversifyLoading(true);
     setDiversifyError(null);
 
@@ -1607,19 +1584,10 @@ Return ONLY a valid JSON object, no markdown:
   }]
 }`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": claudeApiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8192,
-          messages: [{ role: "user", content: prompt }],
-        }),
+      const res = await callClaude({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
       });
 
       if (!res.ok) {
@@ -1650,10 +1618,6 @@ Return ONLY a valid JSON object, no markdown:
 
   // ── AI Options Analysis ───────────────────────────────────────────────
   async function fetchAIOptionsAnalysis() {
-    if (!claudeApiKey.trim()) {
-      setAiOptionsError("Enter your Anthropic API key in the Market Pulse tab first.");
-      return;
-    }
     setAiOptionsLoading(true);
     setAiOptionsError(null);
 
@@ -1773,19 +1737,10 @@ Return ONLY a valid JSON object, no markdown:
   ]
 }`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": claudeApiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8192,
-          messages: [{ role: "user", content: prompt }],
-        }),
+      const res = await callClaude({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
       });
 
       if (!res.ok) {
@@ -2233,26 +2188,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
   }
 
   async function refreshMarketPulse() {
-    if (!claudeApiKey.trim()) { setPulseError("Enter your Anthropic API key first."); return; }
     setPulseLoading(true);
     setPulseError(null);
     try {
       const live = await fetchLiveSignals();
       const prompt = buildMarketPulsePrompt(live);
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": claudeApiKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8192,
-          messages: [{ role: "user", content: prompt }],
-        }),
+      const res = await callClaude({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
       });
 
       if (!res.ok) {
@@ -4507,26 +4452,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 )}
               </div>
 
-              {/* Step 1 — two options side by side */}
-              <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.35)", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.05em" }}>
-                Step 1 — Choose how to run Claude
-              </p>
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
+              {/* One-click AI refresh — included with subscription */}
+              <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:16, flexWrap:"wrap" }}>
+                <button className="btn" onClick={refreshMarketPulse} disabled={pulseLoading}
+                  style={{ fontSize:12, padding:"8px 18px",
+                    background:"rgba(167,139,250,0.18)", borderColor:"rgba(167,139,250,0.35)",
+                    color:"#a78bfa", opacity: pulseLoading ? 0.6 : 1 }}>
+                  {pulseLoading ? "Refreshing…" : "⚡ Refresh with AI"}
+                </button>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.22)" }}>Included with your subscription · no API key needed</span>
+              </div>
 
-                {/* Option A — claude.ai */}
-                <div style={{ border:"1px solid rgba(167,139,250,0.2)", borderRadius:8, padding:"12px 14px",
-                  background:"rgba(167,139,250,0.05)" }}>
-                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(167,139,250,0.8)", marginBottom:4 }}>
-                    claude.ai <span style={{ fontWeight:400, color:"rgba(167,139,250,0.45)" }}>— uses your Pro plan</span>
-                  </p>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginBottom:10, lineHeight:1.5 }}>
-                    Copy the prompt (live data pre-filled), paste into claude.ai, then paste the JSON response back in Step 2 below.
-                  </p>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-                    <button className="btn" onClick={copyMarketPulsePrompt} disabled={pulseCopyLoading}
-                      style={{ fontSize:11, padding:"6px 14px",
-                        background: pulseCopied ? "rgba(34,197,94,0.15)" : "rgba(167,139,250,0.1)",
-                        borderColor: pulseCopied ? "rgba(34,197,94,0.3)" : "rgba(167,139,250,0.25)",
+              {/* Paste fallback — for manual / offline use */}
+              <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:12, marginBottom:0 }}>
+                <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.25)", marginBottom:8, textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                  Manual fallback — paste from claude.ai
+                </p>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", marginBottom:10 }}>
+                  <button className="btn" onClick={copyMarketPulsePrompt} disabled={pulseCopyLoading}
+                    style={{ fontSize:11, padding:"6px 14px",
+                      background: pulseCopied ? "rgba(34,197,94,0.15)" : "rgba(167,139,250,0.08)",
+                      borderColor: pulseCopied ? "rgba(34,197,94,0.3)" : "rgba(167,139,250,0.18)",
                         color: pulseCopied ? "#22c55e" : "#a78bfa",
                         opacity: pulseCopyLoading ? 0.6 : 1 }}>
                       {pulseCopyLoading ? "Fetching signals…" : pulseCopied ? "✓ Copied!" : "📋 Copy prompt"}
@@ -4540,51 +4486,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       </a>
                     )}
                   </div>
-                </div>
-
-                {/* Option B — API key */}
-                <div style={{ border:"1px solid rgba(255,255,255,0.07)", borderRadius:8, padding:"12px 14px",
-                  background:"rgba(255,255,255,0.02)" }}>
-                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.45)", marginBottom:4 }}>
-                    API key <span style={{ fontWeight:400, color:"rgba(255,255,255,0.25)" }}>— one-click, ~$0.004/refresh</span>
-                  </p>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginBottom:10, lineHeight:1.5 }}>
-                    Fully automated — no copy/paste needed. Get a free key at console.anthropic.com
-                  </p>
-                  <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-                    <input type="password" value={claudeApiKey}
-                      onChange={e => { setClaudeApiKey(e.target.value); localStorage.setItem("pulse:apiKey", e.target.value); }}
-                      placeholder="sk-ant-…"
-                      style={{ fontSize:11, flex:"1 1 140px", minWidth:0, fontFamily:"'JetBrains Mono',monospace",
-                        background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)",
-                        borderRadius:6, padding:"6px 10px", color:"rgba(255,255,255,0.55)" }}
-                    />
-                    <button className="btn" onClick={refreshMarketPulse} disabled={pulseLoading}
-                      style={{ fontSize:11, padding:"6px 14px", opacity: pulseLoading ? 0.6 : 1,
-                        background:"rgba(255,255,255,0.04)", borderColor:"rgba(255,255,255,0.1)",
-                        color:"rgba(255,255,255,0.45)" }}>
-                      {pulseLoading ? "Refreshing…" : "⟳ Refresh"}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:8 }}>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>Or paste a claude.ai response to apply manually</span>
+                    <button className="btn" onClick={() => { setPulsePasteOpen(o => !o); setPulsePasteError(null); }}
+                      style={{ fontSize:10, padding:"4px 10px",
+                        background:"rgba(255,255,255,0.03)", borderColor:"rgba(255,255,255,0.08)",
+                        color:"rgba(255,255,255,0.35)" }}>
+                      {pulsePasteOpen ? "▲ Hide" : "▼ Paste response"}
                     </button>
                   </div>
-                </div>
-              </div>
-
-              {/* Step 2 — paste area, full width, always visible when pulsePasteOpen */}
-              <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", paddingTop:14 }}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
-                  <p style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.35)", textTransform:"uppercase", letterSpacing:"0.05em" }}>
-                    Step 2 — Paste Claude's response
-                    <span style={{ fontWeight:400, textTransform:"none", letterSpacing:0, color:"rgba(255,255,255,0.2)", marginLeft:6 }}>
-                      (claude.ai option only)
-                    </span>
-                  </p>
-                  <button className="btn" onClick={() => { setPulsePasteOpen(o => !o); setPulsePasteError(null); }}
-                    style={{ fontSize:10, padding:"4px 10px",
-                      background:"rgba(255,255,255,0.03)", borderColor:"rgba(255,255,255,0.08)",
-                      color:"rgba(255,255,255,0.35)" }}>
-                    {pulsePasteOpen ? "▲ Hide" : "▼ Show"}
-                  </button>
-                </div>
 
                 {pulsePasteOpen && (
                   <div>

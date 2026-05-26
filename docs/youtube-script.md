@@ -24,7 +24,7 @@
 **[Cut to: the Dashboard WHT card showing C$312/year lost]**
 
 **VO:**
-> "Today I'm going to show you Portfolio Rebalancer Pro — the only portfolio tool built specifically for Canadian TFSA and RRSP investors. It finds your withholding tax leak, tells you exactly how to fix it, and gives you every other tool you need to manage your portfolio intelligently — for a single one-time payment of $99 Canadian."
+> "Today I'm going to show you Portfolio Rebalancer Pro — the only portfolio tool built specifically for Canadian TFSA and RRSP investors. It finds your withholding tax leak, tells you exactly how to fix it, and gives you every other tool you need to manage your portfolio intelligently — for $99 Canadian per year, with Claude AI included, no API key required."
 
 **[Text on screen: "No bank connection. No subscription. 100% private."]**
 
@@ -202,7 +202,7 @@
 **[Show browser DevTools Network tab briefly]**
 
 **VO:**
-> "Quick note on privacy — because it matters. Open DevTools right now and watch the Network tab while you use the app. The only requests you'll ever see go to Google Fonts, Yahoo Finance for live prices, and the Anthropic API when you explicitly trigger an AI feature. Your portfolio data never leaves your browser. There is no server receiving your holdings."
+> "Quick note on privacy — because it matters. Open DevTools right now and watch the Network tab while you use the app. The only requests you'll ever see go to Google Fonts, Yahoo Finance for live prices, and our own secure backend when you trigger an AI feature. That backend validates your license and forwards the request to Claude — your portfolio data never reaches any third party. There is no advertising server, no analytics, nothing receiving your holdings."
 
 **[Show Export button]**
 
@@ -216,7 +216,7 @@
 **[Screen: Return to Marketing page or pricing card]**
 
 **VO:**
-> "That's Portfolio Rebalancer Pro. One-time payment of $99 Canadian — no subscription, no renewal, lifetime updates. You get a license key by email instantly, paste it into the app, and you're in."
+> "That's Portfolio Rebalancer Pro. Annual plan — $99 Canadian per year, Claude AI included, no API key needed. You get a license key by email instantly, paste it into the app, and you're in."
 
 **[Show the license gate in the app]**
 
@@ -240,8 +240,8 @@ Portfolio Rebalancer Pro — the complete AI-powered portfolio tool built for Ca
 ✅ Broker CSV Import from Wealthsimple
 ✅ 100% private — no bank connection, data stays in your browser
 
-Get lifetime access → [CHECKOUT URL]
-$99 CAD · One-time · No subscription
+Start annual plan → [CHECKOUT URL]
+$99 CAD/year · Claude AI included · Cancel anytime
 
 Timestamps:
 00:00 – The withholding tax problem

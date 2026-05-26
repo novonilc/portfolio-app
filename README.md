@@ -41,7 +41,7 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | Guide | Description |
 |---|---|
 | [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
-| [Market Pulse & Claude API](docs/market-pulse.md) | Set up your Anthropic API key, configure Market Pulse, and use the Action Center |
+| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse and use the Action Center — AI included with subscription |
 | [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
 | [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
@@ -243,7 +243,7 @@ A covered-call and cash-secured-put planning tool for generating premium income 
 - Rationale and risk factors specific to that position
 - **Pre-fill** button — auto-populates the CC or CSP calculator tab with the suggested parameters
 
-Requires the same Anthropic API key as Market Pulse and Broker Import. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels).
+AI Analysis is included with your subscription — no API key needed. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels).
 
 ---
 
@@ -565,8 +565,8 @@ Your portfolio data is stored in `localStorage` — a browser-sandboxed storage 
 
 The only network requests the app makes are:
 1. Loading the Google Fonts stylesheet (DM Sans, JetBrains Mono, Instrument Serif) — no financial data is sent
-2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh" or "Copy prompt", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. If you use the API-key option, your Anthropic API key is stored in `localStorage` only; the prompt sent to the Anthropic API includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information.
-3. **Broker CSV Import (optional, on-demand only):** When you upload a broker holdings CSV, its contents are sent to the Anthropic API along with the current USD/CAD rate. The CSV includes ticker symbols, quantities, and market values from your brokerage. No account numbers, names, or SINs are transmitted — only position data. Your API key is stored in `localStorage`; no data is stored server-side by this app.
+2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. The prompt sent to Claude includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information. All Claude calls route through our secure `/api/claude` proxy which validates your license server-side; your Anthropic API key is never in the browser.
+3. **Broker CSV Import (optional, on-demand only):** When you upload a broker holdings CSV, its contents route through the same `/api/claude` proxy to Claude. The CSV includes ticker symbols, quantities, and market values from your brokerage — no account numbers, names, or SINs are transmitted.
 
 All Claude API requests are never made automatically — only when you explicitly trigger them.
 
@@ -632,7 +632,13 @@ npm run preview
 1. Fork this repository to your GitHub account (keep it **Private** — your portfolio data is in your browser, but keeping the repo private is good practice)
 2. Go to vercel.com → Add New Project → select your fork
 3. Vercel auto-detects Vite. Click **Deploy**
-4. Done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
+4. **Add the Anthropic API key** — in your Vercel project go to **Settings → Environment Variables** and add:
+   - Name: `ANTHROPIC_API_KEY`
+   - Value: your key from [console.anthropic.com](https://console.anthropic.com)
+   - Environment: Production (and Preview if needed)
+5. Redeploy once after adding the env var — done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
+
+> The `ANTHROPIC_API_KEY` lives only in Vercel's server environment. It is **never** sent to the browser or included in any build output. The `/api/claude` serverless function validates each user's license key before forwarding requests.
 
 Any push to `main` auto-deploys to Vercel. Your data in localStorage is unaffected by deployments.
 
@@ -1066,7 +1072,7 @@ Click **✓ Apply targets** to update all targets, CAGRs, and dividend yields at
 
 ### Requirements
 
-- Anthropic API key set in the Market Pulse tab (same key as Market Pulse refresh and Broker Import)
+- Active subscription (AI is routed through the `/api/claude` proxy validated by your license key)
 - At least one holding in the active account
 
 ---
@@ -1133,7 +1139,7 @@ Any CSV export that contains the columns below works. Tested with **Wealthsimple
 
 ### Import flow
 
-1. Make sure your **Anthropic API key** is entered in the Market Pulse tab
+1. Make sure you have an **active subscription** (license key activated)
 2. Click **🏦 Import from Broker** in the header
 3. Select your broker CSV file — you can import from multiple Wealthsimple accounts in separate passes
 4. Claude analyses the file (~5–10 seconds)
