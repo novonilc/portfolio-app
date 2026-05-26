@@ -18,12 +18,19 @@ const LS_CHECKOUT_PRO   = "https://portfolio-manager-for-canada.lemonsqueezy.com
 const LS_PRODUCT_ID     = 1087809; // find this in LS dashboard › Products
 
 // Reads the active license tier from localStorage ("basic" | "pro")
-// Falls back to "pro" in open/dev mode (no license stored)
+// On localhost only, ?tier=basic or ?tier=pro in the URL overrides — lets you test both UIs
+// without needing a real Lemon Squeezy key.
 function getLicenseTier() {
+  const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (isLocal) {
+    const urlTier = new URLSearchParams(window.location.search).get("tier");
+    if (urlTier === "basic" || urlTier === "pro") return urlTier;
+  }
   try {
     const lic = JSON.parse(localStorage.getItem("portfolio:license") || "null");
-    if (!lic) return "pro";
-    return lic.tier || "pro"; // backward-compat for pre-tier licenses
+    if (!lic) return "pro"; // no license = dev bypass mode
+    if (!lic.tier) return "pro"; // pre-tier activation = original Pro plan, keep Pro
+    return lic.tier; // "basic" or "pro"
   } catch { return "pro"; }
 }
 
@@ -219,6 +226,8 @@ export function LicenseGate({ onActivate }) {
       if (data.activated) {
         const variantName = (data.meta?.variant_name || "").toLowerCase();
         const tier = variantName.includes("basic") ? "basic" : "pro";
+        // eslint-disable-next-line no-console
+        console.info("[License] variant_name:", data.meta?.variant_name, "→ tier:", tier);
         const record = {
           key: trimmed,
           activatedAt: new Date().toISOString(),
