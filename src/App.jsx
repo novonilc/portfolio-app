@@ -2043,9 +2043,11 @@ Using the live data as your anchor, apply your macro knowledge to fill in anythi
 
 For the yieldCurve section: classify the curve shape, report all five benchmark yields, compute spreads in bps, estimate the NY Fed 12-month recession probability, describe the inversion history, and give a trajectory outlook.
 
-For newsSignals: provide 6 recent, specific news headlines from Bloomberg, CNBC, Reuters, Financial Times, or WSJ that are most relevant to this portfolio. Each headline must name the source and include a direct implication for the specific tickers held above.
+For newsSignals: provide exactly 4 recent, specific news headlines from Bloomberg, CNBC, Reuters, Financial Times, or WSJ that are most relevant to this portfolio. Each headline must name the source and include a direct implication for the specific tickers held above. Keep portfolioImpact to one sentence.
 
-For portfolioImplication.actions: generate 8–10 specific, actionable items referencing actual tickers from the holdings above. Classify each as "Buy", "Hold", "Reduce", "Watch", or "Rebalance". Include a rationale tied to the current macro regime. At least 3 actions must be "High" priority.
+For portfolioImplication.actions: generate exactly 5 specific, actionable items referencing actual tickers from the holdings above. Classify each as "Buy", "Hold", "Reduce", "Watch", or "Rebalance". Include a rationale tied to the current macro regime. At least 2 actions must be "High" priority. Keep each action field to one concise sentence.
+
+Be concise throughout — keep every "note", "trajectory", "canadianAngle", and "positioning" field to a single sentence. Do not pad with adjectives.
 
 Generate a complete market pulse JSON for ${monthLabel}. Return the JSON inside a single \`\`\`json code block. No explanation before or after the code block — only the code block.
 
@@ -2172,15 +2174,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
     "bearish":  [ { "icon": "emoji", "label": "specific risk relevant to current environment" } ]
   },
   "portfolioImplication": {
-    "summary": "2-3 sentences specific to a Canadian TFSA/RRSP investor given the current regime and actual holdings",
+    "summary": "1-2 sentences specific to a Canadian TFSA/RRSP investor given the current regime and actual holdings",
     "actions": [
-      { "priority": "High",   "type": "Hold|Buy|Reduce|Watch|Rebalance", "ticker": "TICKER or null", "action": "Specific actionable guidance referencing actual portfolio tickers" },
+      { "priority": "High",   "type": "Hold|Buy|Reduce|Watch|Rebalance", "ticker": "TICKER or null", "action": "One concise sentence referencing actual portfolio tickers" },
       { "priority": "High",   "type": "...", "ticker": "...", "action": "..." },
-      { "priority": "High",   "type": "...", "ticker": "...", "action": "..." },
       { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
       { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
-      { "priority": "Medium", "type": "...", "ticker": "...", "action": "..." },
-      { "priority": "Low",    "type": "...", "ticker": "...", "action": "..." },
       { "priority": "Low",    "type": "...", "ticker": "...", "action": "..." }
     ]
   }
@@ -2196,13 +2195,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
       const res = await callClaude({
         model: "claude-sonnet-4-6",
-        max_tokens: 8192,
+        max_tokens: 16000,
         messages: [{ role: "user", content: prompt }],
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${res.status}`);
+        throw new Error(err.error?.message || err.error || `API error ${res.status}`);
       }
 
       const data = await res.json();
