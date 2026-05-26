@@ -1,3 +1,5 @@
 portfolio-backup.json
 node_modules/
+.env.local
+.env
 
