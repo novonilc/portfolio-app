@@ -1,5 +1,21 @@
 // Vercel serverless proxy — keeps ANTHROPIC_API_KEY server-side.
 // Validates the Lemon Squeezy license key on every request (skipped on localhost).
+
+// ── In-memory rate limiter (best-effort per function instance) ────────────
+// For strict cross-instance limits upgrade to Vercel KV (vercel.com/docs/storage/vercel-kv)
+const rlMap = new Map();
+const RL_MAX    = 10;                      // calls per window per license key
+const RL_WINDOW = 24 * 60 * 60 * 1000;    // 24 hours in ms
+
+function checkRateLimit(key) {
+  const now    = Date.now();
+  const record = rlMap.get(key) || { count: 0, start: now };
+  if (now - record.start > RL_WINDOW) { record.count = 0; record.start = now; }
+  record.count++;
+  rlMap.set(key, record);
+  return record.count > RL_MAX;            // true = over limit
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -15,8 +31,9 @@ export default async function handler(req, res) {
   const isLocal     = host.startsWith("localhost") || host.startsWith("127.0.0.1");
   const gateEnabled = process.env.GATE_ENABLED === "true";
 
+  const licenseKey = req.headers["x-license-key"] || "";
+
   if (!isLocal && gateEnabled) {
-    const licenseKey = req.headers["x-license-key"];
     if (!licenseKey) {
       res.status(401).json({ error: "Subscription required. Purchase at portfolio-manager-for-canada.lemonsqueezy.com" });
       return;
@@ -34,6 +51,15 @@ export default async function handler(req, res) {
       }
     } catch {
       res.status(502).json({ error: "Could not validate license — try again in a moment." });
+      return;
+    }
+  }
+
+  // ── Rate limiting — 20 AI calls per license key per 24 hours ────────────
+  if (!isLocal) {
+    const rlKey = licenseKey || req.headers["x-forwarded-for"] || "anon";
+    if (checkRateLimit(rlKey)) {
+      res.status(429).json({ error: "Daily AI limit reached (20 calls/day). Resets at midnight UTC — try again tomorrow." });
       return;
     }
   }

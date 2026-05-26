@@ -1425,7 +1425,7 @@ Return ONLY a JSON array, no markdown:
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${res.status}`);
+        throw new Error(err.error?.message || err.error || `API error ${res.status}`);
       }
 
       const data     = await res.json();
@@ -1592,7 +1592,7 @@ Return ONLY a valid JSON object, no markdown:
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${res.status}`);
+        throw new Error(err.error?.message || err.error || `API error ${res.status}`);
       }
 
       const data     = await res.json();
@@ -1745,7 +1745,7 @@ Return ONLY a valid JSON object, no markdown:
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${res.status}`);
+        throw new Error(err.error?.message || err.error || `API error ${res.status}`);
       }
 
       const data     = await res.json();
