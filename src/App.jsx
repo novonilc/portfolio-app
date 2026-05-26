@@ -427,6 +427,35 @@ function PieChart({ slices, size = 150 }) {
   );
 }
 
+function sortRows(arr, col, dir, getter) {
+  if (!col) return arr;
+  return [...arr].sort((a, b) => {
+    const av = getter(a, col);
+    const bv = getter(b, col);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    const cmp = typeof av === "string" ? av.localeCompare(bv) : av - bv;
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+function SortTh({ col, label, sort, onSort, style, className }) {
+  const active = sort.col === col;
+  return (
+    <th
+      className={className}
+      onClick={() => onSort(col)}
+      style={{ cursor: "pointer", userSelect: "none", ...style }}
+    >
+      {label}
+      <span style={{ marginLeft: 3, fontSize: 8, opacity: active ? 1 : 0.25 }}>
+        {active ? (sort.dir === "asc" ? "▲" : "▼") : "▲▼"}
+      </span>
+    </th>
+  );
+}
+
 function AppLogo() {
   return (
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -476,6 +505,14 @@ export default function App() {
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
   const [targetsFilter,    setTargetsFilter]   = useState("all");
   const [licenseTier,      setLicenseTier]     = useState(() => getLicenseTier());
+  const [rebalSort,       setRebalSort]       = useState({ col: null, dir: "asc" });
+  const [dcaSort,         setDcaSort]         = useState({ col: null, dir: "asc" });
+  const [targetsSort,     setTargetsSort]     = useState({ col: null, dir: "asc" });
+  const [ccStrikeSort,    setCcStrikeSort]    = useState({ col: null, dir: "asc" });
+  const [cspStrikeSort,   setCspStrikeSort]   = useState({ col: null, dir: "asc" });
+  const [openTradeSort,   setOpenTradeSort]   = useState({ col: null, dir: "asc" });
+  const [closedTradeSort, setClosedTradeSort] = useState({ col: null, dir: "asc" });
+  const [aiSugSort,       setAiSugSort]       = useState({ col: null, dir: "asc" });
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
   function callClaude(body) {
@@ -3072,19 +3109,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:980 }}>
               <thead>
                 <tr>
-                  <th className="th">Ticker</th>
-                  <th className="th">Status</th>
-                  <th className="th" style={{ textAlign:"right" }}>Current $</th>
-                  <th className="th" style={{ textAlign:"right" }}>P&amp;L</th>
-                  <th className="th" style={{ textAlign:"right" }}>Current %</th>
-                  <th className="th" style={{ textAlign:"right" }}>Target %</th>
-                  <th className="th" style={{ textAlign:"right" }}>Target $</th>
-                  <th className="th" style={{ textAlign:"right" }}>Action</th>
-                  <th className="th">Allocation</th>
+                  {(() => {
+                    const onSort = col => setRebalSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                    return (<>
+                      <SortTh col="ticker"      label="Ticker"    sort={rebalSort} onSort={onSort} className="th" />
+                      <SortTh col="status"      label="Status"    sort={rebalSort} onSort={onSort} className="th" />
+                      <SortTh col="current"     label="Current $" sort={rebalSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                      <SortTh col="pnl"         label="P&L"       sort={rebalSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                      <SortTh col="currentPct"  label="Current %" sort={rebalSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                      <SortTh col="targetPct"   label="Target %"  sort={rebalSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                      <SortTh col="targetDollar" label="Target $" sort={rebalSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                      <th className="th" style={{ textAlign:"right" }}>Action</th>
+                      <th className="th">Allocation</th>
+                    </>);
+                  })()}
                 </tr>
               </thead>
               <tbody>
-                {rebalance.map(h => {
+                {sortRows(rebalance, rebalSort.col, rebalSort.dir, (h, col) => ({
+                  ticker: h.ticker, status: h.locked || "",
+                  current: h.current, pnl: h.costBasis > 0 ? h.current - h.costBasis : null,
+                  currentPct: h.currentPct, targetPct: h.target, targetDollar: h.targetDollar,
+                }[col] ?? null)).map(h => {
                   const action    = Math.abs(h.delta) < 5 ? "hold" : h.delta > 0 ? "buy" : "sell";
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
@@ -3216,16 +3262,26 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <table style={{ width:"100%", borderCollapse:"collapse", minWidth:600 }}>
                   <thead>
                     <tr>
-                      <th className="th">Ticker</th>
-                      <th className="th">Name</th>
-                      <th className="th">Exchange</th>
-                      <th className="th" style={{ textAlign:"right" }}>Total buy</th>
-                      <th className="th" style={{ textAlign:"right" }}>Per {contribFrequencyMeta.label.toLowerCase()}</th>
-                      <th className="th" style={{ textAlign:"right" }}>% of plan</th>
+                      {(() => {
+                        const onSort = col => setDcaSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                        return (<>
+                          <SortTh col="ticker"   label="Ticker"                                       sort={dcaSort} onSort={onSort} className="th" />
+                          <SortTh col="name"     label="Name"                                         sort={dcaSort} onSort={onSort} className="th" />
+                          <SortTh col="exchange" label="Exchange"                                     sort={dcaSort} onSort={onSort} className="th" />
+                          <SortTh col="total"    label="Total buy"                                    sort={dcaSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                          <SortTh col="perFreq"  label={`Per ${contribFrequencyMeta.label.toLowerCase()}`} sort={dcaSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                          <SortTh col="pct"      label="% of plan"                                   sort={dcaSort} onSort={onSort} className="th" style={{ textAlign:"right" }} />
+                        </>);
+                      })()}
                     </tr>
                   </thead>
                   <tbody>
-                    {buyList.sort((a,b) => b.delta - a.delta).map(h => {
+                    {sortRows(dcaSort.col ? buyList : [...buyList].sort((a,b) => b.delta - a.delta), dcaSort.col, dcaSort.dir, (h, col) => ({
+                      ticker: h.ticker, name: h.name,
+                      exchange: getExchange(h.ticker, h.currencyOverride),
+                      total: h.delta, perFreq: h.delta / dcaPeriods,
+                      pct: (h.delta / totalBuys) * 100,
+                    }[col] ?? null)).map(h => {
                       const exch   = getExchange(h.ticker, h.currencyOverride);
                       const isCAD  = getTickerCurrency(h.ticker, h.currencyOverride) === "CAD";
                       return (
@@ -3378,22 +3434,33 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1380 }}>
               <thead>
                 <tr>
-                  <th className="th">Ticker / Name</th>
-                  <th className="th" style={{ width:120 }}>Currency</th>
-                  <th className="th" style={{ width:115 }}>Current $</th>
-                  <th className="th" style={{ width:115 }}>Cost Basis $</th>
-                  <th className="th" style={{ textAlign:"right", width:120 }}>P&amp;L $</th>
-                  <th className="th" style={{ textAlign:"right", width:75 }}>P&amp;L %</th>
-                  <th className="th" style={{ width:95 }}>Target %</th>
-                  <th className="th" style={{ width:90 }}>CAGR %</th>
-                  <th className="th" style={{ textAlign:"right", width:105 }}>10yr</th>
-                  <th className="th" style={{ textAlign:"right", width:105 }}>15yr</th>
-                  <th className="th" style={{ textAlign:"right", width:105 }}>20yr</th>
-                  <th className="th" style={{ width:110 }}></th>
+                  {(() => {
+                    const onSort = col => setTargetsSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                    return (<>
+                      <SortTh col="ticker"    label="Ticker / Name" sort={targetsSort} onSort={onSort} className="th" />
+                      <SortTh col="currency"  label="Currency"      sort={targetsSort} onSort={onSort} className="th" style={{ width:120 }} />
+                      <SortTh col="current"   label="Current $"     sort={targetsSort} onSort={onSort} className="th" style={{ width:115 }} />
+                      <SortTh col="costBasis" label="Cost Basis $"  sort={targetsSort} onSort={onSort} className="th" style={{ width:115 }} />
+                      <SortTh col="pnl"       label="P&L $"         sort={targetsSort} onSort={onSort} className="th" style={{ textAlign:"right", width:120 }} />
+                      <SortTh col="pnlPct"    label="P&L %"         sort={targetsSort} onSort={onSort} className="th" style={{ textAlign:"right", width:75 }} />
+                      <SortTh col="target"    label="Target %"      sort={targetsSort} onSort={onSort} className="th" style={{ width:95 }} />
+                      <SortTh col="cagr"      label="CAGR %"        sort={targetsSort} onSort={onSort} className="th" style={{ width:90 }} />
+                      <th className="th" style={{ textAlign:"right", width:105 }}>10yr</th>
+                      <th className="th" style={{ textAlign:"right", width:105 }}>15yr</th>
+                      <th className="th" style={{ textAlign:"right", width:105 }}>20yr</th>
+                      <th className="th" style={{ width:110 }}></th>
+                    </>);
+                  })()}
                 </tr>
               </thead>
               <tbody>
-                {filteredCurrent.map(({ h, idx }) => {
+                {sortRows(filteredCurrent, targetsSort.col, targetsSort.dir, ({ h }, col) => ({
+                  ticker: h.ticker, currency: getTickerCurrency(h.ticker, h.currencyOverride),
+                  current: h.current, costBasis: h.costBasis || 0,
+                  pnl: h.costBasis > 0 ? h.current - h.costBasis : null,
+                  pnlPct: h.costBasis > 0 ? ((h.current - h.costBasis) / h.costBasis) * 100 : null,
+                  target: h.target, cagr: h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10,
+                }[col] ?? null)).map(({ h, idx }) => {
                   const cagr      = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
@@ -6916,13 +6983,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                           <thead>
                             <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
-                              {["","Strike","OTM %","Est. premium/sh","Per contract","Monthly yield","Ann. yield","Action"].map(col => (
-                                <th key={col} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{col}</th>
-                              ))}
+                              {(() => {
+                                const onSort = col => setCcStrikeSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                                const ts = { padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" };
+                                return (<>
+                                  <th style={ts}></th>
+                                  <SortTh col="strike"  label="Strike"          sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="pct"     label="OTM %"           sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="premium" label="Est. premium/sh" sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="perContract" label="Per contract" sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="monthly" label="Monthly yield"   sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="annual"  label="Ann. yield"      sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <th style={ts}>Action</th>
+                                </>);
+                              })()}
                             </tr>
                           </thead>
                           <tbody>
-                            {strikes.map(s => (
+                            {sortRows(strikes, ccStrikeSort.col, ccStrikeSort.dir, (s, col) => ({
+                              strike: s.strike, pct: s.pct, premium: s.premiumPerShare,
+                              perContract: s.contractPremium, monthly: parseFloat(s.monthlyYield),
+                              annual: parseFloat(s.annualYield),
+                            }[col] ?? null)).map(s => (
                               <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                                 <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.4)", fontWeight:600, fontSize:9 }}>{s.label}</td>
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee", fontWeight:700 }}>${s.strike}</td>
@@ -7036,13 +7118,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                           <thead>
                             <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
-                              {["","Strike","OTM %","Premium/sh","Collateral","Monthly yield","Ann. yield","Action"].map(h => (
-                                <th key={h} style={{ padding:"4px 6px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
-                              ))}
+                              {(() => {
+                                const onSort = col => setCspStrikeSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                                const ts = { padding:"4px 6px", fontWeight:500, whiteSpace:"nowrap" };
+                                return (<>
+                                  <th style={ts}></th>
+                                  <SortTh col="strike"     label="Strike"        sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="pct"        label="OTM %"         sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="premium"    label="Premium/sh"    sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="collateral" label="Collateral"    sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="monthly"    label="Monthly yield" sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="annual"     label="Ann. yield"    sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <th style={ts}>Action</th>
+                                </>);
+                              })()}
                             </tr>
                           </thead>
                           <tbody>
-                            {strikes.map(s => (
+                            {sortRows(strikes, cspStrikeSort.col, cspStrikeSort.dir, (s, col) => ({
+                              strike: s.strike, pct: s.pct, premium: s.premiumPerShare,
+                              collateral: s.strike * 100, monthly: parseFloat(s.monthlyYield),
+                              annual: parseFloat(s.annualYield),
+                            }[col] ?? null)).map(s => (
                               <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                                 <td style={{ padding:"5px 6px", fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{s.label}</td>
                                 <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa", fontWeight:700 }}>${s.strike}</td>
@@ -7210,13 +7307,34 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                       <thead>
                         <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
-                          {["Type","Ticker","Acct","Contracts","Strike","Expiry","Premium/sh","Max P&L","DTE","Action"].map(h => (
-                            <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
-                          ))}
+                          {(() => {
+                            const onSort = col => setOpenTradeSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                            const ts = { padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" };
+                            return (<>
+                              <SortTh col="type"      label="Type"       sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="ticker"    label="Ticker"     sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="account"   label="Acct"       sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="contracts" label="Contracts"  sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="strike"    label="Strike"     sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="expiry"    label="Expiry"     sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="premium"   label="Premium/sh" sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="maxPnl"    label="Max P&L"    sort={openTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="dte"       label="DTE"        sort={openTradeSort} onSort={onSort} style={ts} />
+                              <th style={ts}>Action</th>
+                            </>);
+                          })()}
                         </tr>
                       </thead>
                       <tbody>
-                        {openTrades.map(t => {
+                        {sortRows(openTrades, openTradeSort.col, openTradeSort.dir, (t, col) => {
+                          const received = Number(t.premium) * 100 * Number(t.contracts);
+                          return ({
+                            type: t.type, ticker: t.ticker, account: t.account,
+                            contracts: Number(t.contracts), strike: Number(t.strike),
+                            expiry: t.expiry, premium: Number(t.premium), maxPnl: received,
+                            dte: Math.ceil((new Date(t.expiry) - new Date()) / 864e5),
+                          }[col] ?? null);
+                        }).map(t => {
                           const dte = Math.ceil((new Date(t.expiry) - new Date()) / 864e5);
                           const pnl = tradePnl(t);
                           return (
@@ -7278,13 +7396,34 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:10 }}>
                       <thead>
                         <tr style={{ color:"rgba(255,255,255,0.3)", textAlign:"left" }}>
-                          {["Type","Ticker","Acct","Strike","Opened","Closed","Premium/sh","Outcome","P&L"].map(h => (
-                            <th key={h} style={{ padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" }}>{h}</th>
-                          ))}
+                          {(() => {
+                            const onSort = col => setClosedTradeSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                            const ts = { padding:"4px 8px", fontWeight:500, whiteSpace:"nowrap" };
+                            return (<>
+                              <SortTh col="type"    label="Type"       sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="ticker"  label="Ticker"     sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="account" label="Acct"       sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="strike"  label="Strike"     sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="opened"  label="Opened"     sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="closed"  label="Closed"     sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="premium" label="Premium/sh" sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="outcome" label="Outcome"    sort={closedTradeSort} onSort={onSort} style={ts} />
+                              <SortTh col="pnl"     label="P&L"        sort={closedTradeSort} onSort={onSort} style={ts} />
+                            </>);
+                          })()}
                         </tr>
                       </thead>
                       <tbody>
-                        {closedTrades.map(t => {
+                        {sortRows(closedTrades, closedTradeSort.col, closedTradeSort.dir, (t, col) => {
+                          const received = Number(t.premium) * 100 * Number(t.contracts);
+                          const closeAmt = (Number(t.closePrice) || 0) * 100 * Number(t.contracts);
+                          const pnlVal = t.status === "closed_loss" ? -(closeAmt - received) : received - closeAmt;
+                          return ({
+                            type: t.type, ticker: t.ticker, account: t.account,
+                            strike: Number(t.strike), opened: t.openedAt, closed: t.closedAt || "",
+                            premium: Number(t.premium), outcome: t.status, pnl: pnlVal,
+                          }[col] ?? null);
+                        }).map(t => {
                           const pnl = tradePnl(t);
                           return (
                             <tr key={t.id} style={{ borderTop:"1px solid rgba(255,255,255,0.05)", opacity:0.75 }}>
@@ -7800,13 +7939,25 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
                   <thead>
                     <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.08)" }}>
-                      {["Ticker","Was →  Now","Δ","CAGR","Div%","Rationale"].map(h => (
-                        <th key={h} style={{ padding:"6px 10px", textAlign:"left", color:"rgba(255,255,255,0.4)", fontWeight:500, fontSize:10, letterSpacing:"0.08em", whiteSpace:"nowrap" }}>{h}</th>
-                      ))}
+                      {(() => {
+                        const onSort = col => setAiSugSort(s => ({ col, dir: s.col === col && s.dir === "asc" ? "desc" : "asc" }));
+                        const ts = { padding:"6px 10px", textAlign:"left", color:"rgba(255,255,255,0.4)", fontWeight:500, fontSize:10, letterSpacing:"0.08em", whiteSpace:"nowrap" };
+                        return (<>
+                          <SortTh col="ticker"   label="Ticker"    sort={aiSugSort} onSort={onSort} style={ts} />
+                          <th style={ts}>Was → Now</th>
+                          <SortTh col="delta"    label="Δ"         sort={aiSugSort} onSort={onSort} style={ts} />
+                          <SortTh col="cagr"     label="CAGR"      sort={aiSugSort} onSort={onSort} style={ts} />
+                          <SortTh col="div"      label="Div%"      sort={aiSugSort} onSort={onSort} style={ts} />
+                          <th style={ts}>Rationale</th>
+                        </>);
+                      })()}
                     </tr>
                   </thead>
                   <tbody>
-                    {suggestions.map(s => {
+                    {sortRows(suggestions, aiSugSort.col, aiSugSort.dir, (s, col) => ({
+                      ticker: s.ticker, delta: s.target - s.oldTarget,
+                      cagr: s.cagr, div: s.divYield,
+                    }[col] ?? null)).map(s => {
                       const delta = s.target - s.oldTarget;
                       const deltaColor = delta > 0 ? "#34d399" : delta < 0 ? "#f87171" : "rgba(255,255,255,0.25)";
                       return (
