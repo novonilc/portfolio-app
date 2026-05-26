@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1f3c"/>
+      <stop offset="100%" stop-color="#060b18"/>
+    </linearGradient>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="200" height="200" rx="44" fill="url(#bg2)"/>
+
+  <!-- Glow -->
+  <radialGradient id="glow2" cx="50%" cy="45%" r="50%">
+    <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.18"/>
+    <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="200" height="200" rx="44" fill="url(#glow2)"/>
+
+  <!-- Bars -->
+  <rect x="34"  y="106" width="26" height="52" rx="5" fill="url(#g1)" opacity="0.55"/>
+  <rect x="68"  y="84"  width="26" height="74" rx="5" fill="url(#g1)" opacity="0.75"/>
+  <rect x="102" y="62"  width="26" height="96" rx="5" fill="url(#g1)"/>
+  <rect x="136" y="40"  width="26" height="118" rx="5" fill="url(#g2)"/>
+
+  <!-- Trend arrow -->
+  <polyline points="47,101 81,79 115,57 149,35"
+    stroke="#fbbf24" stroke-width="3" fill="none"
+    stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+
+  <!-- "P" dot brand mark top-left -->
+  <circle cx="26" cy="26" r="8" fill="#fbbf24"/>
+</svg>
