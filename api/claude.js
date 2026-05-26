@@ -49,9 +49,13 @@ export default async function handler(req, res) {
         res.status(403).json({ error: "Invalid or expired license. Check your subscription at lemonsqueezy.com." });
         return;
       }
-      // Enforce Pro tier — Basic plan holders cannot use AI features
-      const variantName = (lsData.meta?.variant_name || lsData.data?.meta?.variant_name || "").toLowerCase();
-      if (variantName && variantName.includes("basic")) {
+      // Enforce Pro tier by product_id — reliable regardless of variant name.
+      // Set LS_PRODUCT_ID_BASIC in Vercel env vars once the Basic product is created.
+      const basicProductId = process.env.LS_PRODUCT_ID_BASIC
+        ? parseInt(process.env.LS_PRODUCT_ID_BASIC, 10)
+        : 0;
+      const activatedProductId = lsData.meta?.product_id || lsData.data?.meta?.product_id;
+      if (basicProductId && activatedProductId === basicProductId) {
         res.status(403).json({ error: "AI features require the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com" });
         return;
       }

@@ -9,13 +9,16 @@ const RECOMMENDATIONS = portfolioIdeas.recommendations;
 //   Basic ($49 CAD/yr) — all portfolio features, no AI
 //   Pro   ($99 CAD/yr) — all features + AI (Market Pulse, Suggestions, Options AI, Broker Import)
 //
-// 1. Create TWO products in Lemon Squeezy (or two variants) named "Basic" and "Pro"
-// 2. Paste each checkout URL below
-// 3. Copy your numeric Product ID (shared) into LS_PRODUCT_ID
+// Tier detection uses product_id (reliable) — variant names don't matter.
+// Steps:
+//   1. Create TWO products in Lemon Squeezy with separate product IDs
+//   2. Paste each checkout URL below
+//   3. Paste each numeric Product ID below (find in LS dashboard › Products)
 // ═══════════════════════════════════════════════════════════════════════════
-const LS_CHECKOUT_BASIC = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf"; // TODO: replace with Basic plan URL
-const LS_CHECKOUT_PRO   = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08";
-const LS_PRODUCT_ID     = 1087809; // find this in LS dashboard › Products
+const LS_CHECKOUT_BASIC  = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf";
+const LS_CHECKOUT_PRO    = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08";
+const LS_PRODUCT_ID_PRO  = 1087809; // Pro product ID — from LS dashboard › Products
+const LS_PRODUCT_ID_BASIC = 1088288;      // TODO: paste Basic product ID here once created in LS
 
 // Reads the active license tier from localStorage ("basic" | "pro")
 // On localhost only, ?tier=basic or ?tier=pro in the URL overrides — lets you test both UIs
@@ -224,10 +227,14 @@ export function LicenseGate({ onActivate }) {
       });
       const data = await res.json();
       if (data.activated) {
-        const variantName = (data.meta?.variant_name || "").toLowerCase();
-        const tier = variantName.includes("basic") ? "basic" : "pro";
+        const productId  = data.meta?.product_id;
+        // Detect tier by product ID — reliable regardless of variant name.
+        // "Basic" = key belongs to the Basic product; anything else = Pro.
+        const tier = (LS_PRODUCT_ID_BASIC && productId === LS_PRODUCT_ID_BASIC)
+          ? "basic"
+          : "pro";
         // eslint-disable-next-line no-console
-        console.info("[License] variant_name:", data.meta?.variant_name, "→ tier:", tier);
+        console.info("[License] product_id:", productId, "→ tier:", tier);
         const record = {
           key: trimmed,
           activatedAt: new Date().toISOString(),
