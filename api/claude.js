@@ -49,6 +49,12 @@ export default async function handler(req, res) {
         res.status(403).json({ error: "Invalid or expired license. Check your subscription at lemonsqueezy.com." });
         return;
       }
+      // Enforce Pro tier — Basic plan holders cannot use AI features
+      const variantName = (lsData.meta?.variant_name || lsData.data?.meta?.variant_name || "").toLowerCase();
+      if (variantName && variantName.includes("basic")) {
+        res.status(403).json({ error: "AI features require the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com" });
+        return;
+      }
     } catch {
       res.status(502).json({ error: "Could not validate license — try again in a moment." });
       return;

@@ -115,8 +115,9 @@
     .wht-note { font-size: 12px; color: var(--dim); margin-top: 12px; line-height: 1.6; }
 
     /* ── Pricing ── */
-    .pricing-wrap { max-width: 480px; margin: 0 auto; }
-    .pricing-card { background: var(--card2); border: 1.5px solid rgba(34,197,94,0.35); border-radius: 24px; padding: 40px; text-align: center; box-shadow: 0 0 80px rgba(34,197,94,0.07); position: relative; }
+    .pricing-wrap { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .pricing-card { background: var(--card2); border: 1.5px solid rgba(255,255,255,0.1); border-radius: 24px; padding: 40px; text-align: center; position: relative; }
+    .pricing-card.featured { border-color: rgba(34,197,94,0.45); box-shadow: 0 0 80px rgba(34,197,94,0.07); }
     .pricing-badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: var(--green); color: #0d1117; font-size: 11px; font-weight: 800; padding: 3px 16px; border-radius: 99px; white-space: nowrap; }
     .price-big    { font-size: 72px; font-weight: 900; line-height: 1; letter-spacing: -0.05em; margin: 20px 0 0; }
     .price-sup    { font-size: 28px; font-weight: 700; vertical-align: super; }
@@ -164,6 +165,7 @@
     @media (max-width: 768px) {
       .spotlight { grid-template-columns: 1fr; padding: 28px; gap: 28px; }
       .nav-right .btn-ghost { display: none; }
+      .pricing-wrap { grid-template-columns: 1fr; max-width: 480px; }
       .pricing-card { padding: 28px; }
     }
     @media (max-width: 500px) {
@@ -214,7 +216,7 @@
       <a href="#features" class="btn btn-ghost">Features</a>
       <a href="#pricing"  class="btn btn-ghost">Pricing</a>
       <a href="../" class="btn btn-ghost">Sign In</a>
-      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold" id="nav-cta">Subscribe $99 CAD/yr →</a>
+      <a href="#pricing" class="btn btn-gold" id="nav-cta">See Plans →</a>
     </div>
   </nav>
 </div>
@@ -236,11 +238,11 @@
       The complete TFSA &amp; RRSP portfolio tool with AI-powered rebalancing, withholding-tax optimization, live Market Pulse, and an options income planner — all in your browser, no bank connection ever.
     </p>
     <div class="hero-cta">
-      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" id="hero-cta">Start Annual Plan — $99 CAD/yr</a>
-      <a href="#features" class="btn btn-outline btn-lg">See all features ↓</a>
+      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" id="hero-cta">Start Pro — $99 CAD/yr</a>
+      <a href="#pricing" class="btn btn-outline btn-lg">See all plans ↓</a>
     </div>
     <div class="hero-note">
-      <span>$99 CAD billed annually</span>
+      <span>Basic from $49 · Pro $99 CAD/yr</span>
       <span>Cancel anytime</span>
       <span>No bank connection</span>
       <span>100% private</span>
@@ -492,7 +494,7 @@
           <tr><td>DCA calendar</td><td class="ours compare-y">✓ Week-by-week</td><td class="compare-n">✗</td><td class="compare-n">Basic</td><td class="compare-n">Manual</td></tr>
           <tr><td>Bank account required</td><td class="ours compare-y">✗ Never</td><td class="compare-n">Required</td><td class="compare-n">Required</td><td class="compare-n">✗</td></tr>
           <tr><td>Data leaves device</td><td class="ours compare-y">✗ Never</td><td class="compare-n">Yes</td><td class="compare-n">Yes</td><td class="compare-n">Depends</td></tr>
-          <tr><td>Price</td><td class="ours" style="color:var(--green);font-weight:700">$99 CAD/year</td><td>Free → $99/yr</td><td>Free → $99/yr</td><td>Free</td></tr>
+          <tr><td>Price</td><td class="ours" style="color:var(--green);font-weight:700">$49–$99 CAD/yr</td><td>Free → $99/yr</td><td>Free → $99/yr</td><td>Free</td></tr>
         </tbody>
       </table>
     </div>
@@ -503,29 +505,57 @@
 <section class="section" id="pricing">
   <div class="inner" style="text-align:center">
     <div class="section-label">Simple pricing</div>
-    <h2 class="section-title">One price. <span class="grad-green">All features included.</span></h2>
-    <p class="section-sub" style="margin:0 auto 48px">No per-feature pricing. No "Pro" tier. One annual plan, all features, cancel anytime.</p>
+    <h2 class="section-title">Two plans. <span class="grad-green">No surprises.</span></h2>
+    <p class="section-sub" style="margin:0 auto 48px">Start with Basic and upgrade anytime — or go straight to Pro for the full AI-powered experience.</p>
     <div class="pricing-wrap">
+
+      <!-- Basic Plan -->
       <div class="pricing-card">
-        <div class="pricing-badge">Annual Plan — renews yearly</div>
-        <div style="font-size:14px;color:var(--muted);margin-top:24px">Portfolio Rebalancer Pro</div>
+        <div class="pricing-badge" style="background:rgba(255,255,255,0.1);color:var(--text);border:1px solid rgba(255,255,255,0.15)">Annual Plan — renews yearly</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:24px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em">Basic</div>
+        <div class="price-big"><span class="price-sup">$</span>49</div>
+        <div class="price-cad">Canadian dollars (CAD) · per year</div>
+        <div class="price-onetime">✓ Billed annually · cancel anytime</div>
+        <div class="price-vs">All portfolio tools — no AI features</div>
+        <div class="price-feats" style="text-align:left">
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Dashboard</strong> — Morning Radar, WHT detector, live prices</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Rebalance &amp; DCA Calendar</strong> — cash-only rebalancing, period-by-period schedule</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Ideas &amp; Recommendations</strong> — 20+ curated picks with TFSA/RRSP guidance</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Options Calculator</strong> — CC + CSP calculator, open trades log</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Investor Profile</strong> — personalise your risk settings</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>100% private</strong> — data stays in your browser</div></div>
+          <div class="pf" style="opacity:0.4"><span class="pf-check" style="color:var(--muted)">✗</span><div class="pf-text">Claude AI features (Market Pulse, Suggestions, Options AI, Broker Import)</div></div>
+        </div>
+        <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/BASIC_PLAN_ID" class="btn btn-buy btn-lg" id="pricing-basic-cta"
+          style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15);color:var(--text)">
+          Start Basic — $49 CAD/yr →
+        </a>
+        <div class="price-note">Secure checkout · License key by email · Cancel anytime</div>
+      </div>
+
+      <!-- Pro Plan -->
+      <div class="pricing-card featured">
+        <div class="pricing-badge">Recommended — includes Claude AI</div>
+        <div style="font-size:13px;color:var(--green);margin-top:24px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em">Pro</div>
         <div class="price-big"><span class="price-sup">$</span>99</div>
         <div class="price-cad">Canadian dollars (CAD) · per year</div>
         <div class="price-onetime">✓ Billed annually · cancel anytime</div>
-        <div class="price-vs">Same price as competing tools — all features included</div>
-        <div class="price-feats">
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>All features included</strong> — Dashboard, Rebalance, DCA, Ideas, Options, Market Pulse</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Claude AI included</strong> — no API key needed · Diversification, Target Suggestions, Options Analysis, Broker Import</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>All updates included</strong> — new features added throughout your subscription year</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Activate on up to 3 devices</strong> — desktop, laptop, phone</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>100% private</strong> — your data never leaves your browser</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>License key delivered instantly</strong> by email via Lemon Squeezy</div></div>
+        <div class="price-vs">Everything in Basic + Claude AI included</div>
+        <div class="price-feats" style="text-align:left">
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Everything in Basic</strong> — all portfolio tools</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>⚡ Market Pulse AI Refresh</strong> — live regime analysis with your holdings as context</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>✨ AI Target Suggestions</strong> — Claude optimises your allocation with WHT logic</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Diversification Analysis</strong> — gap detection and trim alerts across all accounts</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Options Analysis</strong> — ranked CC + CSP suggestions from Claude</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🏦 Broker CSV Import</strong> — Claude parses your Wealthsimple export automatically</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>10 AI calls/day</strong> — resets midnight UTC · no API key needed</div></div>
         </div>
         <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-green btn-buy btn-lg" id="pricing-cta">
-          Start Annual Plan — $99 CAD/yr →
+          Start Pro — $99 CAD/yr →
         </a>
         <div class="price-note">Secure checkout by Lemon Squeezy · Accepts Visa, Mastercard, PayPal · Cancel anytime</div>
       </div>
+
     </div>
 
     <!-- How to activate -->
@@ -534,7 +564,7 @@
       <div style="display:flex;flex-direction:column;gap:12px">
         <div style="display:flex;gap:12px;align-items:flex-start">
           <div style="width:24px;height:24px;border-radius:50%;background:rgba(251,191,36,0.15);color:var(--gold);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
-          <div style="font-size:14px;color:var(--muted)">Click <strong style="color:var(--text)">Start Annual Plan</strong> — checkout takes under a minute</div>
+          <div style="font-size:14px;color:var(--muted)">Choose a plan and click <strong style="color:var(--text)">Subscribe</strong> — checkout takes under a minute</div>
         </div>
         <div style="display:flex;gap:12px;align-items:flex-start">
           <div style="width:24px;height:24px;border-radius:50%;background:rgba(251,191,36,0.15);color:var(--gold);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
@@ -569,7 +599,7 @@
           Do I need an Anthropic API key?
           <span class="faq-chevron">›</span>
         </div>
-        <div class="faq-a">No — your subscription includes AI access. All AI features (Market Pulse refresh, AI Target Suggestions, AI Diversification Analysis, AI Options Analysis, and Broker CSV Import) are powered by our secure backend proxy. You never need to sign up for Anthropic or manage API keys. AI costs are included in your $99 CAD/year plan.</div>
+        <div class="faq-a">No — the Pro plan includes AI access. All AI features (Market Pulse refresh, AI Target Suggestions, AI Diversification Analysis, AI Options Analysis, and Broker CSV Import) are powered by our secure backend proxy. You never need to sign up for Anthropic or manage API keys. AI costs are included in your $99 CAD/year Pro plan. A fair-use limit of 10 AI calls per day applies (resets midnight UTC) — typical usage is 2–3 calls per day. The Basic plan ($49 CAD/yr) includes all portfolio tools but no AI features.</div>
       </div>
 
       <div class="faq-item">
@@ -795,9 +825,14 @@
         <div class="result-head" id="result-head">—</div>
         <div class="result-body" id="result-body">—</div>
         <div class="result-feats" id="result-feats"></div>
-        <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" style="width:100%;justify-content:center">
-          Start Annual Plan — $99 CAD/yr →
-        </a>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf" class="btn btn-lg" style="flex:1;justify-content:center;background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15)">
+            Basic — $49/yr →
+          </a>
+          <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" style="flex:1;justify-content:center">
+            Pro — $99/yr →
+          </a>
+        </div>
         <p style="font-size:12px;color:var(--dim);text-align:center;margin-top:10px">Billed annually · License key by email · Cancel anytime</p>
       </div>
 
@@ -809,8 +844,12 @@
 <section class="section" style="text-align:center">
   <div class="inner">
     <h2 class="section-title">Ready to stop leaking money<br>to the <span class="grad-gold">IRS?</span></h2>
-    <p style="color:var(--muted);font-size:18px;margin:16px auto 36px;max-width:480px">Join Canadian investors who manage their TFSA and RRSP the smart way — $99 CAD/year, all features included, cancel anytime.</p>
-    <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" id="bottom-cta">Start Annual Plan — $99 CAD/yr →</a>
+    <p style="color:var(--muted);font-size:18px;margin:16px auto 36px;max-width:480px">Join Canadian investors who manage their TFSA and RRSP the smart way — from $49 CAD/year, cancel anytime.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf" class="btn btn-lg" id="bottom-basic-cta"
+        style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15)">Basic — $49 CAD/yr →</a>
+      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" id="bottom-cta">Pro + AI — $99 CAD/yr →</a>
+    </div>
     <p style="font-size:13px;color:var(--dim);margin-top:16px">Secure checkout · License key delivered instantly · Cancel anytime</p>
   </div>
 </section>
@@ -831,7 +870,7 @@
       <span class="footer-divider"></span>
       <a href="../docs/market-pulse.md" class="footer-link">Market Pulse Docs</a>
       <span class="footer-divider"></span>
-      <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="footer-link" style="color:var(--gold)">Buy Now</a>
+      <a href="#pricing" class="footer-link" style="color:var(--gold)">Plans &amp; Pricing</a>
     </div>
     <div class="footer-copy">© 2026 Portfolio Rebalancer Pro · For personal use only · Not financial advice</div>
   </div>

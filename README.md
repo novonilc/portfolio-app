@@ -41,7 +41,7 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | Guide | Description |
 |---|---|
 | [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
-| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse and use the Action Center — AI included with subscription |
+| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse and use the Action Center — AI included with Pro subscription |
 | [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
 | [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
@@ -243,7 +243,7 @@ A covered-call and cash-secured-put planning tool for generating premium income 
 - Rationale and risk factors specific to that position
 - **Pre-fill** button — auto-populates the CC or CSP calculator tab with the suggested parameters
 
-AI Analysis is included with your subscription — no API key needed. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels).
+AI Analysis is included with the **Pro subscription** — no API key needed. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels). Basic plan users see an upgrade prompt instead of the AI button.
 
 ---
 
@@ -568,7 +568,9 @@ The only network requests the app makes are:
 2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. The prompt sent to Claude includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information. All Claude calls route through our secure `/api/claude` proxy which validates your license server-side; your Anthropic API key is never in the browser.
 3. **Broker CSV Import (optional, on-demand only):** When you upload a broker holdings CSV, its contents route through the same `/api/claude` proxy to Claude. The CSV includes ticker symbols, quantities, and market values from your brokerage — no account numbers, names, or SINs are transmitted.
 
-All Claude API requests are never made automatically — only when you explicitly trigger them.
+All Claude API requests are never made automatically — only when you explicitly trigger them. The proxy enforces a **fair-use limit of 10 AI calls per user per 24 hours** (resets midnight UTC). Typical usage is 2–3 calls per day; the limit protects against runaway costs. To adjust it, change `RL_MAX` in `api/claude.js`.
+
+**Two-tier gating:** The proxy also checks the Lemon Squeezy variant name. If the activated license is a "Basic" variant, the proxy returns HTTP 403. All AI features are Pro-only; the app UI also gates at the button level for a clean UX.
 
 To verify this yourself: open DevTools → Network tab → use the app → see that no requests go to any server containing your portfolio data.
 
@@ -638,7 +640,7 @@ npm run preview
    - Environment: Production (and Preview if needed)
 5. Redeploy once after adding the env var — done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
 
-> The `ANTHROPIC_API_KEY` lives only in Vercel's server environment. It is **never** sent to the browser or included in any build output. The `/api/claude` serverless function validates each user's license key before forwarding requests.
+> The `ANTHROPIC_API_KEY` lives only in Vercel's server environment. It is **never** sent to the browser or included in any build output. The `/api/claude` serverless function validates each user's license key before forwarding requests, enforces the Pro-tier check, and applies a 10 AI calls/day fair-use limit per user.
 
 Any push to `main` auto-deploys to Vercel. Your data in localStorage is unaffected by deployments.
 

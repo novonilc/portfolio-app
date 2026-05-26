@@ -24,7 +24,7 @@
 **[Cut to: the Dashboard WHT card showing C$312/year lost]**
 
 **VO:**
-> "Today I'm going to show you Portfolio Rebalancer Pro — the only portfolio tool built specifically for Canadian TFSA and RRSP investors. It finds your withholding tax leak, tells you exactly how to fix it, and gives you every other tool you need to manage your portfolio intelligently — for $99 Canadian per year, with Claude AI included, no API key required."
+> "Today I'm going to show you Portfolio Rebalancer Pro — the only portfolio tool built specifically for Canadian TFSA and RRSP investors. It finds your withholding tax leak, tells you exactly how to fix it, and gives you every other tool you need to manage your portfolio intelligently — starting at $49 Canadian per year. The Pro plan at $99 adds Claude AI built-in, no API key required."
 
 **[Text on screen: "No bank connection. No subscription. 100% private."]**
 
@@ -216,7 +216,7 @@
 **[Screen: Return to Marketing page or pricing card]**
 
 **VO:**
-> "That's Portfolio Rebalancer Pro. Annual plan — $99 Canadian per year, Claude AI included, no API key needed. You get a license key by email instantly, paste it into the app, and you're in."
+> "That's Portfolio Rebalancer Pro. Two plans: Basic at $49 Canadian per year covers all portfolio tools. Pro at $99 adds Claude AI — Market Pulse refresh, AI Target Suggestions, Diversification Analysis, Options AI, and Broker Import — all included, no API key needed. You get a license key by email instantly, paste it into the app, and you're in."
 
 **[Show the license gate in the app]**
 
@@ -240,8 +240,8 @@ Portfolio Rebalancer Pro — the complete AI-powered portfolio tool built for Ca
 ✅ Broker CSV Import from Wealthsimple
 ✅ 100% private — no bank connection, data stays in your browser
 
-Start annual plan → [CHECKOUT URL]
-$99 CAD/year · Claude AI included · Cancel anytime
+Basic plan → [BASIC CHECKOUT URL] — $49 CAD/year · All portfolio tools
+Pro plan   → [PRO CHECKOUT URL]   — $99 CAD/year · Claude AI included · Cancel anytime
 
 Timestamps:
 00:00 – The withholding tax problem

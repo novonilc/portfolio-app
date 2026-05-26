@@ -5,12 +5,27 @@ const RECOMMENDATIONS = portfolioIdeas.recommendations;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LICENSE CONFIGURATION
-// 1. Create a product on lemonsqueezy.com — set price to $99 CAD, type = License
-// 2. Copy your checkout URL (Product → Share → Checkout URL) into LS_CHECKOUT_URL
-// 3. Copy your numeric Product ID from the LS Products dashboard into LS_PRODUCT_ID
+// Two tiers:
+//   Basic ($49 CAD/yr) — all portfolio features, no AI
+//   Pro   ($99 CAD/yr) — all features + AI (Market Pulse, Suggestions, Options AI, Broker Import)
+//
+// 1. Create TWO products in Lemon Squeezy (or two variants) named "Basic" and "Pro"
+// 2. Paste each checkout URL below
+// 3. Copy your numeric Product ID (shared) into LS_PRODUCT_ID
 // ═══════════════════════════════════════════════════════════════════════════
-const LS_CHECKOUT_URL = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08";
-const LS_PRODUCT_ID   = 1087809; // e.g. 123456 — find this in LS dashboard › Products
+const LS_CHECKOUT_BASIC = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf"; // TODO: replace with Basic plan URL
+const LS_CHECKOUT_PRO   = "https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08";
+const LS_PRODUCT_ID     = 1087809; // find this in LS dashboard › Products
+
+// Reads the active license tier from localStorage ("basic" | "pro")
+// Falls back to "pro" in open/dev mode (no license stored)
+function getLicenseTier() {
+  try {
+    const lic = JSON.parse(localStorage.getItem("portfolio:license") || "null");
+    if (!lic) return "pro";
+    return lic.tier || "pro"; // backward-compat for pre-tier licenses
+  } catch { return "pro"; }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INITIAL PORTFOLIO DATA
@@ -202,11 +217,14 @@ export function LicenseGate({ onActivate }) {
       });
       const data = await res.json();
       if (data.activated) {
+        const variantName = (data.meta?.variant_name || "").toLowerCase();
+        const tier = variantName.includes("basic") ? "basic" : "pro";
         const record = {
           key: trimmed,
           activatedAt: new Date().toISOString(),
           instanceId: data.instance?.id || "",
           email: data.meta?.customer_email || "",
+          tier,
         };
         localStorage.setItem("portfolio:license", JSON.stringify(record));
         setSuccess(true);
@@ -275,18 +293,35 @@ export function LicenseGate({ onActivate }) {
 
             <div style={{ margin:"20px 0", height:1, background:"rgba(255,255,255,0.06)" }}></div>
 
-            <div style={{ textAlign:"center" }}>
-              <div style={{ fontSize:13, color:"#64748b", marginBottom:14 }}>Don't have a license yet?</div>
-              <a
-                href={LS_CHECKOUT_URL}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display:"inline-flex", alignItems:"center", gap:8, padding:"12px 24px", background:"linear-gradient(135deg,#22c55e,#16a34a)", color:"#fff", borderRadius:10, fontWeight:700, fontSize:15, textDecoration:"none", transition:"all 0.2s" }}
-              >
-                Get Lifetime Access — $99 CAD →
-              </a>
-              <div style={{ fontSize:12, color:"#475569", marginTop:10 }}>
-                One-time payment · License key delivered instantly by email
+            <div>
+              <div style={{ fontSize:13, color:"#64748b", marginBottom:14, textAlign:"center" }}>Don't have a license yet? Choose a plan:</div>
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                {/* Basic plan */}
+                <a href={LS_CHECKOUT_BASIC} target="_blank" rel="noreferrer"
+                  style={{ flex:1, minWidth:140, display:"flex", flexDirection:"column", gap:6,
+                    padding:"16px", borderRadius:12, textDecoration:"none",
+                    background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)",
+                    color:"#f1f5f9", transition:"all 0.2s" }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#64748b", textTransform:"uppercase", letterSpacing:"0.07em" }}>Basic</div>
+                  <div style={{ fontSize:22, fontWeight:800 }}>$49 <span style={{ fontSize:13, fontWeight:400, color:"#64748b" }}>CAD/yr</span></div>
+                  <div style={{ fontSize:11, color:"#64748b", lineHeight:1.5 }}>All portfolio tools<br/>No AI features</div>
+                  <div style={{ marginTop:6, fontSize:12, fontWeight:700, color:"#94a3b8", textAlign:"center", padding:"8px", borderRadius:8, border:"1px solid rgba(255,255,255,0.1)" }}>Subscribe →</div>
+                </a>
+                {/* Pro plan */}
+                <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                  style={{ flex:1, minWidth:140, display:"flex", flexDirection:"column", gap:6,
+                    padding:"16px", borderRadius:12, textDecoration:"none",
+                    background:"rgba(34,197,94,0.07)", border:"1px solid rgba(34,197,94,0.35)",
+                    color:"#f1f5f9", transition:"all 0.2s", position:"relative" }}>
+                  <div style={{ position:"absolute", top:-10, left:"50%", transform:"translateX(-50%)", background:"#22c55e", color:"#0d1117", fontSize:10, fontWeight:800, padding:"2px 12px", borderRadius:99, whiteSpace:"nowrap" }}>RECOMMENDED</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:"#22c55e", textTransform:"uppercase", letterSpacing:"0.07em" }}>Pro</div>
+                  <div style={{ fontSize:22, fontWeight:800 }}>$99 <span style={{ fontSize:13, fontWeight:400, color:"#64748b" }}>CAD/yr</span></div>
+                  <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.5 }}>All portfolio tools<br/>+ Claude AI (10 calls/day)</div>
+                  <div style={{ marginTop:6, fontSize:12, fontWeight:700, color:"#0d1117", textAlign:"center", padding:"8px", borderRadius:8, background:"linear-gradient(135deg,#22c55e,#16a34a)" }}>Subscribe →</div>
+                </a>
+              </div>
+              <div style={{ fontSize:11, color:"#334155", marginTop:10, textAlign:"center" }}>
+                Secure checkout · License key by email · Cancel anytime
               </div>
             </div>
           </>
@@ -424,6 +459,8 @@ export default function App() {
   });
   const [usdCadRate,       setUsdCadRate]      = useState(1.38);
   const [targetsFilter,    setTargetsFilter]   = useState("all");
+  const [licenseTier,      setLicenseTier]     = useState(() => getLicenseTier());
+
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
   function callClaude(body) {
     const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
@@ -1197,6 +1234,11 @@ export default function App() {
     if (!file) return;
     event.target.value = "";
 
+    if (licenseTier === "basic") {
+      setBrokerImportError("AI Broker Import requires the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
+      return;
+    }
+
     setBrokerImportLoading(true);
     setBrokerImportError(null);
     setBrokerImportPreview(null);
@@ -1361,6 +1403,11 @@ Example element:
     const snap = holdings[account];
     if (!snap || !snap.length) { setAiTargetsError("No holdings to analyse."); return; }
 
+    if (licenseTier === "basic") {
+      setAiTargetsError("AI Target Suggestions require the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
+      return;
+    }
+
     setAiTargetsLoading(true);
     setAiTargetsError(null);
     setAiTargetsPreview(null);
@@ -1473,6 +1520,11 @@ Return ONLY a JSON array, no markdown:
 
   // ── AI diversification suggestions (cross-account) ───────────────────
   async function fetchDiversificationSuggestions() {
+    if (licenseTier === "basic") {
+      setDiversifyError("AI Diversification Analysis requires the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
+      return;
+    }
+
     setDiversifyLoading(true);
     setDiversifyError(null);
 
@@ -1618,6 +1670,11 @@ Return ONLY a valid JSON object, no markdown:
 
   // ── AI Options Analysis ───────────────────────────────────────────────
   async function fetchAIOptionsAnalysis() {
+    if (licenseTier === "basic") {
+      setAiOptionsError("AI Options Analysis requires the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
+      return;
+    }
+
     setAiOptionsLoading(true);
     setAiOptionsError(null);
 
@@ -2187,6 +2244,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
   }
 
   async function refreshMarketPulse() {
+    if (licenseTier === "basic") {
+      setPulseError("AI Market Pulse refresh requires the Pro plan. Upgrade at portfolio-manager-for-canada.lemonsqueezy.com");
+      return;
+    }
+
     setPulseLoading(true);
     setPulseError(null);
     try {
@@ -2460,17 +2522,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               📂 Restore / Import
               <input type="file" accept=".json,.csv,text/csv,application/json" style={{ display:"none" }} onChange={importData}/>
             </label>
-            <label className="btn" style={{
-              cursor: brokerImportLoading ? "wait" : "pointer",
-              fontSize:11, padding:"6px 12px",
-              background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)",
-              color:"#fbbf24", opacity: brokerImportLoading ? 0.6 : 1,
-            }} title="Upload your Wealthsimple holdings CSV — Claude will parse and import it automatically">
-              {brokerImportLoading ? "⏳ Analysing…" : "🏦 Import from Broker"}
-              <input type="file" accept=".csv,text/csv" style={{ display:"none" }}
-                disabled={brokerImportLoading}
-                onChange={importBrokerHoldings}/>
-            </label>
+            {licenseTier === "basic" ? (
+              <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer" className="btn"
+                style={{ fontSize:11, padding:"6px 12px", textDecoration:"none",
+                  background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)",
+                  color:"#fbbf24" }}
+                title="AI Broker Import requires the Pro plan">
+                🏦 Import from Broker — Pro only →
+              </a>
+            ) : (
+              <label className="btn" style={{
+                cursor: brokerImportLoading ? "wait" : "pointer",
+                fontSize:11, padding:"6px 12px",
+                background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)",
+                color:"#fbbf24", opacity: brokerImportLoading ? 0.6 : 1,
+              }} title="Upload your Wealthsimple holdings CSV — Claude will parse and import it automatically">
+                {brokerImportLoading ? "⏳ Analysing…" : "🏦 Import from Broker"}
+                <input type="file" accept=".csv,text/csv" style={{ display:"none" }}
+                  disabled={brokerImportLoading}
+                  onChange={importBrokerHoldings}/>
+              </label>
+            )}
             {/* Investor Profile button */}
             <button
               onClick={() => { setProfileDraft(investorProfile ? { ...investorProfile } : {}); setShowProfileModal(true); }}
@@ -3146,22 +3218,33 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:16 }}>
             <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
               <p className="sec" style={{ margin:0 }}>Edit holdings, cost basis &amp; targets — {account}</p>
-              <button
-                onClick={suggestTargetsWithAI}
-                disabled={aiTargetsLoading}
-                style={{
-                  display:"flex", alignItems:"center", gap:6,
-                  padding:"6px 14px", fontSize:12, fontWeight:600, borderRadius:8,
-                  border:"1px solid rgba(167,139,250,0.45)",
-                  background: aiTargetsLoading ? "rgba(167,139,250,0.06)" : "rgba(167,139,250,0.1)",
-                  color:"#a78bfa", cursor: aiTargetsLoading ? "wait" : "pointer",
-                  opacity: aiTargetsLoading ? 0.7 : 1, transition:"all 0.15s",
-                }}
-                title="Send current holdings to Claude and get suggested target allocations"
-              >
-                <span style={{ fontSize:14 }}>{aiTargetsLoading ? "⏳" : "✨"}</span>
-                {aiTargetsLoading ? "Analysing…" : "Suggest Targets with AI"}
-              </button>
+              {licenseTier === "basic" ? (
+                <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                  style={{ display:"flex", alignItems:"center", gap:6,
+                    padding:"6px 14px", fontSize:12, fontWeight:600, borderRadius:8,
+                    border:"1px solid rgba(251,191,36,0.35)",
+                    background:"rgba(251,191,36,0.08)",
+                    color:"#fbbf24", textDecoration:"none" }}>
+                  <span style={{ fontSize:14 }}>✨</span> AI Targets — Pro only · Upgrade →
+                </a>
+              ) : (
+                <button
+                  onClick={suggestTargetsWithAI}
+                  disabled={aiTargetsLoading}
+                  style={{
+                    display:"flex", alignItems:"center", gap:6,
+                    padding:"6px 14px", fontSize:12, fontWeight:600, borderRadius:8,
+                    border:"1px solid rgba(167,139,250,0.45)",
+                    background: aiTargetsLoading ? "rgba(167,139,250,0.06)" : "rgba(167,139,250,0.1)",
+                    color:"#a78bfa", cursor: aiTargetsLoading ? "wait" : "pointer",
+                    opacity: aiTargetsLoading ? 0.7 : 1, transition:"all 0.15s",
+                  }}
+                  title="Send current holdings to Claude and get suggested target allocations"
+                >
+                  <span style={{ fontSize:14 }}>{aiTargetsLoading ? "⏳" : "✨"}</span>
+                  {aiTargetsLoading ? "Analysing…" : "Suggest Targets with AI"}
+                </button>
+              )}
               {aiTargetsError && (
                 <span style={{ fontSize:11, color:"#f87171", display:"flex", alignItems:"center", gap:4 }}>
                   ⚠ {aiTargetsError}
@@ -3626,21 +3709,32 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         Clear
                       </button>
                     )}
-                    <button
-                      onClick={fetchDiversificationSuggestions}
-                      disabled={diversifyLoading}
-                      style={{
-                        display:"flex", alignItems:"center", gap:6,
-                        padding:"7px 16px", fontSize:12, fontWeight:600, borderRadius:8,
-                        border:`1px solid ${tealAccent}55`,
-                        background: diversifyLoading ? `rgba(45,212,191,0.06)` : `rgba(45,212,191,0.1)`,
-                        color: tealAccent, cursor: diversifyLoading ? "wait" : "pointer",
-                        opacity: diversifyLoading ? 0.7 : 1,
-                      }}
-                    >
-                      <span style={{ fontSize:14 }}>{diversifyLoading ? "⏳" : "✨"}</span>
-                      {diversifyLoading ? "Analysing portfolio…" : ds ? "Re-analyse" : "Analyse my portfolio"}
-                    </button>
+                    {licenseTier === "basic" ? (
+                      <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                        style={{ display:"flex", alignItems:"center", gap:6,
+                          padding:"7px 16px", fontSize:12, fontWeight:600, borderRadius:8,
+                          border:"1px solid rgba(251,191,36,0.35)",
+                          background:"rgba(251,191,36,0.08)",
+                          color:"#fbbf24", textDecoration:"none" }}>
+                        <span style={{ fontSize:14 }}>✨</span> AI Analysis — Pro only · Upgrade →
+                      </a>
+                    ) : (
+                      <button
+                        onClick={fetchDiversificationSuggestions}
+                        disabled={diversifyLoading}
+                        style={{
+                          display:"flex", alignItems:"center", gap:6,
+                          padding:"7px 16px", fontSize:12, fontWeight:600, borderRadius:8,
+                          border:`1px solid ${tealAccent}55`,
+                          background: diversifyLoading ? `rgba(45,212,191,0.06)` : `rgba(45,212,191,0.1)`,
+                          color: tealAccent, cursor: diversifyLoading ? "wait" : "pointer",
+                          opacity: diversifyLoading ? 0.7 : 1,
+                        }}
+                      >
+                        <span style={{ fontSize:14 }}>{diversifyLoading ? "⏳" : "✨"}</span>
+                        {diversifyLoading ? "Analysing portfolio…" : ds ? "Re-analyse" : "Analyse my portfolio"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -4451,15 +4545,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 )}
               </div>
 
-              {/* One-click AI refresh — included with subscription */}
+              {/* One-click AI refresh — Pro plan only */}
               <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:16, flexWrap:"wrap" }}>
-                <button className="btn" onClick={refreshMarketPulse} disabled={pulseLoading}
-                  style={{ fontSize:12, padding:"8px 18px",
-                    background:"rgba(167,139,250,0.18)", borderColor:"rgba(167,139,250,0.35)",
-                    color:"#a78bfa", opacity: pulseLoading ? 0.6 : 1 }}>
-                  {pulseLoading ? "Refreshing…" : "⚡ Refresh with AI"}
-                </button>
-                <span style={{ fontSize:11, color:"rgba(255,255,255,0.22)" }}>Included with your subscription · no API key needed</span>
+                {licenseTier === "basic" ? (
+                  <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                    style={{ fontSize:12, padding:"8px 18px", borderRadius:8, textDecoration:"none",
+                      display:"inline-flex", alignItems:"center", gap:6,
+                      background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.3)",
+                      color:"#fbbf24", fontWeight:600 }}>
+                    ⚡ Refresh with AI — <span style={{ fontWeight:700 }}>Pro only</span> · Upgrade →
+                  </a>
+                ) : (
+                  <>
+                    <button className="btn" onClick={refreshMarketPulse} disabled={pulseLoading}
+                      style={{ fontSize:12, padding:"8px 18px",
+                        background:"rgba(167,139,250,0.18)", borderColor:"rgba(167,139,250,0.35)",
+                        color:"#a78bfa", opacity: pulseLoading ? 0.6 : 1 }}>
+                      {pulseLoading ? "Refreshing…" : "⚡ Refresh with AI"}
+                    </button>
+                    <span style={{ fontSize:11, color:"rgba(255,255,255,0.22)" }}>Included with Pro · no API key needed</span>
+                  </>
+                )}
               </div>
 
               {/* Paste fallback — for manual / offline use */}
@@ -7161,13 +7267,23 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </p>
                 </div>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
-                  <button className="btn btn-primary" onClick={fetchAIOptionsAnalysis}
-                    disabled={aiOptionsLoading}
-                    style={{ fontSize:11, padding:"7px 18px",
-                      background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.4)",
-                      color:"#a78bfa", opacity: aiOptionsLoading ? 0.6 : 1 }}>
-                    {aiOptionsLoading ? "⏳ Analysing…" : an ? "⟳ Regenerate" : "🤖 Generate Analysis"}
-                  </button>
+                  {licenseTier === "basic" ? (
+                    <a href={LS_CHECKOUT_PRO} target="_blank" rel="noreferrer"
+                      style={{ fontSize:11, padding:"7px 18px", borderRadius:8, textDecoration:"none",
+                        display:"inline-flex", alignItems:"center", gap:5,
+                        background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.35)",
+                        color:"#fbbf24", fontWeight:600 }}>
+                      🤖 AI Analysis — Pro only · Upgrade →
+                    </a>
+                  ) : (
+                    <button className="btn btn-primary" onClick={fetchAIOptionsAnalysis}
+                      disabled={aiOptionsLoading}
+                      style={{ fontSize:11, padding:"7px 18px",
+                        background:"rgba(167,139,250,0.15)", borderColor:"rgba(167,139,250,0.4)",
+                        color:"#a78bfa", opacity: aiOptionsLoading ? 0.6 : 1 }}>
+                      {aiOptionsLoading ? "⏳ Analysing…" : an ? "⟳ Regenerate" : "🤖 Generate Analysis"}
+                    </button>
+                  )}
                   {an?.generatedAt && (
                     <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>
                       Last generated {new Date(an.generatedAt).toLocaleString()}
