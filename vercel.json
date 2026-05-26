@@ -1,11 +1,8 @@
 {
-  "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)",        "destination": "/api/$1" },
-    { "source": "/app/assets/(.*)", "destination": "/assets/$1" },
-    { "source": "/app",             "destination": "/index.html" },
-    { "source": "/app/(.*)",        "destination": "/index.html" },
-    { "source": "/(.*)",            "destination": "/marketing/index.html" }
+    { "source": "/api/(.*)",      "destination": "/api/$1" },
+    { "source": "/marketing",     "destination": "/marketing/index.html" },
+    { "source": "/marketing/(.*)", "destination": "/marketing/$1" }
   ],
   "headers": [
     {
