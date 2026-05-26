@@ -1281,7 +1281,7 @@ Example element:
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error?.message || `API error ${res.status}`);
+          throw new Error(err.error?.message || err.error || `API error ${res.status}`);
         }
 
         const data = await res.json();

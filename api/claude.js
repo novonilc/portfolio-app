@@ -8,11 +8,14 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
   if (req.method !== "POST")    { res.status(405).json({ error: "Method not allowed" }); return; }
 
-  // ── License validation (skip on localhost) ──────────────────────────────
-  const host    = req.headers.host || "";
-  const isLocal = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  // ── License validation ───────────────────────────────────────────────────
+  // Skip on localhost, and also skip when GATE_ENABLED env var is not "true"
+  // (mirrors the GATE_ENABLED constant in main.jsx — set it in Vercel env vars)
+  const host        = req.headers.host || "";
+  const isLocal     = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const gateEnabled = process.env.GATE_ENABLED === "true";
 
-  if (!isLocal) {
+  if (!isLocal && gateEnabled) {
     const licenseKey = req.headers["x-license-key"];
     if (!licenseKey) {
       res.status(401).json({ error: "Subscription required. Purchase at portfolio-manager-for-canada.lemonsqueezy.com" });
