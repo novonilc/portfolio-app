@@ -478,7 +478,8 @@ export default function App() {
   const [saveStatus,       setSaveStatus]      = useState("");
   const [backupStatus,     setBackupStatus]    = useState("");
   const [autoSaveAt,       setAutoSaveAt]      = useState(() => localStorage.getItem("portfolio:autosave:ts") || null);
-  const autoSaveRef = useRef(null);
+  const autoSaveRef  = useRef(null);
+  const cloudSaveRef = useRef(null);
   // Options trading
   const [optionTrades,        setOptionTrades]       = useState([]);
   const [optionPrices,        setOptionPrices]       = useState({});
@@ -513,6 +514,8 @@ export default function App() {
   const [openTradeSort,   setOpenTradeSort]   = useState({ col: null, dir: "asc" });
   const [closedTradeSort, setClosedTradeSort] = useState({ col: null, dir: "asc" });
   const [aiSugSort,       setAiSugSort]       = useState({ col: null, dir: "asc" });
+  const [cloudSyncStatus, setCloudSyncStatus] = useState("idle"); // "idle"|"syncing"|"synced"|"error"
+  const [cloudSyncedAt,   setCloudSyncedAt]   = useState(() => localStorage.getItem("portfolio:cloud:ts") || null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
   function callClaude(body) {
@@ -662,6 +665,73 @@ export default function App() {
     const t = setTimeout(() => autoSaveRef.current?.(), 10_000);
     return () => clearTimeout(t);
   }, [holdings, cashHolding, contribPlan, usdCadRate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Cloud sync ─────────────────────────────────────────────────────────────
+  cloudSaveRef.current = async () => {
+    const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
+    if (!lic?.key) return;
+    setCloudSyncStatus("syncing");
+    try {
+      await fetch("/api/blob-save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-license-key": lic.key },
+        body: JSON.stringify({ portfolios, holdings, cashHolding, contribPlan, usdCadRate, optionTrades }),
+      });
+      const ts = new Date().toISOString();
+      setCloudSyncedAt(ts);
+      localStorage.setItem("portfolio:cloud:ts", ts);
+      setCloudSyncStatus("synced");
+      setTimeout(() => setCloudSyncStatus("idle"), 3000);
+    } catch {
+      setCloudSyncStatus("error");
+      setTimeout(() => setCloudSyncStatus("idle"), 5000);
+    }
+  };
+
+  // Debounced cloud save — 20 s after the last meaningful data change
+  useEffect(() => {
+    const t = setTimeout(() => cloudSaveRef.current?.(), 20_000);
+    return () => clearTimeout(t);
+  }, [holdings, cashHolding, contribPlan, usdCadRate, optionTrades]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cloud load on mount — fetches latest cloud snapshot and applies it
+  useEffect(() => {
+    const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
+    if (!lic?.key) return;
+    (async () => {
+      try {
+        const res = await fetch("/api/blob-load", { headers: { "x-license-key": lic.key } });
+        if (!res.ok) return; // 404 = first time, silently skip
+        const data = await res.json();
+        if (data.portfolios) {
+          setPortfolios(data.portfolios);
+          localStorage.setItem("portfolio:list", JSON.stringify(data.portfolios));
+        }
+        if (data.holdings) {
+          setHoldings(data.holdings);
+          for (const [p, h] of Object.entries(data.holdings))
+            localStorage.setItem(`portfolio:${p}`, JSON.stringify(h));
+        }
+        if (data.cashHolding) {
+          setCashHolding(data.cashHolding);
+          localStorage.setItem("portfolio:cash", JSON.stringify(data.cashHolding));
+        }
+        if (data.contribPlan) {
+          setContribPlan(data.contribPlan);
+          localStorage.setItem("portfolio:contrib", JSON.stringify(data.contribPlan));
+        }
+        if (data.usdCadRate) setUsdCadRate(data.usdCadRate);
+        if (data.optionTrades) {
+          setOptionTrades(data.optionTrades);
+          localStorage.setItem("portfolio:options", JSON.stringify(data.optionTrades));
+        }
+        if (data.savedAt) {
+          setCloudSyncedAt(data.savedAt);
+          localStorage.setItem("portfolio:cloud:ts", data.savedAt);
+        }
+      } catch (e) { console.warn("Cloud load failed:", e); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist helpers ────────────────────────────────────────────────────
   function persist(acct, data) {
@@ -2619,6 +2689,29 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 {relTime(autoSaveAt)}
               </span>
             ) : null}
+
+            {/* Cloud sync indicator */}
+            {cloudSyncStatus === "syncing" && (
+              <span style={{ fontSize:10, color:"#60a5fa", display:"flex", alignItems:"center", gap:3 }}>
+                <span className="pulse">☁</span> Saving…
+              </span>
+            )}
+            {cloudSyncStatus === "synced" && (
+              <span style={{ fontSize:10, color:"#22c55e", display:"flex", alignItems:"center", gap:3 }}>
+                ☁ Synced
+              </span>
+            )}
+            {cloudSyncStatus === "error" && (
+              <span style={{ fontSize:10, color:"#ef4444", display:"flex", alignItems:"center", gap:3 }}>
+                ☁ Sync failed
+              </span>
+            )}
+            {cloudSyncStatus === "idle" && cloudSyncedAt && (
+              <span title={`Cloud synced at ${new Date(cloudSyncedAt).toLocaleTimeString()}`}
+                style={{ fontSize:10, color:"rgba(255,255,255,0.3)", display:"flex", alignItems:"center", gap:3 }}>
+                ☁ {relTime(cloudSyncedAt)}
+              </span>
+            )}
             <button className="btn" style={{ fontSize:11, padding:"6px 12px" }} onClick={exportData}
               title="Download a full backup — holdings, cash, contrib plan, FX rate, and Market Pulse cache">
               💾 Backup
