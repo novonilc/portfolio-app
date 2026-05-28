@@ -18,12 +18,16 @@ export default async function handler(req, res) {
   // Hash the license key so the blob path never exposes the raw key
   const hash = crypto.createHash("sha256").update(licenseKey).digest("hex");
 
-  await put(`portfolios/${hash}.json`, JSON.stringify({ ...body, savedAt: new Date().toISOString() }), {
-    access: "public",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  });
+  try {
+    await put(`portfolios/${hash}.json`, JSON.stringify({ ...body, savedAt: new Date().toISOString() }), {
+      access: "public",
+      contentType: "application/json",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Cloud storage unavailable — check BLOB_READ_WRITE_TOKEN is configured." });
+  }
 
   res.status(200).json({ ok: true });
 }

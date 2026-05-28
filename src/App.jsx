@@ -696,14 +696,20 @@ export default function App() {
     return () => clearTimeout(t);
   }, [holdings, cashHolding, contribPlan, usdCadRate, optionTrades]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Cloud load on mount — fetches latest cloud snapshot and applies it
+  // Cloud load on mount — fetches latest cloud snapshot and applies it.
+  // If the cloud returns 404 (first time), immediately pushes local data up
+  // so restoring on a second device works right away.
   useEffect(() => {
     const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
     if (!lic?.key) return;
     (async () => {
       try {
         const res = await fetch("/api/blob-load", { headers: { "x-license-key": lic.key } });
-        if (!res.ok) return; // 404 = first time, silently skip
+        if (!res.ok) {
+          // 404 = no cloud snapshot yet — push local data up immediately
+          cloudSaveRef.current?.();
+          return;
+        }
         const data = await res.json();
         if (data.portfolios) {
           setPortfolios(data.portfolios);
@@ -734,16 +740,6 @@ export default function App() {
         cloudHasDataRef.current = true;
       } catch (e) { console.warn("Cloud load failed:", e); }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Push local data to cloud on first mount if there is no existing cloud
-  // snapshot yet. 5 s delay lets cloud load finish first. Skip if cloud
-  // already has data (don't overwrite cloud with a potentially empty local).
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (!cloudHasDataRef.current) cloudSaveRef.current?.();
-    }, 5_000);
-    return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist helpers ────────────────────────────────────────────────────
@@ -858,6 +854,7 @@ export default function App() {
 
   // Simplified Black-Scholes inspired premium estimate (annualised IV in %)
   function estimatePremium(price, strikeDistance, daysToExpiry, annualIVpct) {
+    if (!price || price <= 0) return 0.01;
     const T = daysToExpiry / 365;
     const IV = annualIVpct / 100;
     const moneyness = Math.abs(strikeDistance) / price;
