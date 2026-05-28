@@ -491,7 +491,11 @@ export default function App() {
   const [optionClosing,       setOptionClosing]      = useState(null);
   const [optionWatchlist,     setOptionWatchlist]    = useState(() => JSON.parse(localStorage.getItem("portfolio:options:watchlist") || "[]"));
   const [optionWatchInput,    setOptionWatchInput]   = useState("");
-  const [tab,              setTab]             = useState("rebalance");
+  const [tab,              setTab]             = useState(() => localStorage.getItem("portfolio:helpSeen") ? "dashboard" : "help");
+  function navigateTo(dest) {
+    if (dest !== "help") localStorage.setItem("portfolio:helpSeen", "1");
+    setTab(dest);
+  }
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
   const [pendingRemove,    setPendingRemove]   = useState(null);
@@ -739,6 +743,29 @@ export default function App() {
         }
         cloudHasDataRef.current = true;
       } catch (e) { console.warn("Cloud load failed:", e); }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load scheduled Market Pulse on startup — if the server-side cron has run,
+  // this will be newer than the bundled JSON and the user's localStorage cache.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/pulse-load");
+        if (!res.ok) return; // no scheduled data yet — fall back to bundled JSON / localStorage
+        const data = await res.json();
+        if (!data.regime || !data.macroSignals) return;
+
+        // Only apply if this is newer than what's already in state
+        const existingTs  = pulseRefreshedAt || "";
+        const scheduledTs = data._scheduledAt || data.lastUpdated || "";
+        if (scheduledTs && scheduledTs > existingTs) {
+          setMarketPulse(data);
+          setPulseRefreshedAt(scheduledTs);
+          localStorage.setItem("pulse:cache", JSON.stringify(data));
+          localStorage.setItem("pulse:refreshedAt", scheduledTs);
+        }
+      } catch { /* network error — silently use cached/bundled data */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2988,7 +3015,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
           ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`}
-            onClick={() => setTab(v)}
+            onClick={() => navigateTo(v)}
             style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
               paddingBottom:10 }}>
             {l}
@@ -7932,6 +7959,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </p>
             </div>
 
+            {/* ── CTA ── */}
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap",
+              gap:12, margin:"20px 0 4px" }}>
+              <p style={{ fontSize:13, color:"#64748b", margin:0 }}>
+                Read the guide below, then jump in whenever you're ready.
+              </p>
+              <button
+                onClick={() => navigateTo("dashboard")}
+                style={{ background:"linear-gradient(135deg,#fbbf24,#f59e0b)", color:"#0d1117",
+                  border:"none", borderRadius:10, padding:"11px 22px", fontWeight:800,
+                  fontSize:14, fontFamily:"inherit", cursor:"pointer", whiteSpace:"nowrap",
+                  boxShadow:"0 4px 16px rgba(251,191,36,0.3)" }}>
+                Start using the app →
+              </button>
+            </div>
+
             {/* ── Quick-start ── */}
             <H2 icon="🚀" title="Quick Start — 5 steps to a live portfolio" />
             <Step n="1">Open <strong style={{color:"#f1f5f9"}}>Edit Targets</strong> (🎯 tab) and update each row with your <em>actual current value</em> in the Current $ column and your desired <em>target allocation %</em>. All targets in a single account must sum to 100%.</Step>
@@ -8050,7 +8093,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <Step n="6"><strong style={{color:"#f1f5f9"}}>Keep targets realistic</strong> — if a position has a 0% target it will always appear as overweight. Either remove it from the list or set a small non-zero target if you plan to hold a residual position.</Step>
             <Step n="7"><strong style={{color:"#f1f5f9"}}>Use the Notes column</strong> — write your own investment thesis in the notes. Reading it during a drawdown is the best reminder of why you bought and often prevents panic-selling.</Step>
 
-            <div style={{ height:40 }} />
+            <div style={{ textAlign:"center", margin:"32px 0 20px" }}>
+              <button
+                onClick={() => navigateTo("dashboard")}
+                style={{ background:"linear-gradient(135deg,#fbbf24,#f59e0b)", color:"#0d1117",
+                  border:"none", borderRadius:10, padding:"13px 32px", fontWeight:800,
+                  fontSize:15, fontFamily:"inherit", cursor:"pointer",
+                  boxShadow:"0 4px 20px rgba(251,191,36,0.35)" }}>
+                I'm ready — take me to the app →
+              </button>
+            </div>
+
             <p style={{ fontSize:11, color:"rgba(255,255,255,0.15)", lineHeight:1.7, textAlign:"center" }}>
               Not financial advice. All calculations are for informational purposes only. Always consult a qualified financial advisor before making investment decisions.
               Tax treatment depends on your individual circumstances — consult a tax professional for personalized guidance.
