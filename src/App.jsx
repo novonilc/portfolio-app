@@ -478,8 +478,9 @@ export default function App() {
   const [saveStatus,       setSaveStatus]      = useState("");
   const [backupStatus,     setBackupStatus]    = useState("");
   const [autoSaveAt,       setAutoSaveAt]      = useState(() => localStorage.getItem("portfolio:autosave:ts") || null);
-  const autoSaveRef  = useRef(null);
-  const cloudSaveRef = useRef(null);
+  const autoSaveRef      = useRef(null);
+  const cloudSaveRef     = useRef(null);
+  const cloudHasDataRef  = useRef(false); // true if cloud load found an existing snapshot
   // Options trading
   const [optionTrades,        setOptionTrades]       = useState([]);
   const [optionPrices,        setOptionPrices]       = useState({});
@@ -672,11 +673,12 @@ export default function App() {
     if (!lic?.key) return;
     setCloudSyncStatus("syncing");
     try {
-      await fetch("/api/blob-save", {
+      const saveRes = await fetch("/api/blob-save", {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-license-key": lic.key },
         body: JSON.stringify({ portfolios, holdings, cashHolding, contribPlan, usdCadRate, optionTrades }),
       });
+      if (!saveRes.ok) throw new Error(`blob-save ${saveRes.status}`);
       const ts = new Date().toISOString();
       setCloudSyncedAt(ts);
       localStorage.setItem("portfolio:cloud:ts", ts);
@@ -729,8 +731,19 @@ export default function App() {
           setCloudSyncedAt(data.savedAt);
           localStorage.setItem("portfolio:cloud:ts", data.savedAt);
         }
+        cloudHasDataRef.current = true;
       } catch (e) { console.warn("Cloud load failed:", e); }
     })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Push local data to cloud on first mount if there is no existing cloud
+  // snapshot yet. 5 s delay lets cloud load finish first. Skip if cloud
+  // already has data (don't overwrite cloud with a potentially empty local).
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (!cloudHasDataRef.current) cloudSaveRef.current?.();
+    }, 5_000);
+    return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist helpers ────────────────────────────────────────────────────
