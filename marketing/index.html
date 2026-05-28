@@ -253,11 +253,11 @@
 <!-- ── Trust bar ── -->
 <div class="trust">
   <div class="trust-inner">
-    <div class="trust-item">🔒 Data never leaves your browser</div>
+    <div class="trust-item">☁️ Automatic cloud sync</div>
+    <div class="trust-item">🔒 Private encrypted storage</div>
     <div class="trust-item">🍁 TFSA &amp; RRSP aware</div>
     <div class="trust-item">🤖 Claude AI built-in</div>
     <div class="trust-item">📊 Live Market Pulse</div>
-    <div class="trust-item">⚡ Instant rebalancing</div>
     <div class="trust-item">🔄 Updates included annually</div>
   </div>
 </div>
@@ -375,9 +375,16 @@
       </div>
 
       <div class="feat-card">
+        <span class="feat-icon">☁️</span>
+        <div class="feat-title">Automatic Cloud Sync</div>
+        <div class="feat-desc">Your portfolio syncs to a private encrypted cloud snapshot automatically — 20 seconds after any change. Open on a new device, enter your license key, and your data loads instantly. No manual export required.</div>
+        <span class="feat-tag feat-tag-ca">Multi-device</span>
+      </div>
+
+      <div class="feat-card">
         <span class="feat-icon">🔒</span>
-        <div class="feat-title">100% Private by Design</div>
-        <div class="feat-desc">No backend. No login. No cloud sync. Your portfolio data lives only in your browser's localStorage. AI calls route through our secure proxy — your portfolio data never reaches a third-party server.</div>
+        <div class="feat-title">Private & Secure by Design</div>
+        <div class="feat-desc">No login. Your data is stored in a private blob keyed to your customer identity — not publicly accessible. Every cloud read and write validates your license against Lemon Squeezy before touching any data.</div>
         <span class="feat-tag feat-tag-ca">Privacy-first</span>
       </div>
 
@@ -523,7 +530,8 @@
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Ideas &amp; Recommendations</strong> — 20+ curated picks with TFSA/RRSP guidance</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Options Calculator</strong> — CC + CSP calculator, open trades log</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Investor Profile</strong> — personalise your risk settings</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>100% private</strong> — data stays in your browser</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>☁️ Automatic cloud sync</strong> — data follows you across all 3 activated devices</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Private encrypted storage</strong> — keyed to your buyer account, validated on every access</div></div>
           <div class="pf" style="opacity:0.4"><span class="pf-check" style="color:var(--muted)">✗</span><div class="pf-text">Claude AI features (Market Pulse, Suggestions, Options AI, Broker Import)</div></div>
         </div>
         <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf" class="btn btn-buy btn-lg" id="pricing-basic-cta"
@@ -548,6 +556,7 @@
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Diversification Analysis</strong> — gap detection and trim alerts across all accounts</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Options Analysis</strong> — ranked CC + CSP suggestions from Claude</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🏦 Broker CSV Import</strong> — Claude parses your Wealthsimple export automatically</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>☁️ Automatic cloud sync</strong> — data follows you across all 3 devices automatically</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>10 AI calls/day</strong> — resets midnight UTC · no API key needed</div></div>
         </div>
         <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-green btn-buy btn-lg" id="pricing-cta">
@@ -621,7 +630,7 @@
           What happens if I clear my browser cache?
           <span class="faq-chevron">›</span>
         </div>
-        <div class="faq-a">Your portfolio data lives in localStorage, which is cleared with your browser cache. Your license key is also stored in localStorage — but you can always re-activate it (it's linked to your email). Always export a JSON backup via the Backup button after entering your data. The backup file fully restores your portfolio.</div>
+        <div class="faq-a">Your data is automatically synced to a private cloud snapshot — so clearing your browser cache is no longer a data-loss event. Just re-enter your license key and your full portfolio loads from the cloud instantly. Manual JSON backups via the Backup button are still available as an extra safety net.</div>
       </div>
 
       <div class="faq-item">
@@ -629,7 +638,7 @@
           Can I use this on multiple devices?
           <span class="faq-chevron">›</span>
         </div>
-        <div class="faq-a">Yes — your license allows activation on up to 3 devices. Since the app stores data in localStorage (not a cloud database), you'll want to export a backup on one device and import it on the other to sync your portfolio data.</div>
+        <div class="faq-a">Yes — your license allows activation on up to 3 devices, and your data syncs automatically across all of them. Open the app on any device, enter your license key, and your full portfolio loads from your private cloud snapshot within seconds. No manual export or import needed. Your cloud data is tied to your buyer account — not to a specific license key — so upgrading plans or getting a replacement key never loses your data.</div>
       </div>
 
       <div class="faq-item">
@@ -653,7 +662,7 @@
           Is my financial data safe?
           <span class="faq-chevron">›</span>
         </div>
-        <div class="faq-a">Your portfolio data is stored only in your browser's localStorage on your device. When you trigger an AI feature, ticker symbols and position values are sent through our secure server-side proxy to Claude — your Lemon Squeezy license key validates the request, but no account numbers, SINs, cost basis details, or personal information ever leave your browser.</div>
+        <div class="faq-a">Your portfolio is stored in two places you control: browser localStorage and your own private cloud blob. The cloud blob path is a SHA-256 hash of your Lemon Squeezy customer ID — not guessable, not enumerable. Every read and write requires a valid license key (validated against Lemon Squeezy in real time) and a secret server token. The blob URL itself is private — it cannot be accessed without the token even if someone discovered the URL. When you trigger an AI feature, only ticker symbols and position values travel through our proxy to Claude — no account numbers, SINs, or personal information are ever sent.</div>
       </div>
 
     </div>

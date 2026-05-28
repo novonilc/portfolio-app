@@ -223,4 +223,6 @@ Use **Merge** mode for the second import (after the first has already loaded one
 
 ## Privacy note
 
-When you click Import, the raw CSV text (ticker symbols, quantities, and market values) is sent from your browser to the app's secure `/api/claude` backend proxy, which validates your Pro license key and forwards only the prompt to Claude. No account numbers, names, or SINs are included in the Wealthsimple CSV export. Your Anthropic API key is never in your browser — it lives only in the Vercel server environment. See [Privacy Model](../README.md#privacy-model) in the README for full details.
+When you click Import, the raw CSV text (ticker symbols, quantities, and market values) is sent from your browser to the app's secure `/api/claude` backend proxy. The proxy validates your Pro license key against Lemon Squeezy in real time and forwards only the portfolio prompt to Claude — never the raw CSV. No account numbers, names, or SINs are included in the Wealthsimple CSV export.
+
+Your Anthropic API key is never in your browser — it lives only in the Vercel server environment. Your portfolio data (imported or manually entered) is automatically synced to a private Vercel Blob storage path keyed to your Lemon Squeezy customer ID. The blob is not publicly accessible and requires server-side token authentication to read. See [Privacy Model](../README.md#privacy-model) in the README for full details.

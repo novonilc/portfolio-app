@@ -13,6 +13,7 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | Ideas & curated recommendations | ✓ | ✓ |
 | Options Calculator (CC + CSP) | ✓ | ✓ |
 | Investor Profile | ✓ | ✓ |
+| ☁️ Automatic cloud sync (multi-device) | ✓ | ✓ |
 | ⚡ Market Pulse AI refresh | — | ✓ |
 | ✨ AI Target Suggestions | — | ✓ |
 | 🤖 AI Diversification Analysis | — | ✓ |
@@ -64,6 +65,8 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
+> - **Automatic Cloud Sync** — portfolio data is now synced to Vercel Blob storage on every change (20-second debounce). Open the app on any device with your license key and your data loads automatically. Data is keyed to your Lemon Squeezy *customer ID* — not the license key — so switching plans or buying a new license never loses your data.
+> - **Private, per-user blob storage** — each user's data is stored at a path derived from `SHA-256(customer_id)`. Blobs are private (require server token to read). The license key is validated against Lemon Squeezy on every read and write — expired or invalid keys are rejected before any data is touched.
 > - **Morning Radar** — a 4-cell status panel at the top of the Dashboard shows today's estimated day P&L (after a live price refresh), allocation drift alerts, expiring options count, and WHT status. One-click **📡 Refresh Prices** fetches closing prices for all holdings via Yahoo Finance.
 > - **Live Price Refresh** — fetches the latest price for every ticker across all accounts in parallel. A day-change column (green/red) appears in the Combined Top Holdings table when prices are available.
 > - **Dividend Income Calendar** — 12-month bar chart in the Dashboard projecting monthly dividend income with quarterly seasonality weighting, current-month highlight, and per-account breakdown.
@@ -518,12 +521,13 @@ These tools are **aggregators** — their value proposition is connecting all yo
 
 | | Portfolio ReBalancer | Wealthica / Empower |
 |---|---|---|
-| Data privacy | Stored in your browser only | Stored on their servers |
-| Login required | No | Yes |
-| Cost | Free forever | Freemium / subscription |
+| Data privacy | Browser + your private encrypted blob | Stored on their servers, sold to partners |
+| Login required | No — license key only | Yes, full account |
+| Cost | $49–$99 CAD/yr | Freemium / subscription |
 | Canadian tax rules | Built-in WHT, TFSA/RRSP logic | Minimal |
 | Rebalancing | Cash-constrained DCA mode | Basic or none |
 | Account linking | Not required | Required for most features |
+| Multi-device sync | Automatic via cloud sync | Yes (requires account) |
 
 ### vs. Passiv (passiv.com)
 Passiv is the closest Canadian competitor. It integrates directly with Questrade and automatically executes trades. It is genuinely useful if you only use Questrade.
@@ -576,22 +580,38 @@ Brokerage tools are siloed. They only see what you hold with them, not your comp
 
 ## Privacy Model
 
-This app has no backend. There is no server that receives your data. There is no database. There is no analytics tracker. There is no login.
+Your portfolio data lives in two places: your browser's `localStorage` (primary, instant) and a private Vercel Blob (cloud backup, synced automatically). Neither place is accessible to anyone but you.
 
-Your portfolio data is stored in `localStorage` — a browser-sandboxed storage that never leaves your device unless you explicitly export it. If you host the app on Vercel or GitHub Pages, those services only serve the static HTML/JS/CSS files; they never see your data.
+### What the backend receives and when
 
-The only network requests the app makes are:
-1. Loading the Google Fonts stylesheet (DM Sans, JetBrains Mono, Instrument Serif) — no financial data is sent
-2. **Market Pulse AI refresh (optional, on-demand only):** When you click "Refresh", the app fetches live market data from Yahoo Finance, FRED, and the CNN Fear & Greed API — public endpoints that receive no portfolio data. The prompt sent to Claude includes live market prices and your current holdings values, but no account numbers, cost basis, or personally identifying information. All Claude calls route through our secure `/api/claude` proxy which validates your license server-side; your Anthropic API key is never in the browser.
-3. **Broker CSV Import (optional, on-demand only):** When you upload a broker holdings CSV, its contents route through the same `/api/claude` proxy to Claude. The CSV includes ticker symbols, quantities, and market values from your brokerage — no account numbers, names, or SINs are transmitted.
+| Request | When it happens | What is sent | What is NOT sent |
+|---|---|---|---|
+| Cloud sync (`/api/blob-save`) | Automatically, 20 s after any data change | Holdings values, targets, cash, FX rate | Account numbers, cost basis details, SINs |
+| Cloud load (`/api/blob-load`) | Once on app mount | Your license key (for auth only) | Any portfolio data |
+| AI features (`/api/claude`) | Only when you click an AI button | Ticker symbols, position values, market context | Account numbers, personal info |
+| Broker CSV import | Only when you click Import | Ticker symbols, quantities, market values from CSV | Account numbers, names, SINs |
+| Google Fonts | Page load | None | — |
 
-All Claude API requests are never made automatically — only when you explicitly trigger them. The proxy enforces a **fair-use limit of 10 AI calls per user per 24 hours** (resets midnight UTC). Typical usage is 2–3 calls per day; the limit protects against runaway costs. To adjust it, change `RL_MAX` in `api/claude.js`.
+### Cloud sync security model
 
-**Two-tier gating:** The proxy checks the Lemon Squeezy `product_id` of the activating license key against `LS_PRODUCT_ID_BASIC` (set in Vercel env vars). If it matches, the request is rejected with HTTP 403 — Basic plan holders cannot call AI features even if they construct a raw request. The app UI also gates at the button level: AI buttons become upgrade links for Basic users. Tier detection uses `product_id` (reliable, set by LS), not variant name (which defaults to `"Default"` and can be renamed arbitrarily).
+- **License validation on every request** — `blob-save` and `blob-load` call the Lemon Squeezy `/v1/licenses/validate` endpoint before touching any storage. An expired or revoked license is rejected immediately with HTTP 403.
+- **Keyed to your customer identity, not your license key** — the storage path is `SHA-256(customer_id)` where `customer_id` is your Lemon Squeezy buyer ID. This means switching plans or buying a new license never creates a separate data silo — your data follows you automatically.
+- **Private blobs** — every blob is stored with `access: "private"`. The URL is not publicly readable; fetching it requires the server-side `BLOB_READ_WRITE_TOKEN`. Even if someone discovered the blob URL, they could not read the data without the token.
+- **One-way hashing** — the blob path is a SHA-256 digest. Knowing the path reveals nothing about who you are or what your license key is. With 2²⁵⁶ possible paths, enumeration is computationally infeasible.
 
-To verify this yourself: open DevTools → Network tab → use the app → see that no requests go to any server containing your portfolio data.
+### AI request gating
 
-**Consequence**: If you clear your browser cache, your data is gone. Export a backup JSON regularly.
+All Claude API requests are triggered only when you explicitly click an AI button — never automatically. The `/api/claude` proxy:
+
+1. Validates the license key against Lemon Squeezy
+2. Checks `product_id` against `LS_PRODUCT_ID_BASIC` — Basic plan holders receive HTTP 403 on AI calls even if they craft a raw request
+3. Enforces a **fair-use limit of 10 AI calls per user per 24 hours** (resets midnight UTC). Change `RL_MAX` in `api/claude.js` to adjust.
+
+Your Anthropic API key lives only in Vercel's server environment — never in any browser or build output.
+
+To verify: open DevTools → Network tab → use the app → all requests to `/api/*` carry only your license key as a header, not raw portfolio data.
+
+**Consequence of clearing browser cache**: localStorage is wiped, but your cloud snapshot is restored automatically the next time you open the app and enter your license key.
 
 ---
 
@@ -658,8 +678,11 @@ npm run preview
    | `ANTHROPIC_API_KEY` | `sk-ant-...` | From [console.anthropic.com](https://console.anthropic.com) |
    | `GATE_ENABLED` | `true` | Enables license validation on all non-localhost requests |
    | `LS_PRODUCT_ID_BASIC` | e.g. `1234567` | Your Basic plan product ID from LS dashboard — leave blank until Basic product is created |
+   | `BLOB_READ_WRITE_TOKEN` | auto-filled | Added automatically when you connect a Vercel Blob store to the project (see step 5) |
 
    Set Environment to **Production** (and Preview if needed).
+
+5. **Connect Vercel Blob storage** — in your Vercel project go to **Storage** → **Create Database** → **Blob** → create a store named `portfolio-app-blob`. Then click **Connect** → select your project → **All Environments**. This automatically injects `BLOB_READ_WRITE_TOKEN` into the project's environment variables. Cloud sync will not work without this step.
 
 5. Redeploy once after adding the env vars — done. You get a URL like `portfolio-rebalancer-xyz.vercel.app`
 
@@ -691,7 +714,7 @@ Common fixes when running locally:
 
 - **Port already in use (`5173`)**: run `npm run dev -- --port 4173` to use a different port.
 - **Blank page after pulling changes**: stop server, run `npm install`, then restart `npm run dev`.
-- **Data missing after browser cleanup**: import your last `portfolio-backup-YYYY-MM-DD.json`.
+- **Data missing after browser cleanup**: if you have a license key, re-enter it — your data will restore from cloud automatically on first load. If cloud sync was never triggered, import your last `portfolio-backup-YYYY-MM-DD.json`.
 - **Build errors**: run `npm run build` and fix the first error shown (usually a syntax issue in `src/App.jsx`).
 - **Recommendations not appearing**: confirm the ticker is not already present in your active portfolio.
 
@@ -1059,8 +1082,27 @@ Include 4–8 entries covering the most market-moving headlines since the last u
 
 ## Data Backup and Portability
 
-### Export
-Click **💾 Backup** in the header. Downloads a `portfolio-backup-YYYY-MM-DD.json` file with all portfolios, cash balances, cost basis, targets, and custom CAGR values.
+### Automatic cloud sync
+
+Your data is saved to Vercel Blob storage automatically — 20 seconds after any meaningful change (holdings, cash, targets, FX rate, options trades). No action required.
+
+**How sync works across devices:**
+
+1. Open the app on Device A → data saves to your private cloud blob
+2. Open the app on Device B → enter your license key → data loads from cloud on mount
+3. Any change on Device B syncs back to cloud after 20 seconds
+
+Your cloud snapshot is keyed to your **Lemon Squeezy customer ID** — not to a specific license key. This means:
+- Upgrading from Basic to Pro gives you a new license key but the same cloud data
+- Buying a replacement license after losing a key restores your data immediately
+- Using the app on 3 devices (the activation limit) all read and write the same cloud snapshot
+
+The cloud sync status is shown in the app header: **Synced ✓**, **Syncing…**, or **Error** (check your internet connection).
+
+> **If you clear your browser cache**: localStorage is wiped, but your data is restored from cloud the next time you open the app and enter your license key.
+
+### Manual export (recommended as extra backup)
+Click **💾 Backup** in the header. Downloads a `portfolio-backup-YYYY-MM-DD.json` file with all portfolios, cash balances, cost basis, targets, and custom CAGR values. Keep the last 2–3 files as a safety net.
 
 ### Restore / Import
 Click **📂 Restore / Import** and select either:
