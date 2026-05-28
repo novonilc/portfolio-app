@@ -1,4 +1,4 @@
-import { list } from "@vercel/blob";
+import { list, put, del } from "@vercel/blob";
 import crypto from "crypto";
 
 async function validateLicense(licenseKey) {
@@ -8,7 +8,22 @@ async function validateLicense(licenseKey) {
     body: JSON.stringify({ license_key: licenseKey }),
   });
   const data = await res.json();
-  return data.valid === true;
+  if (!data.valid) return { valid: false };
+  const customerId = data.meta?.customer_id;
+  if (!customerId) return { valid: false };
+  return { valid: true, customerId: String(customerId) };
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+async function fetchBlob(url) {
+  const resp = await fetch(url, {
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+  });
+  if (!resp.ok) return null;
+  return resp.json();
 }
 
 export default async function handler(req, res) {
@@ -21,31 +36,54 @@ export default async function handler(req, res) {
   const licenseKey = req.headers["x-license-key"];
   if (!licenseKey) return res.status(401).json({ error: "missing license key" });
 
-  // Validate license key against Lemon Squeezy before returning any data
+  let customerId;
   try {
-    const valid = await validateLicense(licenseKey);
-    if (!valid) return res.status(403).json({ error: "invalid or expired license" });
+    const result = await validateLicense(licenseKey);
+    if (!result.valid) return res.status(403).json({ error: "invalid or expired license" });
+    customerId = result.customerId;
   } catch {
     return res.status(502).json({ error: "could not validate license — try again" });
   }
 
-  const hash = crypto.createHash("sha256").update(licenseKey).digest("hex");
+  const customerHash = sha256(customerId);
+  const legacyHash   = sha256(licenseKey); // old path: keyed to license key
 
-  let blobs;
+  let blobs, legacyBlobs;
   try {
-    ({ blobs } = await list({ prefix: `portfolios/${hash}` }));
+    ([{ blobs }, { blobs: legacyBlobs }] = await Promise.all([
+      list({ prefix: `portfolios/${customerHash}` }),
+      list({ prefix: `portfolios/${legacyHash}`   }),
+    ]));
   } catch {
     return res.status(500).json({ error: "cloud storage unavailable" });
   }
 
-  if (!blobs.length) return res.status(404).json({ error: "not found" });
+  // ── Happy path: data already at the customer-keyed path ──────────────────
+  if (blobs.length) {
+    const data = await fetchBlob(blobs[0].url);
+    if (!data) return res.status(502).json({ error: "fetch failed" });
+    return res.status(200).json(data);
+  }
 
-  // Private blobs require the BLOB_READ_WRITE_TOKEN in the Authorization header
-  const resp = await fetch(blobs[0].url, {
-    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
-  });
-  if (!resp.ok) return res.status(502).json({ error: "fetch failed" });
+  // ── Migration: data exists at the old license-key path ───────────────────
+  // Move it to the customer-keyed path so future saves land in the right place.
+  if (legacyBlobs.length) {
+    const data = await fetchBlob(legacyBlobs[0].url);
+    if (!data) return res.status(502).json({ error: "fetch failed" });
 
-  const data = await resp.json();
-  res.status(200).json(data);
+    // Write to new customer-keyed path and clean up the old one
+    try {
+      await put(`portfolios/${customerHash}.json`, JSON.stringify(data), {
+        access: "private",
+        contentType: "application/json",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+      });
+      await del(legacyBlobs[0].url);
+    } catch { /* migration best-effort — don't fail the load */ }
+
+    return res.status(200).json(data);
+  }
+
+  return res.status(404).json({ error: "not found" });
 }

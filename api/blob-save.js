@@ -1,6 +1,8 @@
 import { put } from "@vercel/blob";
 import crypto from "crypto";
 
+// Returns { valid, customerId } — customer_id is stable across all license
+// purchases by the same LS customer, so it's the right key for data isolation.
 async function validateLicense(licenseKey) {
   const res = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
     method: "POST",
@@ -8,7 +10,14 @@ async function validateLicense(licenseKey) {
     body: JSON.stringify({ license_key: licenseKey }),
   });
   const data = await res.json();
-  return data.valid === true;
+  if (!data.valid) return { valid: false };
+  const customerId = data.meta?.customer_id;
+  if (!customerId) return { valid: false }; // can't identify the user
+  return { valid: true, customerId: String(customerId) };
+}
+
+function sha256(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
 }
 
 export default async function handler(req, res) {
@@ -21,10 +30,11 @@ export default async function handler(req, res) {
   const licenseKey = req.headers["x-license-key"];
   if (!licenseKey) return res.status(401).json({ error: "missing license key" });
 
-  // Validate license key against Lemon Squeezy before touching storage
+  let customerId;
   try {
-    const valid = await validateLicense(licenseKey);
-    if (!valid) return res.status(403).json({ error: "invalid or expired license" });
+    const result = await validateLicense(licenseKey);
+    if (!result.valid) return res.status(403).json({ error: "invalid or expired license" });
+    customerId = result.customerId;
   } catch {
     return res.status(502).json({ error: "could not validate license — try again" });
   }
@@ -33,12 +43,13 @@ export default async function handler(req, res) {
   try { body = typeof req.body === "string" ? JSON.parse(req.body) : req.body; }
   catch { return res.status(400).json({ error: "invalid json" }); }
 
-  // Hash the license key so the blob path never exposes the raw key
-  const hash = crypto.createHash("sha256").update(licenseKey).digest("hex");
+  // Path is keyed to the LS customer, not the license key.
+  // Same user with multiple licenses always writes to the same blob.
+  const hash = sha256(customerId);
 
   try {
     await put(`portfolios/${hash}.json`, JSON.stringify({ ...body, savedAt: new Date().toISOString() }), {
-      access: "private",       // blob URL requires token to read — not publicly accessible
+      access: "private",
       contentType: "application/json",
       addRandomSuffix: false,
       allowOverwrite: true,
