@@ -4458,40 +4458,48 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </button>
             ))}
             <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginLeft:"auto" }}>
-              {filteredRecs.length} idea{filteredRecs.length !== 1 ? "s" : ""} · already-owned tickers excluded
+              {filteredRecs.filter(r => r.type !== "etf").length} stocks · {filteredRecs.filter(r => r.type === "etf").length} ETFs · already-owned excluded
             </span>
           </div>
 
-          {filteredRecs.length === 0 ? (
-            <div className="card" style={{ textAlign:"center", padding:"40px 20px" }}>
-              <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", marginBottom:8 }}>
-                {recFilter === "gaps" ? "No gap-filling ideas available — your portfolio is well-diversified!" : "No ideas match the current filter."}
-              </p>
-              <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Try clearing the filter or adding more positions.</p>
-            </div>
-          ) : (
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12 }}>
-              {filteredRecs.map(rec => {
-                // Compute regime alignment from base-case 3M sector rotation
-                const rotation = marketPulse?.outlooks?.[0]?.scenarios
-                  ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
-                const sectorWord = (rec.sector || "").toLowerCase().split(" ")[0];
-                let alignment = null;
-                if (rotation) {
-                  const isAligned = ["overweight","add","rotate into","favor","tilt to"]
-                    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
-                  const isAvoid = ["underweight","avoid","reduce","trim","rotate out"]
-                    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
-                  if (isAligned) alignment = { label:"Regime aligned", color:"#22c55e" };
-                  else if (isAvoid) alignment = { label:"Regime avoid", color:"#ef4444" };
-                }
+          {(() => {
+            const MOAT_COLOR = {
+              "Network Effect":       "#a78bfa",
+              "IP Royalties":         "#60a5fa",
+              "IP / Patent":          "#60a5fa",
+              "Regulated Monopoly":   "#2dd4bf",
+              "Government Contract":  "#fb923c",
+              "Switching Costs":      "#f472b6",
+              "Cost Leader":          "#22c55e",
+              "Low-Cost Producer":    "#22c55e",
+              "Diversified Portfolio":"#94a3b8",
+            };
 
-                return (
+            const recStocks = filteredRecs.filter(r => r.type === "stock" || !r.type);
+            const recETFs   = filteredRecs.filter(r => r.type === "etf");
+
+            const renderCard = (rec) => {
+              const rotation = marketPulse?.outlooks?.[0]?.scenarios
+                ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+              const sectorWord = (rec.sector || "").toLowerCase().split(" ")[0];
+              let alignment = null;
+              if (rotation) {
+                const isAligned = ["overweight","add","rotate into","favor","tilt to"]
+                  .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+                const isAvoid = ["underweight","avoid","reduce","trim","rotate out"]
+                  .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+                if (isAligned) alignment = { label:"Regime aligned", color:"#22c55e" };
+                else if (isAvoid) alignment = { label:"Regime avoid", color:"#ef4444" };
+              }
+              const moatColor = rec.moat ? (MOAT_COLOR[rec.moat] || "#94a3b8") : null;
+              const isETF = rec.type === "etf";
+
+              return (
                 <div key={rec.ticker} className="rec-card">
                   {/* Card header */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                     <div>
-                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
                         <span style={{ fontSize:18, fontFamily:"'JetBrains Mono', monospace",
                           fontWeight:600, color: rec.bestFor === "TFSA" ? "#fbbf24" : rec.bestFor === "RRSP" ? "#22d3ee" : "#a78bfa" }}>
                           {rec.ticker}
@@ -4531,8 +4539,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </div>
                   </div>
 
-                  {/* Sector + tags */}
-                  <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {/* MOAT badge (stocks) or Concentrated badge (ETFs) */}
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:2 }}>
+                    {!isETF && moatColor && (
+                      <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                        background:`${moatColor}12`, color: moatColor,
+                        border:`1px solid ${moatColor}30` }}>
+                        ◆ {rec.moat}
+                      </span>
+                    )}
+                    {isETF && (
+                      rec.concentrated
+                        ? <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                            background:"rgba(251,146,60,0.1)", color:"#fb923c",
+                            border:"1px solid rgba(251,146,60,0.3)" }}>
+                            ⚠ Concentrated
+                          </span>
+                        : <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                            background:"rgba(34,197,94,0.08)", color:"#4ade80",
+                            border:"1px solid rgba(34,197,94,0.25)" }}>
+                            ✓ Diversified
+                          </span>
+                    )}
                     <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
                       background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.4)",
                       border:"1px solid rgba(255,255,255,0.08)" }}>
@@ -4557,6 +4585,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   {/* Thesis */}
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.6 }}>{rec.thesis}</p>
 
+                  {/* Risk callout */}
+                  {rec.risks?.length > 0 && (
+                    <div style={{ padding:"8px 10px", borderRadius:7, marginTop:2,
+                      background:"rgba(239,68,68,0.04)", border:"1px solid rgba(239,68,68,0.14)" }}>
+                      <p style={{ fontSize:10, fontWeight:600, color:"rgba(248,113,113,0.8)", marginBottom:5, letterSpacing:"0.03em" }}>
+                        ⚠ RISKS TO MONITOR
+                      </p>
+                      <ul style={{ margin:0, padding:"0 0 0 14px" }}>
+                        {rec.risks.map((r, i) => (
+                          <li key={i} style={{ fontSize:10, color:"rgba(255,255,255,0.38)", lineHeight:1.6 }}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Add buttons */}
                   <div style={{ display:"flex", gap:8, marginTop:"auto" }}>
                     <button className="btn" onClick={() => addRecommendedTicker(rec, "TFSA")}
@@ -4571,10 +4614,60 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </button>
                   </div>
                 </div>
-                );
-              })}
-            </div>
-          )}
+              );
+            };
+
+            if (filteredRecs.length === 0) return (
+              <div className="card" style={{ textAlign:"center", padding:"40px 20px" }}>
+                <p style={{ fontSize:14, color:"rgba(255,255,255,0.5)", marginBottom:8 }}>
+                  {recFilter === "gaps" ? "No gap-filling ideas available — your portfolio is well-diversified!" : "No ideas match the current filter."}
+                </p>
+                <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>Try clearing the filter or adding more positions.</p>
+              </div>
+            );
+
+            return (
+              <>
+                {/* ── Individual Stocks ── */}
+                {recStocks.length > 0 && (
+                  <>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase" }}>
+                        Individual Stocks
+                      </p>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontFamily:"'JetBrains Mono',monospace" }}>
+                        {recStocks.length} idea{recStocks.length !== 1 ? "s" : ""}
+                      </span>
+                      <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
+                      <span style={{ fontSize:10, color:"rgba(248,113,113,0.6)" }}>Higher single-name risk</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12, marginBottom:28 }}>
+                      {recStocks.map(rec => renderCard(rec))}
+                    </div>
+                  </>
+                )}
+
+                {/* ── ETFs & Diversified Funds ── */}
+                {recETFs.length > 0 && (
+                  <>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase" }}>
+                        ETFs &amp; Funds
+                      </p>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontFamily:"'JetBrains Mono',monospace" }}>
+                        {recETFs.length} idea{recETFs.length !== 1 ? "s" : ""}
+                      </span>
+                      <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
+                      <span style={{ fontSize:10, color:"rgba(74,222,128,0.6)" }}>Built-in diversification</span>
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12, marginBottom:12 }}>
+                      {recETFs.map(rec => renderCard(rec))}
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
 
           <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:20, lineHeight:1.5 }}>
             ⚠ Not financial advice. Recommendations are for educational purposes only. Market conditions change rapidly. Consult a licensed financial advisor before making investment decisions.
