@@ -6,6 +6,10 @@ The Investor Profile is a short questionnaire that tells the app's AI features w
 
 ---
 
+## Before you begin
+
+Read the **📖 Help tab** in the app — the "TFSA vs RRSP" and "Best practices" sections explain the context behind the risk tolerance choices below.
+
 ## Setting up your profile
 
 Click **👤 Set Profile** in the header toolbar (top-right area of the app). A modal opens with five fields. Fill them in once — answers are saved to `localStorage` immediately and persist across sessions.

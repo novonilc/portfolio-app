@@ -20,6 +20,7 @@ A preview modal shows the result before anything is applied, so you can review a
 
 ## Prerequisites
 
+- Read the **📖 Help tab** in the app first — it explains account placement rules (TFSA vs RRSP) that affect how Claude interprets your import.
 - An active **Pro subscription** — Broker CSV Import uses Claude AI and is not available on the Basic plan. If you're on Basic, the Import button shows an upgrade link.
 - A holdings CSV from your broker (see export instructions below)
 

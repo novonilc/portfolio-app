@@ -2,6 +2,8 @@
 
 The single highest-impact decision a Canadian investor can make is placing the right security in the right account. This guide explains the rules, the math, and the practical framework the app uses.
 
+> **New users:** The **📖 Help tab** inside the app has a condensed version of this guide under "TFSA vs RRSP — which holdings go where?" — read it first, then come back here for the full math and worked examples.
+
 ---
 
 ## The core rule

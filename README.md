@@ -36,6 +36,8 @@ Then open `http://localhost:5173`.
 - [Quick Start](#quick-start)
 - [The Problem It Solves](#the-problem-it-solves)
 - [What the App Does](#what-the-app-does)
+- [Help Tab & Onboarding](#help-tab--onboarding)
+- [Scheduled Market Pulse Refresh](#scheduled-market-pulse-refresh)
 - [How to Use the App Efficiently](#how-to-use-the-app-efficiently)
 - [How It Compares to the Alternatives](#how-it-compares-to-the-alternatives)
 - [Privacy Model](#privacy-model)
@@ -59,12 +61,14 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | Guide | Description |
 |---|---|
 | [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
-| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse and use the Action Center — AI included with Pro subscription |
+| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse, scheduled refresh, and the Action Center |
 | [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
 | [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
+> - **📖 Help tab & onboarding gate** — a full in-app guide covering every tab, TFSA/RRSP strategy, Basic vs Pro features, and 7 best practices. New users land on the Help tab automatically and cannot access other tabs until they click "Start using the app →". Returning users go straight to Dashboard.
+> - **Scheduled Market Pulse refresh** — a Vercel Cron Job (`api/refresh-pulse`) runs on a configurable schedule (default: every Monday 6am UTC) to regenerate Market Pulse data using live market signals and Claude AI, saving the result to Vercel Blob. All users receive the fresh data automatically on their next app open. Schedule is one line in `vercel.json`.
 > - **Automatic Cloud Sync** — portfolio data is now synced to Vercel Blob storage on every change (20-second debounce). Open the app on any device with your license key and your data loads automatically. Data is keyed to your Lemon Squeezy *customer ID* — not the license key — so switching plans or buying a new license never loses your data.
 > - **Private, per-user blob storage** — each user's data is stored at a path derived from `SHA-256(customer_id)`. Blobs are private (require server token to read). The license key is validated against Lemon Squeezy on every read and write — expired or invalid keys are rejected before any data is touched.
 > - **Morning Radar** — a 4-cell status panel at the top of the Dashboard shows today's estimated day P&L (after a live price refresh), allocation drift alerts, expiring options count, and WHT status. One-click **📡 Refresh Prices** fetches closing prices for all holdings via Yahoo Finance.
@@ -339,6 +343,96 @@ Always-visible at the top of the screen:
 | After Deploy | Portfolio value if you deploy all available cash |
 | To Buy | Total dollars of buy orders from the current rebalance |
 | Cash Remaining | How much cash is left after buys (or To Sell in full rebalance mode) |
+
+---
+
+## Help Tab & Onboarding
+
+### In-app guide
+
+The **📖 Help tab** is the last tab in the tab bar. It contains a comprehensive guide covering:
+
+- Quick Start — 5 steps to a live portfolio
+- Every tab explained (Dashboard, Rebalance, DCA Plan, Edit Targets, Ideas, Search, Market Pulse, Options)
+- TFSA vs RRSP placement strategy with examples
+- Basic vs Pro feature comparison
+- 7 best practices for long-term use
+
+### Onboarding gate
+
+First-time users land on the Help tab automatically. **All other tabs are locked** (greyed out, 32% opacity) until the user clicks one of the two CTA buttons:
+
+- **"Start using the app →"** — at the top of the Help content (visible without scrolling)
+- **"I'm ready — take me to the app →"** — at the bottom, for users who read all the way through
+
+Both buttons navigate to the Dashboard and write `portfolio:helpSeen = "1"` to `localStorage`. On all subsequent visits, the app opens directly on the Dashboard and all tabs are unlocked.
+
+If a locked user clicks any other tab, a gold nudge tooltip appears:
+
+> 📖 Please read the **Help guide** first — click *"Start using the app →"* when ready.
+
+### Resetting the onboarding gate
+
+To force the Help screen to show again (e.g. for testing):
+
+```js
+// In browser DevTools console
+localStorage.removeItem("portfolio:helpSeen");
+location.reload();
+```
+
+---
+
+## Scheduled Market Pulse Refresh
+
+### How it works
+
+A Vercel Cron Job calls `POST /api/refresh-pulse` on a configurable schedule. The endpoint:
+
+1. Fetches live market signals from Yahoo Finance, FRED, Alternative.me, and open.er-api
+2. Builds the full Market Pulse prompt with current-date context
+3. Calls `claude-sonnet-4-6` to generate the complete regime, macro signals, outlooks, and action JSON
+4. Saves the result to Vercel Blob at `market-pulse/latest.json`
+
+On every app open, the frontend calls `GET /api/pulse-load`. If the scheduled data is newer than the user's localStorage cache, it replaces it silently — no user action required.
+
+### Configuring the schedule
+
+Edit `vercel.json`:
+
+```json
+"crons": [
+  { "path": "/api/refresh-pulse", "schedule": "0 6 * * 1" }
+]
+```
+
+| Schedule | Cron expression |
+|---|---|
+| Every Monday at 6am UTC (default) | `0 6 * * 1` |
+| Every day at 6am UTC | `0 6 * * *` |
+| Twice a week (Mon + Thu) | `0 6 * * 1,4` |
+| First of the month | `0 6 1 * *` |
+
+Push to deploy — Vercel picks up the new schedule automatically.
+
+### Manual trigger
+
+```bash
+curl -X POST https://your-app.vercel.app/api/refresh-pulse \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+`CRON_SECRET` is in Vercel → Settings → Environment Variables (auto-generated when Vercel detects a `crons` config).
+
+### Scheduled vs. personalised refresh
+
+| | Scheduled (server cron) | Manual (user clicks ⚡) |
+|---|---|---|
+| Triggered by | Vercel Cron | Pro user |
+| Uses live market signals | Yes | Yes |
+| Uses user's actual holdings | No — generic actions | Yes — personalised |
+| Result visible to | All users | That user's browser only |
+| License required | No | Pro plan |
 
 ---
 
@@ -679,6 +773,7 @@ npm run preview
    | `GATE_ENABLED` | `true` | Enables license validation on all non-localhost requests |
    | `LS_PRODUCT_ID_BASIC` | e.g. `1234567` | Your Basic plan product ID from LS dashboard — leave blank until Basic product is created |
    | `BLOB_READ_WRITE_TOKEN` | auto-filled | Added automatically when you connect a Vercel Blob store to the project (see step 5) |
+   | `CRON_SECRET` | auto-filled | Vercel generates this when it detects a `crons` config in `vercel.json`. Also used to trigger manual refreshes: `POST /api/refresh-pulse` with `Authorization: Bearer <CRON_SECRET>` |
 
    Set Environment to **Production** (and Preview if needed).
 
@@ -791,26 +886,34 @@ http://localhost:5173              ← defaults to pro (dev mode)
 ```
 portfolio-app/
 ├── package.json          # Dependencies (react, vite only)
+├── vercel.json           # Vercel config — rewrites, cron schedule
 ├── index.html            # Entry point
 ├── vite.config.js        # Vite configuration
+├── api/
+│   ├── claude.js         # AI proxy — validates license, rate-limits, forwards to Anthropic
+│   ├── blob-save.js      # Cloud sync write — per-user portfolio storage
+│   ├── blob-load.js      # Cloud sync read — restores portfolio on mount
+│   ├── refresh-pulse.js  # Cron worker — regenerates Market Pulse on schedule
+│   └── pulse-load.js     # Public read endpoint — serves latest scheduled pulse
 └── src/
     ├── main.jsx          # React root mount
-    ├── App.jsx           # Entire application (~7,500 lines)
+    ├── App.jsx           # Entire application (~8,500 lines)
     └── data/
         ├── recommendations.json   # Ideas tab — curated stock/ETF analysis
-        └── marketPulse.json       # Market Pulse tab — regime, signals, outlooks
+        └── marketPulse.json       # Market Pulse tab — baseline/fallback data
 ```
 
-The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. `App.jsx` is currently ~7,500 lines; the most recently modified sections are the Morning Radar and live price fetch logic (`fetchLivePrices`), investor profile modal and `profileContext()` helper, multi-account CSV import mapping (`applyCsvImport`, `brokerImportMapping`), AI diversification trim alerts, and the Options tab AI Analysis renderer.
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. API routes under `api/` are Vercel serverless functions. `App.jsx` is currently ~8,500 lines; the most recently modified sections are the Help tab guide, tab-lock onboarding gate, startup pulse load from Vercel Blob, and the scheduled cron refresh endpoint.
 
 In-depth feature guides live in `docs/`:
 
 ```
 docs/
-├── broker-import.md           # Wealthsimple CSV import walkthrough
-├── market-pulse.md            # Market Pulse + Claude API setup
-├── canadian-tax-optimization.md  # TFSA vs RRSP placement guide
-└── data-customization.md      # Editing recommendations.json and marketPulse.json
+├── broker-import.md              # Wealthsimple CSV import walkthrough
+├── market-pulse.md               # Market Pulse — scheduled refresh + manual AI + Action Center
+├── canadian-tax-optimization.md  # TFSA vs RRSP placement guide with worked examples
+├── investor-profile.md           # Risk tolerance and goal questionnaire
+└── data-customization.md         # Editing recommendations.json and marketPulse.json
 ```
 
 ---

@@ -492,9 +492,22 @@ export default function App() {
   const [optionWatchlist,     setOptionWatchlist]    = useState(() => JSON.parse(localStorage.getItem("portfolio:options:watchlist") || "[]"));
   const [optionWatchInput,    setOptionWatchInput]   = useState("");
   const [tab,              setTab]             = useState(() => localStorage.getItem("portfolio:helpSeen") ? "dashboard" : "help");
+  const [helpUnlocked,     setHelpUnlocked]    = useState(() => !!localStorage.getItem("portfolio:helpSeen"));
+  const [helpNudge,        setHelpNudge]       = useState(false);
   function navigateTo(dest) {
-    if (dest !== "help") localStorage.setItem("portfolio:helpSeen", "1");
+    if (dest !== "help") {
+      localStorage.setItem("portfolio:helpSeen", "1");
+      setHelpUnlocked(true);
+    }
     setTab(dest);
+  }
+  function tryNavigate(dest) {
+    if (!helpUnlocked && dest !== "help") {
+      setHelpNudge(true);
+      setTimeout(() => setHelpNudge(false), 2800);
+      return;
+    }
+    navigateTo(dest);
   }
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
@@ -3010,17 +3023,37 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       </div>
 
       {/* ── Tab bar ── */}
-      <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
-        borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
-        {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => (
-          <button key={v} className={`tab-btn ${tab===v?"on":""}`}
-            onClick={() => navigateTo(v)}
-            style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
-              paddingBottom:10 }}>
-            {l}
-          </button>
-        ))}
+      <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
+            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => {
+            const locked = !helpUnlocked && v !== "help";
+            return (
+              <button key={v} className={`tab-btn ${tab===v?"on":""}`}
+                onClick={() => tryNavigate(v)}
+                title={locked ? "Please read the Help guide first" : undefined}
+                style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0, paddingBottom:10,
+                  opacity: locked ? 0.32 : 1,
+                  cursor: locked ? "not-allowed" : "pointer",
+                  filter: locked ? "grayscale(0.6)" : "none",
+                  transition:"opacity 0.2s" }}>
+                {l}
+              </button>
+            );
+          })}
+        </div>
+        {helpNudge && (
+          <div style={{
+            position:"absolute", zIndex:200,
+            background:"#1e293b", border:"1px solid rgba(251,191,36,0.45)",
+            borderRadius:10, padding:"10px 16px", fontSize:13, color:"#fbbf24",
+            boxShadow:"0 8px 24px rgba(0,0,0,0.5)", marginTop:4,
+            display:"flex", alignItems:"center", gap:8, maxWidth:360,
+          }}>
+            <span style={{ fontSize:16 }}>📖</span>
+            <span>Please read the <strong>Help guide</strong> first — click <em>"Start using the app →"</em> when ready.</span>
+          </div>
+        )}
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════

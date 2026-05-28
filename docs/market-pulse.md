@@ -16,7 +16,44 @@ No Anthropic API key is needed — Claude is accessed through the app's secure b
 
 ### Automatic vs. manual
 
-Market Pulse data does **not** refresh automatically. The data in `src/data/marketPulse.json` is the baseline — it displays until you trigger a refresh or paste a Claude response.
+There are now **two levels of automation**:
+
+| Level | How it works | Who controls it |
+|---|---|---|
+| **Scheduled server refresh** | A Vercel Cron Job calls `api/refresh-pulse` on a configurable schedule (default: every Monday 6am UTC). The result is saved to Vercel Blob and loaded automatically by every user on their next app open. No license required to benefit — all users get it. | Configured in `vercel.json` |
+| **Manual AI refresh** | You click ⚡ Refresh with AI. The app fetches live signals, includes your personal holdings, and calls Claude. Result is cached in your browser. | Pro plan, 10 calls/day |
+
+The scheduled refresh provides **generic macro data** (no user-specific portfolio actions, since the server doesn't know your holdings). The manual refresh produces **personalised actions** referencing your actual tickers. Use both: the schedule keeps the background data current; click Refresh before an important rebalance to personalise the Action Center.
+
+#### Changing the refresh schedule
+
+Edit `vercel.json` in the project root:
+
+```json
+"crons": [
+  { "path": "/api/refresh-pulse", "schedule": "0 6 * * 1" }
+]
+```
+
+Common schedules:
+
+| Schedule | Cron expression |
+|---|---|
+| Every Monday at 6am UTC | `0 6 * * 1` |
+| Every day at 6am UTC | `0 6 * * *` |
+| Twice a week (Mon + Thu) | `0 6 * * 1,4` |
+| First of the month | `0 6 1 * *` |
+
+After editing `vercel.json`, push to deploy — Vercel picks up the new schedule automatically.
+
+#### Triggering a manual server refresh (admin)
+
+```bash
+curl -X POST https://your-app.vercel.app/api/refresh-pulse \
+  -H "Authorization: Bearer YOUR_CRON_SECRET"
+```
+
+`CRON_SECRET` is set in Vercel → Settings → Environment Variables. Vercel also injects it automatically for cron invocations.
 
 ### Option 1 — One-click AI refresh (Pro plan)
 

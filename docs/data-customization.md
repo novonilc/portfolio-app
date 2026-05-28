@@ -4,12 +4,44 @@ The Ideas tab and Market Pulse tab are driven by two JSON files in `src/data/`. 
 
 ---
 
+## Keeping Market Pulse current — three options
+
+| Option | Effort | Who it serves |
+|---|---|---|
+| **Scheduled server refresh** | Set once in `vercel.json` | All users automatically |
+| **Manual AI refresh** | Click ⚡ in the app | Pro users, personalised to their holdings |
+| **Edit JSON directly** | Edit `src/data/marketPulse.json`, rebuild | Developers; full control |
+
+### Option 1 — Scheduled server refresh (recommended)
+
+The `api/refresh-pulse` endpoint fetches live market signals and calls Claude to regenerate the full Market Pulse JSON, then saves the result to Vercel Blob. All users load it automatically on their next app open.
+
+Configure the schedule in `vercel.json`:
+
+```json
+"crons": [
+  { "path": "/api/refresh-pulse", "schedule": "0 6 * * 1" }
+]
+```
+
+Requires `ANTHROPIC_API_KEY`, `BLOB_READ_WRITE_TOKEN`, and `CRON_SECRET` in Vercel environment variables. See [Vercel deployment guide](../README.md#deploy-to-vercel-free--recommended) for setup.
+
+### Option 2 — Manual AI refresh
+
+Click **⚡ Refresh with AI** in the Market Pulse tab (Pro plan). This generates personalised actions using your actual holdings. See [docs/market-pulse.md](market-pulse.md) for full details.
+
+### Option 3 — Direct JSON edit
+
+Edit the files below using a text editor. Rebuild (`npm run build`) and deploy for the changes to take effect in production.
+
+---
+
 ## File locations
 
 ```
 src/data/
 ├── recommendations.json   # Ideas tab + Ticker Search quick-access grid
-└── marketPulse.json       # Market Pulse tab — all panels and data
+└── marketPulse.json       # Market Pulse tab — fallback/baseline data
 ```
 
 ---
