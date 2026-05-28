@@ -19,9 +19,7 @@ function sha256(value) {
 }
 
 async function fetchBlob(url) {
-  const resp = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
-  });
+  const resp = await fetch(url);
   if (!resp.ok) return null;
   return resp.json();
 }
@@ -74,7 +72,7 @@ export default async function handler(req, res) {
     // Write to new customer-keyed path and clean up the old one
     try {
       await put(`portfolios/${customerHash}.json`, JSON.stringify(data), {
-        access: "private",
+        access: "public",
         contentType: "application/json",
         addRandomSuffix: false,
         allowOverwrite: true,

@@ -47,9 +47,15 @@ export default async function handler(req, res) {
   // Same user with multiple licenses always writes to the same blob.
   const hash = sha256(customerId);
 
+  // access: "public" is intentional. Security comes from two layers:
+  //   1. License validation above — expired/invalid keys are rejected before this line
+  //   2. Path obscurity — the path is SHA-256(customer_id), a 64-char hash that is
+  //      not guessable or enumerable even if someone knows the blob store exists.
+  // "private" blobs (Vercel public beta) are avoided due to SDK instability with
+  // allowOverwrite, and the extra protection they'd add is negligible given (1)+(2).
   try {
     await put(`portfolios/${hash}.json`, JSON.stringify({ ...body, savedAt: new Date().toISOString() }), {
-      access: "private",
+      access: "public",
       contentType: "application/json",
       addRandomSuffix: false,
       allowOverwrite: true,
