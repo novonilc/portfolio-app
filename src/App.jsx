@@ -2986,7 +2986,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", display:"flex", gap:6, flexWrap:"wrap",
         borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"]].map(([v,l]) => (
+          ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => (
           <button key={v} className={`tab-btn ${tab===v?"on":""}`}
             onClick={() => setTab(v)}
             style={{ borderBottom:"none", borderRadius:"8px 8px 0 0", marginBottom:0,
@@ -7871,6 +7871,191 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               always verify with your broker before trading. Options trading involves significant risk of loss and may not be suitable for all investors.
               Covered calls and CSPs in registered Canadian accounts (TFSA/RRSP) are generally permitted but rules vary by broker.
             </p>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: HELP
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "help" && (() => {
+        const H2 = ({ icon, title }) => (
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:36, marginBottom:14 }}>
+            <span style={{ fontSize:20 }}>{icon}</span>
+            <span style={{ fontSize:16, fontWeight:800, color:"#f1f5f9" }}>{title}</span>
+          </div>
+        );
+        const H3 = ({ children }) => (
+          <p style={{ fontSize:13, fontWeight:700, color:"#fbbf24", margin:"18px 0 6px", textTransform:"uppercase", letterSpacing:"0.06em" }}>{children}</p>
+        );
+        const P = ({ children }) => (
+          <p style={{ fontSize:14, color:"#94a3b8", lineHeight:1.75, margin:"0 0 10px" }}>{children}</p>
+        );
+        const Tip = ({ children }) => (
+          <div style={{ background:"rgba(251,191,36,0.07)", border:"1px solid rgba(251,191,36,0.2)", borderRadius:10,
+            padding:"12px 16px", fontSize:13, color:"#fbbf24", lineHeight:1.65, marginBottom:10 }}>
+            <strong>Tip: </strong>{children}
+          </div>
+        );
+        const Note = ({ children }) => (
+          <div style={{ background:"rgba(34,211,238,0.06)", border:"1px solid rgba(34,211,238,0.18)", borderRadius:10,
+            padding:"12px 16px", fontSize:13, color:"#67e8f9", lineHeight:1.65, marginBottom:10 }}>
+            <strong>Note: </strong>{children}
+          </div>
+        );
+        const Step = ({ n, children }) => (
+          <div style={{ display:"flex", gap:12, alignItems:"flex-start", marginBottom:10 }}>
+            <span style={{ flexShrink:0, width:24, height:24, borderRadius:"50%", background:"rgba(251,191,36,0.15)",
+              border:"1px solid rgba(251,191,36,0.3)", display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:12, fontWeight:800, color:"#fbbf24" }}>{n}</span>
+            <p style={{ fontSize:14, color:"#94a3b8", lineHeight:1.7, margin:0 }}>{children}</p>
+          </div>
+        );
+        const Badge = ({ children, color="#fbbf24" }) => (
+          <span style={{ background:`${color}18`, border:`1px solid ${color}40`, borderRadius:6,
+            padding:"2px 8px", fontSize:12, fontWeight:700, color, marginRight:4 }}>{children}</span>
+        );
+
+        return (
+          <div style={{ padding:"28px 32px", maxWidth:860, margin:"0 auto" }}>
+
+            {/* ── Hero ── */}
+            <div style={{ background:"linear-gradient(135deg,rgba(251,191,36,0.08),rgba(34,211,238,0.05))",
+              border:"1px solid rgba(251,191,36,0.18)", borderRadius:16, padding:"28px 32px", marginBottom:8 }}>
+              <p style={{ fontSize:22, fontWeight:800, color:"#f1f5f9", margin:"0 0 8px" }}>
+                Getting the most from Portfolio Rebalancer Pro
+              </p>
+              <p style={{ fontSize:14, color:"#94a3b8", lineHeight:1.7, margin:0 }}>
+                This app helps Canadian investors (TFSA, RRSP, and other accounts) track holdings,
+                plan rebalancing trades, run DCA schedules, and optionally generate covered-call and
+                cash-secured-put income — with optional Claude AI assistance on the Pro plan.
+              </p>
+            </div>
+
+            {/* ── Quick-start ── */}
+            <H2 icon="🚀" title="Quick Start — 5 steps to a live portfolio" />
+            <Step n="1">Open <strong style={{color:"#f1f5f9"}}>Edit Targets</strong> (🎯 tab) and update each row with your <em>actual current value</em> in the Current $ column and your desired <em>target allocation %</em>. All targets in a single account must sum to 100%.</Step>
+            <Step n="2">Switch to <strong style={{color:"#f1f5f9"}}>Dashboard</strong> (📊 tab) to see a live snapshot of your total portfolio value, currency split, and which positions are overweight or underweight.</Step>
+            <Step n="3">When you have new cash to invest, go to <strong style={{color:"#f1f5f9"}}>Rebalance</strong> (⚖️ tab), enter the amount, and the app will calculate exactly how much to buy to bring each holding towards its target.</Step>
+            <Step n="4">Set up a <strong style={{color:"#f1f5f9"}}>DCA Plan</strong> (📅 tab) to see how regular contributions grow your portfolio over time — weekly, bi-weekly, or monthly.</Step>
+            <Step n="5">Browse <strong style={{color:"#f1f5f9"}}>Ideas</strong> (💡 tab) and <strong style={{color:"#f1f5f9"}}>Search</strong> (🔍 tab) to discover new positions, then add them directly to your Edit Targets list.</Step>
+
+            {/* ── Tab-by-tab guide ── */}
+            <H2 icon="📊" title="Dashboard" />
+            <P>The Dashboard gives you a birds-eye view of everything at once: total value across all accounts, TFSA vs RRSP split, USD vs CAD currency exposure, dividend yield, and a pie chart of your largest holdings.</P>
+            <Tip>Set your <strong>USD/CAD rate</strong> in the input at the top of the app. Everything is converted to CAD for the total — the default is 1.36 but update it whenever the rate moves significantly.</Tip>
+
+            <H2 icon="⚖️" title="Rebalance" />
+            <P>Enter the cash you have available and choose a mode:</P>
+            <H3>Cash-deploy mode (default)</H3>
+            <P>Ranks your underweight positions and suggests exactly how much of each to buy. No selling required — ideal for regular contributions.</P>
+            <H3>Full rebalance mode</H3>
+            <P>Also recommends trimming overweight positions. Use this once or twice a year for a full rebalance, or before a large withdrawal.</P>
+            <Tip>The rebalance calculation respects your account. If you are on the RRSP tab, it only rebalances RRSP holdings. Switch accounts using the portfolio tabs at the top.</Tip>
+            <Note>Amounts are displayed in the native currency of each ticker (CAD for TSX-listed stocks, USD for NYSE/NASDAQ). Check which currency your broker account is in before placing trades.</Note>
+
+            <H2 icon="📅" title="DCA Plan" />
+            <P>Dollar-cost averaging (DCA) means investing a fixed amount on a regular schedule rather than timing the market. Enter your planned contribution amount and pick a frequency (weekly, bi-weekly, or monthly). The app projects how each holding grows over 5 and 10 years using the estimated CAGR for each position.</P>
+            <Tip>You can override the CAGR for any individual holding in Edit Targets to make projections more conservative or aggressive for specific names.</Tip>
+
+            <H2 icon="🎯" title="Edit Targets" />
+            <P>This is your portfolio ledger. Every holding lives here. Key columns:</P>
+            <H3>Current $</H3>
+            <P>Your current market value in that position. Update this regularly (weekly or monthly) to keep rebalance calculations accurate. You can also import directly from a Wealthsimple CSV export (Pro feature).</P>
+            <H3>Target %</H3>
+            <P>Your desired allocation. The rebalance engine uses this. Targets within each account must add up to 100% — the app shows a warning if they do not.</P>
+            <H3>Div Yield %</H3>
+            <P>Annual dividend yield. Used in the Dashboard income estimate. Leave at 0 for non-dividend positions.</P>
+            <H3>Cost Basis $</H3>
+            <P>What you originally paid. Used to calculate unrealized gain/loss in the Dashboard. Optional but recommended.</P>
+            <Tip>Use the <strong>Lock</strong> column (✅ Keep / ❌ SELL / 🆕 NEW) as a note to yourself — it does not affect calculations but helps you track intended actions at a glance.</Tip>
+
+            <H2 icon="💡" title="Ideas" />
+            <P>A curated database of {">"}100 tickers analyzed for Canadian investors. Each entry includes a thesis, estimated CAGR, dividend yield, sector, and a regime-alignment flag showing whether the current market environment favours this pick.</P>
+            <H3>Filters</H3>
+            <P>Filter by account type (TFSA-friendly vs RRSP-friendly), risk level, or sector. <Badge>TFSA optimal</Badge> tickers have no or minimal US withholding tax drag. <Badge color="#22d3ee">RRSP optimal</Badge> tickers pay US dividends that are sheltered by the Canada–US tax treaty.</P>
+            <Tip>Click <strong>"Add to targets"</strong> on any idea to instantly create a row in Edit Targets with pre-filled name, yield, and CAGR — then just set your target %.</Tip>
+
+            <H2 icon="🔍" title="Search" />
+            <P>Look up any ticker in our curated database for a quick one-page deep-dive: thesis, valuation context, sector, risk level, and recommended account placement. If a ticker is not in the database you can still add it manually or send it to AI for analysis (Pro only).</P>
+
+            <H2 icon="📡" title="Market Pulse" />
+            <P>A macro snapshot built for Canadian investors: VIX (fear gauge), yield curve shape, S&P 500 trend, oil price (important for the TSX), CAD/USD rate, and an overall market regime label — Risk-On, Neutral, or Risk-Off.</P>
+            <H3>How to use it</H3>
+            <P>Check Market Pulse before each rebalance. In a <strong style={{color:"#22c55e"}}>Risk-On</strong> regime, lean into growth positions. In a <strong style={{color:"#ef4444"}}>Risk-Off</strong> regime, favour defensive names and reduce new exposure to high-beta tickers. The Ideas tab flags which picks are <Badge color="#22c55e">Regime aligned</Badge> or <Badge color="#ef4444">Regime avoid</Badge> for the current environment.</P>
+            <Note>Data is pre-loaded at publish time. Pro users can refresh it with a live Claude AI call to get current data and commentary.</Note>
+
+            <H2 icon="⚡" title="Options (Pro)" />
+            <P>Generate income from positions you already own using two conservative strategies:</P>
+            <H3>Covered Calls (CC)</H3>
+            <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
+            <H3>Cash-Secured Puts (CSP)</H3>
+            <P>You set aside cash equal to 100 shares × the strike price. You sell someone the right to sell shares to you at that price. If the stock stays above the strike, you keep the premium. If it falls below, you buy the shares at the strike — essentially getting paid to buy a stock you wanted anyway at a discount.</P>
+            <H3>Strike calculator</H3>
+            <P>Enter a ticker, number of contracts, and expiry. The app suggests three strikes (conservative, moderate, aggressive) with estimated premium ranges based on the current VIX environment. Always verify with your broker — these are approximations, not live quotes.</P>
+            <H3>Trade log</H3>
+            <P>Record every options trade and track your running P&amp;L, win rate, and total premium collected. Mark trades as Expired worthless, Assigned, Closed for profit, or Closed for loss.</P>
+            <Tip>Covered calls and CSPs are permitted in Canadian registered accounts (TFSA and RRSP) at most brokers, but rules vary. Confirm with your broker before trading inside a registered account.</Tip>
+
+            {/* ── Canadian account strategy ── */}
+            <H2 icon="🍁" title="TFSA vs RRSP — which holdings go where?" />
+            <P>This is one of the most valuable optimisations a Canadian investor can make. The wrong placement costs you real money every year in withholding tax.</P>
+            <H3>Put in your TFSA</H3>
+            <P><Badge>Canadian stocks & ETFs</Badge> No withholding tax. Growth is 100% tax-free. <Badge>High-growth, no-dividend US stocks</Badge> (NVDA, AMZN, PLTR, etc.) — no dividend to leak, so no WHT drag.</P>
+            <H3>Put in your RRSP</H3>
+            <P><Badge color="#22d3ee">US dividend payers</Badge> (MSFT, AAPL, VTI, etc.) — the Canada–US tax treaty eliminates the 15% withholding tax on US dividends inside an RRSP. This can save hundreds of dollars per year on a large portfolio. <Badge color="#22d3ee">International ETFs</Badge> that hold US-listed shares also benefit.</P>
+            <Tip>The Ideas tab and the notes column in Edit Targets both show account placement recommendations for every holding. Look for the "MOVE TO RRSP" and "WHT" notes.</Tip>
+
+            {/* ── Pro vs Basic ── */}
+            <H2 icon="🔑" title="Basic vs Pro — what's included?" />
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:8 }}>
+              {[
+                { tier:"Basic — $49 CAD/yr", color:"#fbbf24", features:[
+                  "All portfolio tabs (Dashboard, Rebalance, DCA, Targets)",
+                  "Ideas database & Search",
+                  "Options strike calculator & trade log",
+                  "Market Pulse (pre-loaded data)",
+                  "Manual ticker entry & CSV import (basic)",
+                  "Up to 3 devices",
+                ]},
+                { tier:"Pro — $99 CAD/yr", color:"#22c55e", features:[
+                  "Everything in Basic",
+                  "Claude AI: live Market Pulse refresh with commentary",
+                  "Claude AI: Target Suggestions (AI-generated allocations)",
+                  "Claude AI: Diversification analysis & gap detection",
+                  "Claude AI: Options AI (scenario analysis per position)",
+                  "Wealthsimple broker import (auto-fill current values)",
+                  "10 AI calls per day",
+                ]},
+              ].map(({ tier, color, features }) => (
+                <div key={tier} style={{ background:`${color}08`, border:`1px solid ${color}28`, borderRadius:12, padding:"18px 20px" }}>
+                  <p style={{ fontSize:13, fontWeight:800, color, margin:"0 0 12px" }}>{tier}</p>
+                  {features.map(f => (
+                    <div key={f} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:7 }}>
+                      <span style={{ color, flexShrink:0, marginTop:1 }}>✓</span>
+                      <span style={{ fontSize:12, color:"#94a3b8", lineHeight:1.55 }}>{f}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+
+            {/* ── Best practices ── */}
+            <H2 icon="💎" title="Best practices for getting the most out of this app" />
+            <Step n="1"><strong style={{color:"#f1f5f9"}}>Update current values monthly</strong> — even rough estimates keep the rebalance recommendations meaningful. Set a reminder on the first of each month.</Step>
+            <Step n="2"><strong style={{color:"#f1f5f9"}}>Check Market Pulse before each rebalance</strong> — deploying cash into a Risk-Off regime without adjusting can amplify losses. Use the regime signal to size your buys conservatively in volatile markets.</Step>
+            <Step n="3"><strong style={{color:"#f1f5f9"}}>Let the rebalance engine do the math</strong> — avoid the temptation to override every suggestion. The engine compounds allocation discipline over years; emotion-driven tweaks usually hurt returns.</Step>
+            <Step n="4"><strong style={{color:"#f1f5f9"}}>Set your investor profile</strong> (👤 button in the header) — risk tolerance, age, and goal inform every AI suggestion and the Ideas regime alignment scores.</Step>
+            <Step n="5"><strong style={{color:"#f1f5f9"}}>Use DCA, not lump-sum, in volatile markets</strong> — the DCA Plan tab lets you model what a $500/month contribution looks like over 10 years. Small, consistent amounts beat irregular large investments in most back-tests.</Step>
+            <Step n="6"><strong style={{color:"#f1f5f9"}}>Keep targets realistic</strong> — if a position has a 0% target it will always appear as overweight. Either remove it from the list or set a small non-zero target if you plan to hold a residual position.</Step>
+            <Step n="7"><strong style={{color:"#f1f5f9"}}>Use the Notes column</strong> — write your own investment thesis in the notes. Reading it during a drawdown is the best reminder of why you bought and often prevents panic-selling.</Step>
+
+            <div style={{ height:40 }} />
+            <p style={{ fontSize:11, color:"rgba(255,255,255,0.15)", lineHeight:1.7, textAlign:"center" }}>
+              Not financial advice. All calculations are for informational purposes only. Always consult a qualified financial advisor before making investment decisions.
+              Tax treatment depends on your individual circumstances — consult a tax professional for personalized guidance.
+            </p>
+            <div style={{ height:24 }} />
           </div>
         );
       })()}
