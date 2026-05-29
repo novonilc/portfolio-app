@@ -1,6 +1,6 @@
 # Vertical Spread Scanner
 
-The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 35+ liquid US optionable tickers every morning at **5:30 PM ET (after close)**, scores each one for vertical spread suitability using five technical signals, and surfaces a clear recommendation — so you spend your time evaluating setups, not hunting for them.
+The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 69 liquid optionable tickers every morning at **5:30 PM ET (after close)**, scores each one for vertical spread suitability using five technical signals, and surfaces a clear recommendation — so you spend your time evaluating setups, not hunting for them.
 
 ---
 
@@ -15,18 +15,22 @@ The Spread Scanner is a daily automated technical analysis tool inside the Optio
 
 ## What it scans
 
-The scanner covers **35+ liquid optionable tickers** across major sectors:
+The scanner covers **69 liquid optionable tickers** across major sectors:
 
 | Category | Tickers |
 |---|---|
 | Mega-cap tech | AAPL, MSFT, NVDA, AMD, META, GOOGL, AMZN, TSLA, PLTR, ARM |
-| Financials | JPM, BAC, GS, V, BRK.B |
-| Healthcare | LLY, JNJ, ISRG, NVO |
-| Energy | XOM, CVX, CNQ |
-| Defense / Industrial | RTX, AXON |
-| Consumer | COST, SHOP |
+| Cloud / SaaS | SNOW, DDOG, CRWD, ZS, NET, MDB, TEAM |
+| Semiconductors | AVGO, QCOM, MU, SMCI, AMAT, LRCX |
+| Financials | JPM, BAC, GS, V, BRK.B, SCHW, MS, C |
+| Healthcare & Pharma | LLY, JNJ, ISRG, NVO, UNH, MRNA, ABBV |
+| Energy | XOM, CVX, CNQ, OXY |
+| Defense / Industrial | RTX, AXON, GE, BA |
+| Consumer & Retail | COST, SHOP, NFLX, SBUX, HD, NKE |
+| Fintech & Payments | SQ, PYPL, HOOD |
+| EV & Mobility | RIVN, F, GM |
 | High-beta / speculative | SOFI, COIN, MARA |
-| ETFs (highest liquidity) | SPY, QQQ, IWM, XLF, XLE, XLK |
+| ETFs (highest liquidity) | SPY, QQQ, IWM, XLF, XLE, XLK, GLD, XBI |
 
 These tickers were chosen for **options liquidity** — tight bid/ask spreads, high open interest, and enough average daily volume to fill vertical spread orders at reasonable prices.
 

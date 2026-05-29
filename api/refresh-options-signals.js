@@ -7,24 +7,34 @@ import { put } from "@vercel/blob";
 
 const BLOB_PATH = "options-signals/latest.json";
 
-// Liquid, optionable tickers well-suited for vertical spreads
+// Liquid, optionable tickers well-suited for vertical spreads.
+// Covers mega-caps, mid-cap growth, sector leaders, and liquid ETFs.
+// All have weekly options and sufficient open interest for spread fills.
 const SCAN_TICKERS = [
   // Mega-cap tech
   "AAPL", "MSFT", "NVDA", "AMD", "META", "GOOGL", "AMZN", "TSLA", "PLTR", "ARM",
+  // Cloud / SaaS
+  "SNOW", "DDOG", "CRWD", "ZS", "NET", "MDB", "TEAM",
+  // Semiconductors
+  "AVGO", "QCOM", "MU", "SMCI", "AMAT", "LRCX",
   // Financials
-  "JPM", "BAC", "GS", "V", "BRK.B",
-  // Healthcare
-  "LLY", "JNJ", "ISRG", "NVO",
+  "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C",
+  // Healthcare & Pharma
+  "LLY", "JNJ", "ISRG", "NVO", "UNH", "MRNA", "ABBV",
   // Energy
-  "XOM", "CVX", "CNQ",
+  "XOM", "CVX", "CNQ", "OXY",
   // Defense / Industrial
-  "RTX", "AXON",
-  // Consumer
-  "COST", "SHOP",
+  "RTX", "AXON", "GE", "BA",
+  // Consumer & Retail
+  "COST", "SHOP", "NFLX", "SBUX", "HD", "NKE",
+  // Fintech & Payments
+  "SQ", "PYPL", "HOOD",
+  // EV & Mobility
+  "RIVN", "F", "GM",
   // High-beta / speculative
   "SOFI", "COIN", "MARA",
   // ETFs (most liquid spread vehicles)
-  "SPY", "QQQ", "IWM", "XLF", "XLE", "XLK",
+  "SPY", "QQQ", "IWM", "XLF", "XLE", "XLK", "GLD", "XBI",
 ];
 
 // ─── Technical indicator helpers ──────────────────────────────────────────────

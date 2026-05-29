@@ -186,20 +186,28 @@ const TICKER_DB = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 const SPREAD_SCAN_TICKERS = [
   // Mega-cap tech
   "AAPL","MSFT","NVDA","AMD","META","GOOGL","AMZN","TSLA","PLTR","ARM",
+  // Cloud / SaaS
+  "SNOW","DDOG","CRWD","ZS","NET","MDB","TEAM",
+  // Semiconductors
+  "AVGO","QCOM","MU","SMCI","AMAT","LRCX",
   // Financials
-  "JPM","BAC","GS","V","BRK.B",
-  // Healthcare
-  "LLY","JNJ","ISRG","NVO",
+  "JPM","BAC","GS","V","BRK.B","SCHW","MS","C",
+  // Healthcare & Pharma
+  "LLY","JNJ","ISRG","NVO","UNH","MRNA","ABBV",
   // Energy
-  "XOM","CVX","CNQ",
+  "XOM","CVX","CNQ","OXY",
   // Defense / Industrial
-  "RTX","AXON",
-  // Consumer
-  "COST","SHOP",
-  // High-beta
+  "RTX","AXON","GE","BA",
+  // Consumer & Retail
+  "COST","SHOP","NFLX","SBUX","HD","NKE",
+  // Fintech & Payments
+  "SQ","PYPL","HOOD",
+  // EV & Mobility
+  "RIVN","F","GM",
+  // High-beta / speculative
   "SOFI","COIN","MARA",
   // ETFs (most liquid spread vehicles)
-  "SPY","QQQ","IWM","XLF","XLE","XLK",
+  "SPY","QQQ","IWM","XLF","XLE","XLK","GLD","XBI",
 ];
 
 function _ssEMA(values, period) {
@@ -8942,7 +8950,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <H2 icon="⚡" title="Options" />
             <P>Generate income from positions you already own using two conservative strategies, find the best tickers to trade spreads on, and track every trade in one place.</P>
             <H3>📊 Spread Scanner — daily vertical spread signals</H3>
-            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 35+ liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
+            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 69 liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
             <H3>Covered Calls (CC)</H3>
             <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
             <H3>Cash-Secured Puts (CSP)</H3>
