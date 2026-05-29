@@ -4474,9 +4474,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               "Low-Cost Producer":    "#22c55e",
               "Diversified Portfolio":"#94a3b8",
             };
+            const ROLE_META = {
+              anchor:   { label:"Shock Absorber", color:"#2dd4bf",  desc:"Holds value in drawdowns" },
+              growth:   { label:"Growth Engine",  color:"#a78bfa",  desc:"High-conviction compounder" },
+              cyclical: { label:"Cyclical Bet",   color:"#fb923c",  desc:"Timing-sensitive — size carefully" },
+            };
 
-            const recStocks = filteredRecs.filter(r => r.type === "stock" || !r.type);
-            const recETFs   = filteredRecs.filter(r => r.type === "etf");
+            const roleOrder = { anchor: 0, growth: 1, cyclical: 2 };
+            const sortByRole = arr => [...arr].sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9));
+
+            const recStocks = sortByRole(filteredRecs.filter(r => r.type === "stock" || !r.type));
+            const recETFs   = sortByRole(filteredRecs.filter(r => r.type === "etf"));
 
             const renderCard = (rec) => {
               const rotation = marketPulse?.outlooks?.[0]?.scenarios
@@ -4561,6 +4569,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             ✓ Diversified
                           </span>
                     )}
+                    {rec.role && (() => {
+                      const rm = ROLE_META[rec.role];
+                      if (!rm) return null;
+                      return (
+                        <span title={rm.desc} style={{ fontSize:10, fontWeight:500, padding:"2px 8px", borderRadius:4,
+                          background:`${rm.color}10`, color: rm.color,
+                          border:`1px solid ${rm.color}28`, cursor:"default" }}>
+                          {rm.label}
+                        </span>
+                      );
+                    })()}
                     <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
                       background:"rgba(255,255,255,0.05)", color:"rgba(255,255,255,0.4)",
                       border:"1px solid rgba(255,255,255,0.08)" }}>
@@ -4641,9 +4660,31 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
                       <span style={{ fontSize:10, color:"rgba(248,113,113,0.6)" }}>Higher single-name risk</span>
                     </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12, marginBottom:28 }}>
-                      {recStocks.map(rec => renderCard(rec))}
-                    </div>
+                    {(() => {
+                      const groups = [
+                        { role:"anchor",   items: recStocks.filter(r => r.role === "anchor") },
+                        { role:"growth",   items: recStocks.filter(r => r.role === "growth") },
+                        { role:"cyclical", items: recStocks.filter(r => r.role === "cyclical" || !r.role) },
+                      ].filter(g => g.items.length > 0);
+                      return groups.map(({ role, items }) => {
+                        const rm = ROLE_META[role];
+                        return (
+                          <div key={role} style={{ marginBottom: 20 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                              <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                                background:`${rm.color}10`, color: rm.color,
+                                border:`1px solid ${rm.color}28` }}>
+                                {rm.label}
+                              </span>
+                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>{rm.desc}</span>
+                            </div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12 }}>
+                              {items.map(rec => renderCard(rec))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </>
                 )}
 
@@ -4660,9 +4701,31 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
                       <span style={{ fontSize:10, color:"rgba(74,222,128,0.6)" }}>Built-in diversification</span>
                     </div>
-                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12, marginBottom:12 }}>
-                      {recETFs.map(rec => renderCard(rec))}
-                    </div>
+                    {(() => {
+                      const groups = [
+                        { role:"anchor",   items: recETFs.filter(r => r.role === "anchor") },
+                        { role:"growth",   items: recETFs.filter(r => r.role === "growth") },
+                        { role:"cyclical", items: recETFs.filter(r => r.role === "cyclical" || !r.role) },
+                      ].filter(g => g.items.length > 0);
+                      return groups.map(({ role, items }) => {
+                        const rm = ROLE_META[role];
+                        return (
+                          <div key={role} style={{ marginBottom: 20 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                              <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                                background:`${rm.color}10`, color: rm.color,
+                                border:`1px solid ${rm.color}28` }}>
+                                {rm.label}
+                              </span>
+                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>{rm.desc}</span>
+                            </div>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12 }}>
+                              {items.map(rec => renderCard(rec))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
                   </>
                 )}
               </>
