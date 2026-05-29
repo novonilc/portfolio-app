@@ -2,7 +2,7 @@
 
 **The AI-powered portfolio tool built for Canadian TFSA & RRSP investors.**
 
-Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, and Claude AI — all in your browser, no bank connection ever.
+Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, a daily Vertical Spread Scanner, BNN Bloomberg expert picks, and Claude AI — all in your browser, no bank connection ever.
 
 ### Subscription plans
 
@@ -12,6 +12,8 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | Rebalance & DCA Calendar | ✓ | ✓ |
 | Ideas & curated recommendations | ✓ | ✓ |
 | Options Calculator (CC + CSP) | ✓ | ✓ |
+| 📊 Spread Scanner (daily auto-refresh, 7 AM PST) | ✓ | ✓ |
+| 📰 BNN Bloomberg Market Call Picks | ✓ | ✓ |
 | Investor Profile | ✓ | ✓ |
 | ☁️ Automatic cloud sync (multi-device) | ✓ | ✓ |
 | ⚡ Market Pulse AI refresh | — | ✓ |
@@ -61,14 +63,17 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | Guide | Description |
 |---|---|
 | [Broker CSV Import](docs/broker-import.md) | Step-by-step: export from Wealthsimple, upload, and let Claude import it |
-| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse, scheduled refresh, and the Action Center |
+| [Market Pulse & Claude AI](docs/market-pulse.md) | Configure Market Pulse, scheduled refresh, BNN Bloomberg picks, and the Action Center |
+| [Spread Scanner](docs/spread-scanner.md) | How the daily technical scan works — signals, scoring, and how to read recommendations |
 | [TFSA vs RRSP Optimization](docs/canadian-tax-optimization.md) | Which securities belong in which account and why — with worked examples |
 | [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
+> - **📊 Vertical Spread Scanner** — a new sub-tab in Options that scores 35+ liquid tickers daily for vertical spread suitability. Computes RSI (14), MACD (12/26/9), SMA 50 & 200, 20-day VWAP, and volume ratio from 1 year of daily data. Each ticker gets a 0–100 spread score and a recommendation: Bull Put Spread, Bear Call Spread, Iron Condor, Caution, or Skip. Refreshes automatically every day at 7 AM PST via Vercel Cron. Included in both Basic and Pro.
+> - **📰 BNN Bloomberg Market Call Picks** — expert analyst buy/hold/sell calls from BNN Bloomberg's daily Market Call segment, parsed and structured by Claude AI each weekday morning. Organised into Canadian stocks, US stocks, and ETFs. Included in both plans.
 > - **📖 Help tab & onboarding gate** — a full in-app guide covering every tab, TFSA/RRSP strategy, Basic vs Pro features, and 7 best practices. New users land on the Help tab automatically and cannot access other tabs until they click "Start using the app →". Returning users go straight to Dashboard.
-> - **Scheduled Market Pulse refresh** — a Vercel Cron Job (`api/refresh-pulse`) runs on a configurable schedule (default: every Monday 6am UTC) to regenerate Market Pulse data using live market signals and Claude AI, saving the result to Vercel Blob. All users receive the fresh data automatically on their next app open. Schedule is one line in `vercel.json`.
+> - **Scheduled Market Pulse refresh** — a Vercel Cron Job (`api/refresh-pulse`) runs on a configurable schedule (default: every day 6am UTC) to regenerate Market Pulse data using live market signals and Claude AI, saving the result to Vercel Blob. All users receive the fresh data automatically on their next app open. Schedule is one line in `vercel.json`.
 > - **Automatic Cloud Sync** — portfolio data is now synced to Vercel Blob storage on every change (20-second debounce). Open the app on any device with your license key and your data loads automatically. Data is keyed to your Lemon Squeezy *customer ID* — not the license key — so switching plans or buying a new license never loses your data.
 > - **Private, per-user blob storage** — each user's data is stored at a path derived from `SHA-256(customer_id)`. Blobs are private (require server token to read). The license key is validated against Lemon Squeezy on every read and write — expired or invalid keys are rejected before any data is touched.
 > - **Morning Radar** — a 4-cell status panel at the top of the Dashboard shows today's estimated day P&L (after a live price refresh), allocation drift alerts, expiring options count, and WHT status. One-click **📡 Refresh Prices** fetches closing prices for all holdings via Yahoo Finance.

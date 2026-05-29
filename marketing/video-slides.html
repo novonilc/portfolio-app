@@ -415,27 +415,58 @@
      SLIDE 8 · Options
 ════════════════════════════════════════════ -->
 <div class="slide" id="s7"
-  data-vo="The Options tab is for investors who want to generate premium income on top of their existing holdings. The Covered Call and Cash-Secured Put calculators let you model any trade — enter the ticker, strike, DTE, contracts — and you get estimated premium, monthly yield, and annualized yield instantly. The AI Analysis sub-tab sends your portfolio to Claude and returns a ranked list of suggested trades with risk levels and reasoning.">
+  data-vo="The Options tab is your complete options income engine. Start with the Spread Scanner — it runs every morning at 7 AM PST and scores 35-plus tickers for vertical spread suitability using RSI, MACD, volume, SMA 50 and 200, and VWAP. Green means Bull Put Spread. Red means Bear Call Spread. The Covered Call and CSP calculators let you model any trade in seconds. And if you're on Pro, the AI Analysis sub-tab sends your portfolio to Claude and returns a ranked list of specific trades with risk levels and reasoning.">
   <div class="two">
     <div>
       <div class="eye a1">Options Income</div>
-      <h2 class="a2" style="margin-bottom:14px">Generate income <span class="gg">on your holdings.</span></h2>
-      <p class="sub a3" style="font-size:15px;margin:0 0 20px">CC + CSP calculators. AI suggests the best trades ranked by yield, risk, and portfolio fit.</p>
-      <div class="a4" style="display:flex;flex-direction:column;gap:10px">
-        <div style="display:flex;gap:10px">
-          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Strategy</div><div style="font-weight:700;font-size:14px">Covered Call</div></div>
-          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Ticker</div><div style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:14px">SHOP</div></div>
-          <div style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:12px"><div style="font-size:10px;color:var(--dim);margin-bottom:3px">Strike</div><div style="font-weight:700;font-family:'JetBrains Mono',monospace;font-size:14px">$120</div></div>
+      <h2 class="a2" style="margin-bottom:10px">From daily <span class="gg">spread signals</span> to logged trades.</h2>
+      <p class="sub a3" style="font-size:13px;margin:0 0 14px">Spread Scanner scores 35+ tickers every morning. CC + CSP calculators model any trade. AI Analysis (Pro) suggests the best setups on your holdings.</p>
+      <!-- Scanner mini-preview -->
+      <div class="a4" style="background:var(--card);border:1px solid rgba(34,211,238,.2);border-radius:12px;overflow:hidden;margin-bottom:10px">
+        <div style="padding:9px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:#22d3ee">📊 Spread Scanner — 7 AM PST · today</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace">NVDA</span>
+            <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.28);font-weight:700">Bull Put Spread</span>
+            <span style="font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.25)">Golden ✕</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:48px;height:3px;border-radius:2px;background:rgba(255,255,255,.07)"><div style="width:82%;height:100%;background:#22c55e;border-radius:2px"></div></div>
+            <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#22c55e;font-weight:700">82</span>
+          </div>
         </div>
-        <div style="display:flex;gap:10px">
-          <div style="flex:1;background:rgba(34,197,94,.09);border:1px solid rgba(34,197,94,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Est. Premium</div><div style="font-size:22px;font-weight:700;color:var(--green);font-family:'JetBrains Mono',monospace">$3.40</div></div>
-          <div style="flex:1;background:rgba(251,191,36,.09);border:1px solid rgba(251,191,36,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Monthly Yield</div><div style="font-size:22px;font-weight:700;color:var(--gold);font-family:'JetBrains Mono',monospace">2.8%</div></div>
-          <div style="flex:1;background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.22);border-radius:9px;padding:13px;text-align:center"><div style="font-size:10px;color:var(--muted);margin-bottom:3px">Annualised</div><div style="font-size:22px;font-weight:700;color:var(--cyan);font-family:'JetBrains Mono',monospace">33.6%</div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid rgba(255,255,255,.04)">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace">SPY</span>
+            <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(167,139,250,.12);color:#a78bfa;border:1px solid rgba(167,139,250,.28);font-weight:700">Iron Condor</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:48px;height:3px;border-radius:2px;background:rgba(255,255,255,.07)"><div style="width:73%;height:100%;background:#a78bfa;border-radius:2px"></div></div>
+            <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#a78bfa;font-weight:700">73</span>
+          </div>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:13px;font-weight:800;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,.45)">TSLA</span>
+            <span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(255,255,255,.04);color:rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.08);font-weight:700">Skip</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="width:48px;height:3px;border-radius:2px;background:rgba(255,255,255,.07)"><div style="width:32%;height:100%;background:#ef4444;border-radius:2px"></div></div>
+            <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:#ef4444;font-weight:700">32</span>
+          </div>
+        </div>
+      </div>
+      <!-- Signal pills -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee">Vol Ratio</span>
+        <span style="font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee">RSI 14</span>
+        <span style="font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee">MACD 12/26</span>
+        <span style="font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee">SMA 50/200</span>
+        <span style="font-size:10px;padding:3px 9px;border-radius:99px;background:rgba(34,211,238,.08);border:1px solid rgba(34,211,238,.2);color:#22d3ee">VWAP 20d</span>
       </div>
     </div>
     <div class="a1" style="background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--muted)">✨ AI Options Analysis</div>
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);font-size:12px;font-weight:700;color:var(--muted)">✨ AI Options Analysis (Pro)</div>
       <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">SHOP · CC $120 · 30 DTE</div><div style="font-size:11px;color:var(--muted)">Strong IV. OTM buffer gives upside room.</div></div><span class="obdg l">Low Risk</span></div>
       <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">VFV · CC $105 · 21 DTE</div><div style="font-size:11px;color:var(--muted)">Consistent premium. Low volatility play.</div></div><span class="obdg l">Low Risk</span></div>
       <div class="orow"><div><div style="font-weight:600;margin-bottom:2px">CNR · CSP $170 · 14 DTE</div><div style="font-size:11px;color:var(--muted)">Near support. Good entry if assigned.</div></div><span class="obdg m">Med Risk</span></div>

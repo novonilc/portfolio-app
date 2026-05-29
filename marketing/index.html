@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Rebalancer Pro — Built for Canadian TFSA &amp; RRSP Investors</title>
-  <meta name="description" content="The complete AI-powered portfolio tool for Canadian investors. Smart rebalancing, WHT optimization, Market Pulse, and Options income — $99 CAD/year. No bank connection required.">
+  <meta name="description" content="The complete AI-powered portfolio tool for Canadian investors. Smart rebalancing, WHT optimization, Market Pulse, daily Vertical Spread Scanner, BNN Bloomberg picks, and Options income — $99 CAD/year. No bank connection required.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -235,7 +235,7 @@
       <span class="grad-cyan">table every year.</span>
     </h1>
     <p class="hero-sub">
-      The complete TFSA &amp; RRSP portfolio tool with AI-powered rebalancing, withholding-tax optimization, live Market Pulse, and an options income planner — all in your browser, no bank connection ever.
+      The complete TFSA &amp; RRSP portfolio tool — AI rebalancing, withholding-tax optimization, live Market Pulse, daily vertical spread signals across 35+ tickers, BNN Bloomberg expert picks, and a full options income planner. All in your browser, no bank connection ever.
     </p>
     <div class="hero-cta">
       <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/bf976ea6-2417-4a1f-9cfb-86cc6873ff08" class="btn btn-gold btn-lg" id="hero-cta">Start Pro — $99 CAD/yr</a>
@@ -257,7 +257,9 @@
     <div class="trust-item">🔒 Private encrypted storage</div>
     <div class="trust-item">🍁 TFSA &amp; RRSP aware</div>
     <div class="trust-item">🤖 Claude AI built-in</div>
-    <div class="trust-item">📊 Live Market Pulse</div>
+    <div class="trust-item">📡 Live Market Pulse</div>
+    <div class="trust-item">📊 Daily Spread Scanner</div>
+    <div class="trust-item">📰 BNN Bloomberg Picks</div>
     <div class="trust-item">🔄 Updates included annually</div>
   </div>
 </div>
@@ -358,6 +360,20 @@
         <div class="feat-title">Options Income Planner</div>
         <div class="feat-desc">Model covered calls and cash-secured puts against any holding. Log open trades, track premium income, and get AI suggestions for the best trades on your specific portfolio — rated Low / Medium / High risk.</div>
         <span class="feat-tag feat-tag-ai">AI-powered</span>
+      </div>
+
+      <div class="feat-card" style="border-color:rgba(34,211,238,0.18)">
+        <span class="feat-icon">📈</span>
+        <div class="feat-title">Vertical Spread Scanner</div>
+        <div class="feat-desc">A daily technical scan across 35+ liquid optionable tickers. Each stock is scored 0–100 using Volume ratio, VWAP proximity, SMA 50/200, RSI, and MACD — then rated Bull Put Spread, Bear Call Spread, Iron Condor, or Skip. Refreshes automatically at 7 AM PST every day.</div>
+        <span class="feat-tag" style="background:rgba(34,211,238,0.1);color:#22d3ee">Auto-refreshing · all plans</span>
+      </div>
+
+      <div class="feat-card" style="border-color:rgba(251,191,36,0.18)">
+        <span class="feat-icon">📰</span>
+        <div class="feat-title">BNN Bloomberg Market Call Picks</div>
+        <div class="feat-desc">Expert stock recommendations from BNN Bloomberg's live <em>Market Call</em> segment, parsed and structured daily by Claude AI. See each guest analyst's buy/hold/sell calls with sector, ticker, and rationale — filtered for relevance to Canadian investors.</div>
+        <span class="feat-tag" style="background:rgba(251,191,36,0.1);color:#fbbf24">Daily · all plans</span>
       </div>
 
       <div class="feat-card">
@@ -475,6 +491,134 @@
   </div>
 </section>
 
+<!-- ── Spread Scanner spotlight ── -->
+<section class="section" style="background:rgba(255,255,255,0.01)">
+  <div class="inner">
+    <div class="spotlight" style="border-color:rgba(34,211,238,0.2)">
+      <div class="spotlight-copy">
+        <div class="tag tag-cyan" style="margin-bottom:16px">📊 Automatic daily refresh</div>
+        <div class="spotlight-title">Know which tickers are worth trading a<br><span class="grad-cyan">vertical spread today.</span></div>
+        <div class="spotlight-desc">Every morning at 7 AM PST, the Spread Scanner runs a full technical analysis across 35+ liquid US options names — without you lifting a finger. Each ticker gets a 0–100 spread score combining five signals and a clear recommendation so you're never guessing where to start.</div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>Volume ratio</strong> — flags thin markets where spreads widen and fills get ugly</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>RSI (14-period)</strong> — identifies the 35–65 sweet spot ideal for selling premium</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>MACD histogram</strong> — directional conviction; Bull Put vs Bear Call recommendation</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>SMA 50 &amp; SMA 200</strong> — trend context with golden cross / death cross detection</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>20-day VWAP</strong> — price stability indicator; near-VWAP = safer defined-risk entry</span></div>
+        <div style="margin-top:16px;font-size:13px;color:var(--dim)">Included in every plan · no setup required</div>
+      </div>
+      <div>
+        <div style="background:rgba(13,21,38,0.8);border:1px solid var(--border);border-radius:16px;padding:20px">
+          <div style="font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:14px">📊 Spread Scanner — Top picks</div>
+          <!-- NVDA card -->
+          <div style="background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.22);border-radius:10px;padding:14px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <span style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:#f1f5f9">NVDA</span>
+                <span style="font-size:10px;margin-left:8px;padding:2px 8px;border-radius:4px;background:rgba(34,197,94,0.12);color:#22c55e;border:1px solid rgba(34,197,94,0.28);font-weight:700;text-transform:uppercase">Bull Put Spread</span>
+                <span style="font-size:9px;margin-left:6px;padding:1px 5px;border-radius:3px;background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.28)">Golden ✕</span>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-bottom:3px">SCORE</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:60px;height:4px;border-radius:2px;background:rgba(255,255,255,0.07)"><div style="width:82%;height:100%;background:#22c55e;border-radius:2px"></div></div>
+                  <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#22c55e;font-weight:600">82</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:10px">
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">VOLUME</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:600">1.8×</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">RSI (14)</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">54.2</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">MACD</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:600">▲ +0.84</span></div>
+            </div>
+          </div>
+          <!-- SPY card -->
+          <div style="background:rgba(167,139,250,0.07);border:1px solid rgba(167,139,250,0.22);border-radius:10px;padding:14px;margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <span style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:#f1f5f9">SPY</span>
+                <span style="font-size:10px;margin-left:8px;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,0.12);color:#a78bfa;border:1px solid rgba(167,139,250,0.28);font-weight:700;text-transform:uppercase">Iron Condor</span>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-bottom:3px">SCORE</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:60px;height:4px;border-radius:2px;background:rgba(255,255,255,0.07)"><div style="width:73%;height:100%;background:#a78bfa;border-radius:2px"></div></div>
+                  <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#a78bfa;font-weight:600">73</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:10px">
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">VOLUME</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:600">2.1×</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">RSI (14)</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">49.8</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">MACD</div><span style="color:rgba(255,255,255,0.5);font-family:'JetBrains Mono',monospace;font-weight:600">◈ –0.02</span></div>
+            </div>
+          </div>
+          <!-- TSLA skip card -->
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <span style="font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;color:rgba(255,255,255,0.5)">TSLA</span>
+                <span style="font-size:10px;margin-left:8px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.08);font-weight:700;text-transform:uppercase">Skip</span>
+              </div>
+              <div style="text-align:right">
+                <div style="font-size:9px;color:rgba(255,255,255,0.3);margin-bottom:3px">SCORE</div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <div style="width:60px;height:4px;border-radius:2px;background:rgba(255,255,255,0.07)"><div style="width:32%;height:100%;background:#ef4444;border-radius:2px"></div></div>
+                  <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:#ef4444;font-weight:600">32</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:10px">
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">VOLUME</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:600">1.2×</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">RSI (14)</div><span style="color:#ef4444;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px">78.4</span> <span style="color:rgba(255,255,255,0.3)">⚠</span></div>
+              <div><div style="color:rgba(255,255,255,0.3);margin-bottom:2px">MACD</div><span style="color:#22c55e;font-family:'JetBrains Mono',monospace;font-weight:600">▲ +2.1</span></div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--dim);text-align:center;margin-top:10px">Simulated data for illustration · refreshes 7 AM PST daily</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BNN spotlight ── -->
+<section class="section">
+  <div class="inner">
+    <div class="spotlight" style="border-color:rgba(251,191,36,0.2)">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px">📰 BNN Bloomberg Market Call</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(34,197,94,0.2);border-radius:12px;padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:4px">▲ BUY — Peter Hodson · 5i Research</div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px">CNQ · Canadian Natural Resources</div>
+            <div style="font-size:12px;color:var(--muted)">Strong free cash flow, disciplined buyback program, and Athabasca oil sands assets provide a 20-year production runway. Best-in-class cost structure at current oil prices.</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(34,211,238,0.2);border-radius:12px;padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--cyan);margin-bottom:4px">→ HOLD — Christine Poole · GlobeInvest Capital</div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px">MSFT · Microsoft</div>
+            <div style="font-size:12px;color:var(--muted)">Azure AI workload acceleration is real, but valuation at 30× earnings already prices in two years of growth. Hold but do not add at current levels.</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(167,139,250,0.2);border-radius:12px;padding:14px">
+            <div style="font-size:11px;font-weight:700;color:var(--purple);margin-bottom:4px">▲ BUY — Kim Bolton · Black Swan Dexteritas</div>
+            <div style="font-weight:700;font-size:14px;margin-bottom:4px">ISRG · Intuitive Surgical</div>
+            <div style="font-size:12px;color:var(--muted)">Da Vinci 5 adoption is accelerating ahead of schedule. Recurring instrument revenue provides defensive downside. Long-term compounder, best in RRSP for WHT savings.</div>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--dim);margin-top:10px;text-align:center">Simulated output for illustration · refreshes daily after BNN broadcast</div>
+      </div>
+      <div class="spotlight-copy">
+        <div class="tag tag-gold" style="margin-bottom:16px">📰 BNN Bloomberg</div>
+        <div class="spotlight-title">Expert stock calls, <br><span class="grad-gold">structured and ready</span> to act on.</div>
+        <div class="spotlight-desc">BNN Bloomberg's <em>Market Call</em> segment features Canada's most-followed analysts sharing live buy/hold/sell calls every weekday morning. Portfolio Rebalancer Pro parses those calls daily using Claude AI and delivers them structured, searchable, and filtered for what matters to a Canadian registered account investor.</div>
+        <div class="bullet"><span class="bullet-check">✓</span><span>Parsed after each daily broadcast — typically refreshes by 9 AM ET on weekdays</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span>Each call shows ticker, analyst, firm, action (Buy / Hold / Sell), and rationale</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span>TFSA/RRSP placement guidance appended where relevant</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span>Separated into Canadian stocks, US stocks, and ETFs for fast scanning</span></div>
+        <div style="margin-top:16px;font-size:13px;color:var(--dim)">Included in every plan · no setup required</div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ── Compare ── -->
 <section class="section" style="background:rgba(255,255,255,0.01)">
   <div class="inner">
@@ -496,8 +640,10 @@
           <tr><td>WHT optimisation</td><td class="ours compare-y">✓ Built-in</td><td class="compare-n">✗</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
           <tr><td>TFSA + RRSP tax logic</td><td class="ours compare-y">✓ Full awareness</td><td class="compare-n">✗</td><td class="compare-n">Partial</td><td class="compare-n">Manual</td></tr>
           <tr><td>AI portfolio analysis</td><td class="ours compare-y">✓ Claude AI built-in</td><td class="compare-n">✗</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
-          <tr><td>Live Market Pulse</td><td class="ours compare-y">✓ AI-refreshed</td><td class="compare-n">Basic</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
+          <tr><td>Live Market Pulse</td><td class="ours compare-y">✓ AI-refreshed daily</td><td class="compare-n">Basic</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
           <tr><td>Options income planner</td><td class="ours compare-y">✓ CC + CSP + AI</td><td class="compare-n">✗</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
+          <tr><td>Daily vertical spread scanner</td><td class="ours compare-y">✓ 35+ tickers, 7 AM PST</td><td class="compare-n">✗</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
+          <tr><td>BNN Bloomberg expert picks</td><td class="ours compare-y">✓ Parsed daily</td><td class="compare-n">✗</td><td class="compare-n">✗</td><td class="compare-n">✗</td></tr>
           <tr><td>DCA calendar</td><td class="ours compare-y">✓ Week-by-week</td><td class="compare-n">✗</td><td class="compare-n">Basic</td><td class="compare-n">Manual</td></tr>
           <tr><td>Bank account required</td><td class="ours compare-y">✗ Never</td><td class="compare-n">Required</td><td class="compare-n">Required</td><td class="compare-n">✗</td></tr>
           <tr><td>Data leaves device</td><td class="ours compare-y">✗ Never</td><td class="compare-n">Yes</td><td class="compare-n">Yes</td><td class="compare-n">Depends</td></tr>
@@ -527,12 +673,14 @@
         <div class="price-feats" style="text-align:left">
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Dashboard</strong> — Morning Radar, WHT detector, live prices</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Rebalance &amp; DCA Calendar</strong> — cash-only rebalancing, period-by-period schedule</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Ideas &amp; Recommendations</strong> — 20+ curated picks with TFSA/RRSP guidance</div></div>
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Options Calculator</strong> — CC + CSP calculator, open trades log</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Ideas &amp; Recommendations</strong> — curated picks with TFSA/RRSP guidance</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Options Calculator</strong> — CC + CSP strike calculator, open trades log</div></div>
+          <div class="pf"><span class="pf-check" style="color:var(--cyan)">✓</span><div class="pf-text"><strong>📊 Spread Scanner</strong> — daily technical scan (Vol, RSI, MACD, SMA50/200, VWAP), auto-refreshes 7 AM PST</div></div>
+          <div class="pf"><span class="pf-check" style="color:var(--gold)">✓</span><div class="pf-text"><strong>📰 BNN Bloomberg Picks</strong> — expert buy/hold/sell calls parsed daily by Claude AI</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Investor Profile</strong> — personalise your risk settings</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>☁️ Automatic cloud sync</strong> — data follows you across all 3 activated devices</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Private encrypted storage</strong> — keyed to your buyer account, validated on every access</div></div>
-          <div class="pf" style="opacity:0.4"><span class="pf-check" style="color:var(--muted)">✗</span><div class="pf-text">Claude AI features (Market Pulse, Suggestions, Options AI, Broker Import)</div></div>
+          <div class="pf" style="opacity:0.4"><span class="pf-check" style="color:var(--muted)">✗</span><div class="pf-text">Claude AI features (Market Pulse refresh, Target Suggestions, Diversification Analysis, Options AI, Broker Import)</div></div>
         </div>
         <a href="https://portfolio-manager-for-canada.lemonsqueezy.com/checkout/buy/7e425f04-17a0-42c2-8232-dce156391ccf" class="btn btn-buy btn-lg" id="pricing-basic-cta"
           style="background:rgba(255,255,255,0.07);border:1.5px solid rgba(255,255,255,0.15);color:var(--text)">
@@ -550,11 +698,11 @@
         <div class="price-onetime">✓ Billed annually · cancel anytime</div>
         <div class="price-vs">Everything in Basic + Claude AI included</div>
         <div class="price-feats" style="text-align:left">
-          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Everything in Basic</strong> — all portfolio tools</div></div>
+          <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>Everything in Basic</strong> — all portfolio tools, Spread Scanner, BNN picks</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>⚡ Market Pulse AI Refresh</strong> — live regime analysis with your holdings as context</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>✨ AI Target Suggestions</strong> — Claude optimises your allocation with WHT logic</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Diversification Analysis</strong> — gap detection and trim alerts across all accounts</div></div>
-          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Options Analysis</strong> — ranked CC + CSP suggestions from Claude</div></div>
+          <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🤖 AI Options Analysis</strong> — ranked CC + CSP suggestions for your exact portfolio</div></div>
           <div class="pf"><span class="pf-check" style="color:#a78bfa">✓</span><div class="pf-text"><strong>🏦 Broker CSV Import</strong> — Claude parses your Wealthsimple export automatically</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>☁️ Automatic cloud sync</strong> — data follows you across all 3 devices automatically</div></div>
           <div class="pf"><span class="pf-check">✓</span><div class="pf-text"><strong>10 AI calls/day</strong> — resets midnight UTC · no API key needed</div></div>
@@ -663,6 +811,22 @@
           <span class="faq-chevron">›</span>
         </div>
         <div class="faq-a">Your portfolio is stored in two places you control: browser localStorage and your own private cloud blob. The cloud blob path is a SHA-256 hash of your Lemon Squeezy customer ID — not guessable, not enumerable. Every read and write requires a valid license key (validated against Lemon Squeezy in real time) and a secret server token. The blob URL itself is private — it cannot be accessed without the token even if someone discovered the URL. When you trigger an AI feature, only ticker symbols and position values travel through our proxy to Claude — no account numbers, SINs, or personal information are ever sent.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">
+          How often does the Spread Scanner refresh? Do I need to trigger it manually?
+          <span class="faq-chevron">›</span>
+        </div>
+        <div class="faq-a">No manual action needed — the Spread Scanner runs automatically every day at 7:00 AM PST via a scheduled server job. When you open the Options tab and click "📊 Spread Scanner," the latest scores load automatically. The scanner analyses 35+ liquid US optionable tickers (AAPL, NVDA, SPY, QQQ, and more) using 1 year of daily price data from Yahoo Finance, computing RSI, MACD, SMA 50/200, 20-day VWAP, and volume ratio for each. If you want the very latest data intraday, a manual Refresh button is available inside the scanner tab.</div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q" onclick="toggle(this)">
+          How does the BNN Bloomberg picks feature work?
+          <span class="faq-chevron">›</span>
+        </div>
+        <div class="faq-a">Every weekday after the BNN Bloomberg Market Call broadcast (typically by 9 AM ET), the app's server fetches that day's guest analyst stock calls, sends them to Claude AI for structured extraction, and saves the result to the cloud. The next time you open the app, the latest picks load automatically in the Ideas tab. Each call shows the ticker, analyst name and firm, action (Buy / Hold / Sell), and a one-sentence rationale. Picks are organised into Canadian stocks, US stocks, and ETFs. This feature is included in both the Basic and Pro plans — no setup required.</div>
       </div>
 
     </div>
@@ -895,6 +1059,8 @@
       <span class="footer-divider"></span>
       <a href="../docs/market-pulse.md" class="footer-link">Market Pulse Docs</a>
       <span class="footer-divider"></span>
+      <a href="../docs/spread-scanner.md" class="footer-link">Spread Scanner Guide</a>
+      <span class="footer-divider"></span>
       <a href="#pricing" class="footer-link" style="color:var(--gold)">Plans &amp; Pricing</a>
     </div>
     <div class="footer-copy">© 2026 Portfolio Rebalancer Pro · For personal use only · Not financial advice</div>
@@ -975,7 +1141,7 @@
       wht:    ['Withholding Tax Optimizer — shows dollar cost per TFSA position', 'TFSA → RRSP transfer workflow with in-kind instructions', 'Dashboard WHT card — annual drag updated live'],
       rebal:  ['Cash-only Rebalancing — no forced sells, perfect for registered accounts', 'DCA Calendar — period-by-period purchase schedule up to 26 weeks', 'AI Target Suggestions — Claude sets your allocations in one click'],
       market: ['Market Pulse — regime label, 6 macro panels, Risk-On/Risk-Off gauge', 'News Flash — headlines filtered to the tickers you actually hold', 'Action Center — buy or reduce positions inline without switching tabs'],
-      income: ['Options Income Planner — CC + CSP calculator with AI suggestions', 'Dividend Income Calendar — 12-month bar chart with quarterly weighting', 'AI Diversification Analysis — finds dividend-paying gaps in your portfolio'],
+      income: ['Spread Scanner — 35+ tickers scored daily for Bull Put / Bear Call spreads', 'Options Income Planner — CC + CSP calculator with AI suggestions', 'BNN Bloomberg Picks — expert buy/hold/sell calls updated each weekday morning', 'AI Diversification Analysis — finds dividend-paying gaps in your portfolio'],
     };
 
     const feats = FEAT_MAP[challenge] || ['Smart rebalancing', 'WHT optimization', 'AI portfolio analysis'];

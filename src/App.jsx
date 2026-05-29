@@ -181,6 +181,108 @@ const EXTRA_COLORS = [
 // Quick ticker lookup for search tab
 const TICKER_DB = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 
+// ─── Spread Scanner — ticker universe & technical indicator helpers ───────────
+
+const SPREAD_SCAN_TICKERS = [
+  // Mega-cap tech
+  "AAPL","MSFT","NVDA","AMD","META","GOOGL","AMZN","TSLA","PLTR","ARM",
+  // Financials
+  "JPM","BAC","GS","V","BRK.B",
+  // Healthcare
+  "LLY","JNJ","ISRG","NVO",
+  // Energy
+  "XOM","CVX","CNQ",
+  // Defense / Industrial
+  "RTX","AXON",
+  // Consumer
+  "COST","SHOP",
+  // High-beta
+  "SOFI","COIN","MARA",
+  // ETFs (most liquid spread vehicles)
+  "SPY","QQQ","IWM","XLF","XLE","XLK",
+];
+
+function _ssEMA(values, period) {
+  if (values.length < period) return [];
+  const k = 2 / (period + 1);
+  const out = new Array(values.length).fill(null);
+  out[period - 1] = values.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < values.length; i++) out[i] = values[i] * k + out[i - 1] * (1 - k);
+  return out;
+}
+function _ssRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let ag = 0, al = 0;
+  for (let i = 1; i <= period; i++) { const d = closes[i] - closes[i - 1]; if (d > 0) ag += d; else al -= d; }
+  ag /= period; al /= period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    ag = (ag * (period - 1) + Math.max(d, 0)) / period;
+    al = (al * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  return al === 0 ? 100 : parseFloat((100 - 100 / (1 + ag / al)).toFixed(1));
+}
+function _ssMACD(closes, fast = 12, slow = 26, sig = 9) {
+  if (closes.length < slow + sig) return null;
+  const ef = _ssEMA(closes, fast), es = _ssEMA(closes, slow);
+  const ml = closes.map((_, i) => ef[i] != null && es[i] != null ? ef[i] - es[i] : null).filter(v => v != null);
+  if (ml.length < sig) return null;
+  const se = _ssEMA(ml, sig);
+  const lm = ml[ml.length - 1], ls = se[se.length - 1];
+  return { macd: parseFloat(lm.toFixed(3)), signal: parseFloat(ls.toFixed(3)), histogram: parseFloat((lm - ls).toFixed(3)) };
+}
+function _ssSMA(closes, period) {
+  if (closes.length < period) return null;
+  return parseFloat((closes.slice(-period).reduce((a, b) => a + b, 0) / period).toFixed(2));
+}
+function _ssVWAP(highs, lows, closes, volumes, period = 20) {
+  const n = Math.min(period, closes.length);
+  let sumPV = 0, sumV = 0;
+  for (let i = closes.length - n; i < closes.length; i++) {
+    const tp = (highs[i] + lows[i] + closes[i]) / 3;
+    sumPV += tp * volumes[i]; sumV += volumes[i];
+  }
+  return sumV > 0 ? parseFloat((sumPV / sumV).toFixed(2)) : null;
+}
+function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
+  let score = 40, bull = 0, bear = 0;
+  if      (volumeRatio >= 2.0) { score += 20; bull++; bear++; }
+  else if (volumeRatio >= 1.5) { score += 14; bull++; bear++; }
+  else if (volumeRatio >= 1.0) { score += 8; }
+  else if (volumeRatio <  0.6) { score -= 12; }
+  if (rsi != null) {
+    if      (rsi >= 35 && rsi <= 65) score += 18;
+    else if (rsi >= 28 && rsi <  35) score += 8;
+    else if (rsi >  65 && rsi <= 73) score += 8;
+    else score -= 12;
+    if (rsi >= 52) bull += 2; else bear += 2;
+  }
+  if (macd?.histogram != null) {
+    score += Math.min(12, Math.round(Math.abs(macd.histogram) / (price * 0.003) * 6));
+    if (macd.histogram > 0) { bull += 3; } else { bear += 3; }
+    if (macd.macd > macd.signal && macd.macd > 0) bull++;
+    if (macd.macd < macd.signal && macd.macd < 0) bear++;
+  }
+  if (sma50 != null) { score += 6; if ((price - sma50) / sma50 > 0.02) bull += 2; else if ((price - sma50) / sma50 < -0.02) bear += 2; }
+  if (sma50 != null && sma200 != null) { if (sma50 > sma200) { score += 10; bull += 2; } else { score += 4; bear += 2; } }
+  if (vwap != null) {
+    const pct = Math.abs((price - vwap) / vwap);
+    if (pct <= 0.015) score += 10; else if (pct <= 0.04) score += 5;
+    if (price > vwap) bull++; else bear++;
+  }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let direction = "neutral";
+  if (bull >= bear + 3) direction = "bullish";
+  else if (bear >= bull + 3) direction = "bearish";
+  let recommendation, recommendationColor;
+  if      (score >= 65 && direction === "bullish") { recommendation = "Bull Put Spread";  recommendationColor = "#22c55e"; }
+  else if (score >= 65 && direction === "bearish") { recommendation = "Bear Call Spread"; recommendationColor = "#ef4444"; }
+  else if (score >= 65)                            { recommendation = "Iron Condor";      recommendationColor = "#a78bfa"; }
+  else if (score >= 48)                            { recommendation = "Caution";          recommendationColor = "#fbbf24"; }
+  else                                             { recommendation = "Skip";             recommendationColor = "rgba(255,255,255,0.3)"; }
+  return { score, direction, recommendation, recommendationColor };
+}
+
 // Options constants
 const SECTOR_IV_MULT = {
   "Semiconductor":3.0, "Technology":2.4, "Aerospace/Defense":1.6,
@@ -534,10 +636,12 @@ export default function App() {
   const [aiSugSort,       setAiSugSort]       = useState({ col: null, dir: "asc" });
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle"); // "idle"|"syncing"|"synced"|"error"
   const [cloudSyncedAt,   setCloudSyncedAt]   = useState(() => localStorage.getItem("portfolio:cloud:ts") || null);
-  // Spread scanner signals (loaded from /api/options-signals-load)
+  // Spread scanner signals (loaded from /api/options-signals-load or live scan)
   const [spreadSignals,        setSpreadSignals]        = useState(null);
   const [spreadSignalsLoading, setSpreadSignalsLoading] = useState(false);
   const [spreadSignalsError,   setSpreadSignalsError]   = useState(null);
+  const [spreadScanProgress,   setSpreadScanProgress]   = useState(null); // { done, total, ticker } | null
+  const spreadScanAbortRef = useRef(null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
   function callClaude(body) {
@@ -2048,6 +2152,109 @@ Return ONLY a valid JSON object, no markdown:
       setSpreadSignalsError(err.message || "Failed to load signals");
     } finally {
       setSpreadSignalsLoading(false);
+    }
+  }
+
+  async function runManualSpreadScan() {
+    // Cancel any in-flight scan
+    if (spreadScanAbortRef.current) spreadScanAbortRef.current.abort();
+    const ac = new AbortController();
+    spreadScanAbortRef.current = ac;
+
+    const tickers = SPREAD_SCAN_TICKERS;
+    setSpreadSignalsError(null);
+    setSpreadScanProgress({ done: 0, total: tickers.length, ticker: tickers[0] });
+
+    const results = [];
+    const BATCH = 5; // fetch 5 tickers in parallel, then next batch
+
+    for (let i = 0; i < tickers.length; i += BATCH) {
+      if (ac.signal.aborted) break;
+      const batch = tickers.slice(i, i + BATCH);
+
+      const batchResults = await Promise.allSettled(
+        batch.map(async ticker => {
+          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
+          const res = await fetch(url, { signal: AbortSignal.any
+            ? AbortSignal.any([ac.signal, AbortSignal.timeout(12000)])
+            : ac.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          const result = data.chart?.result?.[0];
+          if (!result) throw new Error("no data");
+          const q = result.indicators?.quote?.[0] || {};
+          const bars = (q.close || []).map((c, idx) => ({
+            c, h: q.high?.[idx], l: q.low?.[idx], v: q.volume?.[idx],
+          })).filter(b => b.c != null && b.h != null && b.l != null && b.v != null);
+
+          if (bars.length < 30) throw new Error("insufficient data");
+          const closes  = bars.map(b => b.c);
+          const highs   = bars.map(b => b.h);
+          const lows    = bars.map(b => b.l);
+          const volumes = bars.map(b => b.v);
+
+          const price   = closes[closes.length - 1];
+          const prev    = closes[closes.length - 2];
+          const sma50   = _ssSMA(closes, 50);
+          const sma200  = _ssSMA(closes, 200);
+          const rsi     = _ssRSI(closes);
+          const macd    = _ssMACD(closes);
+          const vwap    = _ssVWAP(highs, lows, closes, volumes, 20);
+          const lastVol = volumes[volumes.length - 1];
+          const avg20V  = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+          const volumeRatio = parseFloat((avg20V > 0 ? lastVol / avg20V : 1).toFixed(2));
+
+          const { score, direction, recommendation, recommendationColor } =
+            _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio });
+
+          return {
+            ticker,
+            price:           parseFloat(price.toFixed(2)),
+            priceChangePct:  prev ? parseFloat(((price - prev) / prev * 100).toFixed(2)) : 0,
+            volume:          lastVol,
+            volumeRatio,
+            vwap,
+            sma50,
+            sma200,
+            rsi,
+            macd,
+            score,
+            direction,
+            recommendation,
+            recommendationColor,
+            high52w: parseFloat(Math.max(...highs).toFixed(2)),
+            low52w:  parseFloat(Math.min(...lows).toFixed(2)),
+          };
+        })
+      );
+
+      batchResults.forEach((r, idx) => {
+        if (r.status === "fulfilled") results.push(r.value);
+        // silently skip failed tickers
+      });
+
+      if (!ac.signal.aborted) {
+        const done = Math.min(i + BATCH, tickers.length);
+        const nextTicker = tickers[Math.min(i + BATCH, tickers.length - 1)];
+        setSpreadScanProgress({ done, total: tickers.length, ticker: nextTicker });
+      }
+
+      // Small pause between batches to be respectful of Yahoo Finance rate limits
+      if (i + BATCH < tickers.length && !ac.signal.aborted) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    if (!ac.signal.aborted) {
+      results.sort((a, b) => b.score - a.score);
+      setSpreadSignals({
+        signals:     results,
+        lastUpdated: new Date().toISOString(),
+        tickerCount: results.length,
+        source:      "live",
+      });
+      setSpreadScanProgress(null);
     }
   }
 
@@ -7975,30 +8182,90 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             );
           };
 
+          const isScanning = !!spreadScanProgress;
+          const scanDisabled = isScanning || spreadSignalsLoading;
+
           return (
             <div>
               {/* Header row */}
               <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14, flexWrap:"wrap" }}>
                 <div style={{ flex:1, minWidth:240 }}>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
-                    Daily technical scan across {signals.length || "35+"} liquid tickers.
-                    Signals — Volume, VWAP, SMA 50/200, RSI, MACD — are combined into a spread score.
-                    Higher score = better conditions for defined-risk vertical spreads.
-                    Data refreshes automatically each day at <strong style={{ color:"rgba(255,255,255,0.6)" }}>7:00 AM PST</strong>.
+                    Scores {signals.length || SPREAD_SCAN_TICKERS.length}+ liquid tickers on Volume, VWAP, SMA 50/200, RSI, and MACD.
+                    Higher score = better conditions for vertical spreads.
+                    Cron auto-refresh runs daily at <strong style={{ color:"rgba(255,255,255,0.6)" }}>7:00 AM PST</strong>.
                   </p>
-                  {ss?.lastUpdated && (
-                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:4 }}>
-                      Last refresh: {new Date(ss.lastUpdated).toLocaleString()}
-                    </p>
-                  )}
+                  {/* Source + timestamp row */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4, flexWrap:"wrap" }}>
+                    {ss?.lastUpdated && (
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", margin:0 }}>
+                        {ss.source === "live" ? "Live scan" : "Server cache"} · {new Date(ss.lastUpdated).toLocaleString()}
+                      </p>
+                    )}
+                    {ss?.source === "live" && (
+                      <span style={{ fontSize:8, padding:"1px 6px", borderRadius:10,
+                        background:"rgba(34,197,94,0.12)", color:"#22c55e",
+                        border:"1px solid rgba(34,197,94,0.28)" }}>● Live</span>
+                    )}
+                    {ss?.source !== "live" && ss?.lastUpdated && (
+                      <span style={{ fontSize:8, padding:"1px 6px", borderRadius:10,
+                        background:"rgba(34,211,238,0.08)", color:"#22d3ee",
+                        border:"1px solid rgba(34,211,238,0.2)" }}>Scheduled</span>
+                    )}
+                  </div>
                 </div>
-                <button className="btn" onClick={refreshSpreadSignals} disabled={spreadSignalsLoading}
-                  style={{ fontSize:11, padding:"7px 16px", whiteSpace:"nowrap",
-                    background:"rgba(34,211,238,0.10)", borderColor:"rgba(34,211,238,0.3)", color:"#22d3ee",
-                    opacity: spreadSignalsLoading ? 0.6 : 1 }}>
-                  {spreadSignalsLoading ? "⏳ Loading…" : "⟳ Refresh"}
-                </button>
+
+                {/* Action buttons */}
+                <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                  {/* Primary: Scan Now */}
+                  <button
+                    className="btn btn-primary"
+                    onClick={isScanning ? () => {
+                      spreadScanAbortRef.current?.abort();
+                      setSpreadScanProgress(null);
+                    } : runManualSpreadScan}
+                    disabled={spreadSignalsLoading}
+                    style={{ fontSize:11, padding:"7px 16px", whiteSpace:"nowrap",
+                      background: isScanning ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
+                      borderColor: isScanning ? "rgba(239,68,68,0.35)" : "rgba(34,197,94,0.35)",
+                      color: isScanning ? "#ef4444" : "#22c55e" }}>
+                    {isScanning
+                      ? `⏹ Cancel (${spreadScanProgress.done}/${spreadScanProgress.total})`
+                      : "🔍 Scan Now"}
+                  </button>
+                  {/* Secondary: load server cache */}
+                  <button
+                    className="btn"
+                    onClick={refreshSpreadSignals}
+                    disabled={scanDisabled}
+                    style={{ fontSize:10, padding:"5px 12px", whiteSpace:"nowrap",
+                      background:"rgba(34,211,238,0.06)", borderColor:"rgba(34,211,238,0.2)",
+                      color:"rgba(34,211,238,0.6)", opacity: scanDisabled ? 0.5 : 1 }}>
+                    {spreadSignalsLoading ? "⏳ Loading…" : "⟳ Load cache"}
+                  </button>
+                </div>
               </div>
+
+              {/* Progress bar */}
+              {isScanning && (
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>
+                      Scanning{spreadScanProgress.ticker ? ` ${spreadScanProgress.ticker}` : ""}…
+                    </span>
+                    <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>
+                      {spreadScanProgress.done} / {spreadScanProgress.total}
+                    </span>
+                  </div>
+                  <div style={{ height:4, borderRadius:2, background:"rgba(255,255,255,0.07)" }}>
+                    <div style={{
+                      height:"100%", borderRadius:2, background:"#22c55e",
+                      width:`${(spreadScanProgress.done / spreadScanProgress.total) * 100}%`,
+                      transition:"width 0.4s ease",
+                    }} />
+                  </div>
+                </div>
+              )}
 
               {spreadSignalsError && (
                 <div style={{ padding:"10px 14px", background:"rgba(239,68,68,0.08)",
@@ -8024,14 +8291,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               )}
 
               {/* Empty state */}
-              {!signals.length && !spreadSignalsLoading && (
+              {!signals.length && !isScanning && !spreadSignalsLoading && (
                 <div className="card" style={{ textAlign:"center", padding:"48px 24px" }}>
-                  <p style={{ fontSize:28, marginBottom:10 }}>📡</p>
+                  <p style={{ fontSize:28, marginBottom:10 }}>📊</p>
                   <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>No scan data yet</p>
-                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", maxWidth:380, margin:"0 auto" }}>
-                    The cron job runs daily at 7 AM PST. Click Refresh to load the latest snapshot,
-                    or trigger <code style={{ fontFamily:"'JetBrains Mono',monospace" }}>/api/refresh-options-signals</code> manually.
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", maxWidth:380, margin:"0 auto 16px" }}>
+                    Run a fresh scan now, or wait for the automatic daily refresh at 7 AM PST.
                   </p>
+                  <button className="btn btn-primary" onClick={runManualSpreadScan}
+                    style={{ fontSize:11, padding:"8px 20px",
+                      background:"rgba(34,197,94,0.12)", borderColor:"rgba(34,197,94,0.35)", color:"#22c55e" }}>
+                    🔍 Scan Now
+                  </button>
                 </div>
               )}
 
@@ -8668,8 +8939,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <P>Check Market Pulse before each rebalance. In a <strong style={{color:"#22c55e"}}>Risk-On</strong> regime, lean into growth positions. In a <strong style={{color:"#ef4444"}}>Risk-Off</strong> regime, favour defensive names and reduce new exposure to high-beta tickers. The Ideas tab flags which picks are <Badge color="#22c55e">Regime aligned</Badge> or <Badge color="#ef4444">Regime avoid</Badge> for the current environment.</P>
             <Note>Data is pre-loaded at publish time. Pro users can refresh it with a live Claude AI call to get current data and commentary.</Note>
 
-            <H2 icon="⚡" title="Options (Pro)" />
-            <P>Generate income from positions you already own using two conservative strategies:</P>
+            <H2 icon="⚡" title="Options" />
+            <P>Generate income from positions you already own using two conservative strategies, find the best tickers to trade spreads on, and track every trade in one place.</P>
+            <H3>📊 Spread Scanner — daily vertical spread signals</H3>
+            <P>Every morning at 7 AM PST the app runs a full technical scan across 35+ liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
             <H3>Covered Calls (CC)</H3>
             <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
             <H3>Cash-Secured Puts (CSP)</H3>
@@ -8678,7 +8951,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <P>Enter a ticker, number of contracts, and expiry. The app suggests three strikes (conservative, moderate, aggressive) with estimated premium ranges based on the current VIX environment. Always verify with your broker — these are approximations, not live quotes.</P>
             <H3>Trade log</H3>
             <P>Record every options trade and track your running P&amp;L, win rate, and total premium collected. Mark trades as Expired worthless, Assigned, Closed for profit, or Closed for loss.</P>
-            <Tip>Covered calls and CSPs are permitted in Canadian registered accounts (TFSA and RRSP) at most brokers, but rules vary. Confirm with your broker before trading inside a registered account.</Tip>
+            <Tip>Covered calls and CSPs are permitted in Canadian registered accounts (TFSA and RRSP) at most brokers, but rules vary. Confirm with your broker before trading inside a registered account. The Spread Scanner is a starting point — always verify signals with your broker's live options chain before placing trades.</Tip>
 
             {/* ── Canadian account strategy ── */}
             <H2 icon="🍁" title="TFSA vs RRSP — which holdings go where?" />
@@ -8697,16 +8970,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   "All portfolio tabs (Dashboard, Rebalance, DCA, Targets)",
                   "Ideas database & Search",
                   "Options strike calculator & trade log",
+                  "📊 Spread Scanner — daily auto-refresh at 7 AM PST",
+                  "📰 BNN Bloomberg expert picks (weekday mornings)",
                   "Market Pulse (pre-loaded data)",
                   "Manual ticker entry & CSV import (basic)",
                   "Up to 3 devices",
                 ]},
                 { tier:"Pro — $99 CAD/yr", color:"#22c55e", features:[
-                  "Everything in Basic",
+                  "Everything in Basic (incl. Spread Scanner + BNN picks)",
                   "Claude AI: live Market Pulse refresh with commentary",
                   "Claude AI: Target Suggestions (AI-generated allocations)",
                   "Claude AI: Diversification analysis & gap detection",
-                  "Claude AI: Options AI (scenario analysis per position)",
+                  "Claude AI: Options AI — ranked CC + CSP suggestions",
                   "Wealthsimple broker import (auto-fill current values)",
                   "10 AI calls per day",
                 ]},

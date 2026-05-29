@@ -2,6 +2,8 @@
 
 The Market Pulse tab is the app's AI-powered market dashboard. It shows the current market regime, macro signals, recent news with portfolio impact, 3/6-month scenarios, and an Action Center where you can buy and reduce positions without leaving the tab.
 
+The **Ideas tab** also includes a daily **BNN Bloomberg Market Call** section — expert analyst stock picks from each morning's live broadcast, parsed and structured automatically by Claude AI. See [BNN Bloomberg Picks](#bnn-bloomberg-market-call-picks) below.
+
 ---
 
 ## Requirements
@@ -168,6 +170,51 @@ Each entry shows:
 - Notes from the action card
 
 The log persists across sessions (stored in `localStorage`). Clear it with the **Clear Log** button when it becomes too long.
+
+---
+
+## BNN Bloomberg Market Call Picks
+
+### What it is
+
+Every weekday morning, BNN Bloomberg airs its *Market Call* segment — a live show where guest analysts from Canadian investment firms share their current buy, hold, and sell recommendations on specific stocks. Portfolio Rebalancer Pro parses these picks automatically and makes them available in the **💡 Ideas** tab.
+
+### How it works
+
+1. A Vercel Cron Job (`/api/refresh-bnn`) runs on weekdays at **1:00 PM UTC (9:00 AM ET)** — shortly after the live broadcast
+2. It fetches the latest analyst calls from a public aggregator
+3. Claude AI extracts structured data: ticker, analyst name, firm, action (Buy / Hold / Sell), and a one-sentence rationale
+4. The result is saved to Vercel Blob and loaded automatically the next time you open the app
+5. Picks are organised into three sections: **Canadian stocks**, **US stocks**, and **ETFs**
+
+### Refresh schedule
+
+```json
+{ "path": "/api/refresh-bnn", "schedule": "0 13 * * 1-5" }
+```
+
+This runs Monday–Friday. Weekend calls are not parsed (BNN does not air Market Call on weekends). Monday morning's tab shows Friday's picks until the Monday broadcast is processed.
+
+### Reading the picks
+
+Each pick card shows:
+
+| Field | Example |
+|---|---|
+| Ticker | `CNQ` |
+| Company | Canadian Natural Resources |
+| Analyst | Peter Hodson · 5i Research |
+| Action | **▲ BUY** / **→ HOLD** / **▼ SELL** |
+| Rationale | One-sentence summary of the analyst's thesis |
+
+Cards are colour-coded by action: green border for Buy, amber for Hold, red for Sell.
+
+### Caveats
+
+- These are **third-party analyst opinions**, not investment advice from Portfolio Rebalancer Pro
+- Analyst calls reflect conditions at the time of broadcast — macro or company news since then may make them stale
+- Not every broadcast session is parsed — occasional network or parsing failures are possible; the tab shows the most recently successful refresh
+- Holdings in your own portfolio are not cross-referenced against BNN picks automatically — use the Ideas tab to manually evaluate whether a pick fits your allocation
 
 ---
 
