@@ -2182,10 +2182,8 @@ Return ONLY a valid JSON object, no markdown:
 
       const batchResults = await Promise.allSettled(
         batch.map(async ticker => {
-          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
-          const res = await fetch(url, { signal: AbortSignal.any
-            ? AbortSignal.any([ac.signal, AbortSignal.timeout(12000)])
-            : ac.signal });
+          const url = `/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&interval=1d&range=1y`;
+          const res = await fetch(url, { signal: ac.signal });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
 
@@ -2256,6 +2254,9 @@ Return ONLY a valid JSON object, no markdown:
 
     if (!ac.signal.aborted) {
       results.sort((a, b) => b.score - a.score);
+      if (!results.length) {
+        setSpreadSignalsError("Scan returned no data — check network or try Load cache.");
+      }
       setSpreadSignals({
         signals:     results,
         lastUpdated: new Date().toISOString(),
