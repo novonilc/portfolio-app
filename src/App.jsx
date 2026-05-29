@@ -534,6 +534,10 @@ export default function App() {
   const [aiSugSort,       setAiSugSort]       = useState({ col: null, dir: "asc" });
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle"); // "idle"|"syncing"|"synced"|"error"
   const [cloudSyncedAt,   setCloudSyncedAt]   = useState(() => localStorage.getItem("portfolio:cloud:ts") || null);
+  // Spread scanner signals (loaded from /api/options-signals-load)
+  const [spreadSignals,        setSpreadSignals]        = useState(null);
+  const [spreadSignalsLoading, setSpreadSignalsLoading] = useState(false);
+  const [spreadSignalsError,   setSpreadSignalsError]   = useState(null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
   function callClaude(body) {
@@ -792,6 +796,18 @@ export default function App() {
         const data = await res.json();
         if (data.experts?.length) setBnnCalls(data);
       } catch { /* silently skip — BNN section stays hidden */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load spread scanner signals on startup (refreshed daily at 7am PST by cron)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/options-signals-load");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.signals?.length) setSpreadSignals(data);
+      } catch { /* silently skip — scanner section shows empty state */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2016,6 +2032,22 @@ Return ONLY a valid JSON object, no markdown:
       setAiOptionsError(err.message || "Failed to generate analysis");
     } finally {
       setAiOptionsLoading(false);
+    }
+  }
+
+  async function refreshSpreadSignals() {
+    setSpreadSignalsLoading(true);
+    setSpreadSignalsError(null);
+    try {
+      const res = await fetch("/api/options-signals-load");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.signals?.length) setSpreadSignals(data);
+      else throw new Error("No signals returned");
+    } catch (err) {
+      setSpreadSignalsError(err.message || "Failed to load signals");
+    } finally {
+      setSpreadSignalsLoading(false);
     }
   }
 
@@ -7904,6 +7936,293 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           );
         };
 
+        // Sub-tab: Spread Scanner
+        const renderSpreadScanner = () => {
+          const ss = spreadSignals;
+          const signals = ss?.signals || [];
+
+          const recColors = {
+            "Bull Put Spread":  { bg:"rgba(34,197,94,0.10)",  border:"rgba(34,197,94,0.28)",  text:"#22c55e" },
+            "Bear Call Spread": { bg:"rgba(239,68,68,0.10)",  border:"rgba(239,68,68,0.28)",  text:"#ef4444" },
+            "Iron Condor":      { bg:"rgba(167,139,250,0.10)",border:"rgba(167,139,250,0.28)",text:"#a78bfa" },
+            "Caution":          { bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)", text:"#fbbf24" },
+            "Skip":             { bg:"rgba(255,255,255,0.02)",border:"rgba(255,255,255,0.08)",text:"rgba(255,255,255,0.3)" },
+          };
+          const dirIcon = { bullish:"▲", bearish:"▼", neutral:"◈" };
+          const dirColor= { bullish:"#22c55e", bearish:"#ef4444", neutral:"rgba(255,255,255,0.35)" };
+
+          const ScoreBar = ({ score }) => {
+            const color = score >= 65 ? "#22c55e" : score >= 48 ? "#fbbf24" : "#ef4444";
+            return (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ flex:1, height:4, borderRadius:2, background:"rgba(255,255,255,0.07)" }}>
+                  <div style={{ width:`${score}%`, height:"100%", borderRadius:2, background:color, transition:"width 0.3s" }} />
+                </div>
+                <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color, minWidth:24, textAlign:"right" }}>{score}</span>
+              </div>
+            );
+          };
+
+          const Pill = ({ value, neutral, good, bad }) => {
+            const v = parseFloat(value);
+            const color = isNaN(v) ? "rgba(255,255,255,0.3)"
+              : v >= good ? "#22c55e"
+              : v <= bad  ? "#ef4444"
+              : "#fbbf24";
+            return (
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                color, fontWeight:600 }}>{value ?? "—"}</span>
+            );
+          };
+
+          return (
+            <div>
+              {/* Header row */}
+              <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+                <div style={{ flex:1, minWidth:240 }}>
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
+                    Daily technical scan across {signals.length || "35+"} liquid tickers.
+                    Signals — Volume, VWAP, SMA 50/200, RSI, MACD — are combined into a spread score.
+                    Higher score = better conditions for defined-risk vertical spreads.
+                    Data refreshes automatically each day at <strong style={{ color:"rgba(255,255,255,0.6)" }}>7:00 AM PST</strong>.
+                  </p>
+                  {ss?.lastUpdated && (
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:4 }}>
+                      Last refresh: {new Date(ss.lastUpdated).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+                <button className="btn" onClick={refreshSpreadSignals} disabled={spreadSignalsLoading}
+                  style={{ fontSize:11, padding:"7px 16px", whiteSpace:"nowrap",
+                    background:"rgba(34,211,238,0.10)", borderColor:"rgba(34,211,238,0.3)", color:"#22d3ee",
+                    opacity: spreadSignalsLoading ? 0.6 : 1 }}>
+                  {spreadSignalsLoading ? "⏳ Loading…" : "⟳ Refresh"}
+                </button>
+              </div>
+
+              {spreadSignalsError && (
+                <div style={{ padding:"10px 14px", background:"rgba(239,68,68,0.08)",
+                  border:"1px solid rgba(239,68,68,0.25)", borderRadius:8, marginBottom:12,
+                  fontSize:11, color:"#ef4444" }}>
+                  ⚠ {spreadSignalsError}
+                </div>
+              )}
+
+              {/* Legend */}
+              {signals.length > 0 && (
+                <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+                  {Object.entries(recColors).map(([label, c]) => (
+                    <span key={label} style={{ fontSize:9, padding:"2px 9px", borderRadius:20,
+                      background:c.bg, border:`1px solid ${c.border}`, color:c.text }}>
+                      {label}
+                    </span>
+                  ))}
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", alignSelf:"center", marginLeft:4 }}>
+                    Score ≥65 = tradeable · 48–65 = caution · &lt;48 = skip
+                  </span>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!signals.length && !spreadSignalsLoading && (
+                <div className="card" style={{ textAlign:"center", padding:"48px 24px" }}>
+                  <p style={{ fontSize:28, marginBottom:10 }}>📡</p>
+                  <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>No scan data yet</p>
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", maxWidth:380, margin:"0 auto" }}>
+                    The cron job runs daily at 7 AM PST. Click Refresh to load the latest snapshot,
+                    or trigger <code style={{ fontFamily:"'JetBrains Mono',monospace" }}>/api/refresh-options-signals</code> manually.
+                  </p>
+                </div>
+              )}
+
+              {/* Signal cards grid */}
+              {signals.length > 0 && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(380px, 1fr))", gap:10 }}>
+                  {signals.map(s => {
+                    const rc = recColors[s.recommendation] || recColors["Skip"];
+                    const priceVsSma50   = s.sma50  ? ((s.price - s.sma50)  / s.sma50  * 100).toFixed(1) : null;
+                    const priceVsSma200  = s.sma200 ? ((s.price - s.sma200) / s.sma200 * 100).toFixed(1) : null;
+                    const priceVsVwap    = s.vwap   ? ((s.price - s.vwap)   / s.vwap   * 100).toFixed(1) : null;
+                    const macdBullish    = s.macd?.histogram > 0;
+                    const goldenCross    = s.sma50 && s.sma200 && s.sma50 > s.sma200;
+                    const deathCross     = s.sma50 && s.sma200 && s.sma50 < s.sma200;
+
+                    return (
+                      <div key={s.ticker} className="card" style={{ padding:"14px 16px",
+                        background:rc.bg, border:`1px solid ${rc.border}` }}>
+
+                        {/* Top row: ticker + score bar */}
+                        <div style={{ display:"flex", alignItems:"flex-start", gap:8, marginBottom:10 }}>
+                          <div style={{ flex:1 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                              <span style={{ fontSize:16, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                                color:"#f1f5f9" }}>{s.ticker}</span>
+                              {/* Direction indicator */}
+                              <span style={{ fontSize:11, color: dirColor[s.direction] }}>
+                                {dirIcon[s.direction]}
+                              </span>
+                              {/* Recommendation badge */}
+                              <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:4,
+                                background:rc.bg, color:rc.text, border:`1px solid ${rc.border}`,
+                                textTransform:"uppercase", letterSpacing:"0.04em" }}>
+                                {s.recommendation}
+                              </span>
+                              {/* Golden / Death cross */}
+                              {goldenCross && (
+                                <span style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
+                                  background:"rgba(251,191,36,0.12)", color:"#fbbf24",
+                                  border:"1px solid rgba(251,191,36,0.28)" }}>Golden ✕</span>
+                              )}
+                              {deathCross && (
+                                <span style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
+                                  background:"rgba(239,68,68,0.08)", color:"#ef4444",
+                                  border:"1px solid rgba(239,68,68,0.2)" }}>Death ✕</span>
+                              )}
+                            </div>
+                            {/* Price line */}
+                            <div style={{ display:"flex", alignItems:"baseline", gap:6, marginTop:3 }}>
+                              <span style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace",
+                                color:"rgba(255,255,255,0.8)", fontWeight:600 }}>
+                                ${s.price?.toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
+                              </span>
+                              <span style={{ fontSize:10, color: s.priceChangePct >= 0 ? "#22c55e" : "#ef4444" }}>
+                                {s.priceChangePct >= 0 ? "+" : ""}{s.priceChangePct}%
+                              </span>
+                            </div>
+                          </div>
+                          {/* Score bar (right side) */}
+                          <div style={{ width:100 }}>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:3, textAlign:"right" }}>
+                              SPREAD SCORE
+                            </p>
+                            <ScoreBar score={s.score} />
+                          </div>
+                        </div>
+
+                        {/* Signal grid */}
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px 10px" }}>
+
+                          {/* Volume */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>VOLUME RATIO</p>
+                            <Pill value={`${s.volumeRatio}×`}
+                              good={1.5} bad={0.7}
+                              neutral />
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>
+                              vs 20d avg
+                            </p>
+                          </div>
+
+                          {/* VWAP */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>VWAP (20d)</p>
+                            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                              color:"rgba(255,255,255,0.65)" }}>
+                              {s.vwap ? `$${s.vwap.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                            </span>
+                            {priceVsVwap != null && (
+                              <p style={{ fontSize:8, color: parseFloat(priceVsVwap) >= 0 ? "#22c55e" : "#ef4444",
+                                marginTop:1 }}>
+                                {parseFloat(priceVsVwap) >= 0 ? "+" : ""}{priceVsVwap}% vs VWAP
+                              </p>
+                            )}
+                          </div>
+
+                          {/* RSI */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>RSI (14)</p>
+                            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:12, fontWeight:700,
+                              color: s.rsi == null ? "rgba(255,255,255,0.3)"
+                                   : s.rsi < 30    ? "#ef4444"
+                                   : s.rsi > 70    ? "#ef4444"
+                                   : s.rsi < 40    ? "#fbbf24"
+                                   : s.rsi > 60    ? "#fbbf24"
+                                   : "#22c55e" }}>
+                              {s.rsi ?? "—"}
+                            </span>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>
+                              {s.rsi == null ? "" : s.rsi < 30 ? "Oversold ⚠" : s.rsi > 70 ? "Overbought ⚠" : "Neutral zone"}
+                            </p>
+                          </div>
+
+                          {/* SMA 50 */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>SMA 50</p>
+                            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                              color:"rgba(255,255,255,0.65)" }}>
+                              {s.sma50 ? `$${s.sma50.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                            </span>
+                            {priceVsSma50 != null && (
+                              <p style={{ fontSize:8, color: parseFloat(priceVsSma50) >= 0 ? "#22c55e" : "#ef4444",
+                                marginTop:1 }}>
+                                {parseFloat(priceVsSma50) >= 0 ? "↑" : "↓"} {Math.abs(priceVsSma50)}% {parseFloat(priceVsSma50) >= 0 ? "above" : "below"}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* SMA 200 */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>SMA 200</p>
+                            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                              color:"rgba(255,255,255,0.65)" }}>
+                              {s.sma200 ? `$${s.sma200.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}` : "—"}
+                            </span>
+                            {priceVsSma200 != null && (
+                              <p style={{ fontSize:8, color: parseFloat(priceVsSma200) >= 0 ? "#22c55e" : "#ef4444",
+                                marginTop:1 }}>
+                                {parseFloat(priceVsSma200) >= 0 ? "↑" : "↓"} {Math.abs(priceVsSma200)}% {parseFloat(priceVsSma200) >= 0 ? "above" : "below"}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* MACD */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MACD</p>
+                            {s.macd ? (
+                              <>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                  color: macdBullish ? "#22c55e" : "#ef4444", fontWeight:600 }}>
+                                  {macdBullish ? "▲" : "▼"} {s.macd.histogram > 0 ? "+" : ""}{s.macd.histogram}
+                                </span>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>
+                                  {macdBullish ? "Bullish momentum" : "Bearish momentum"}
+                                </p>
+                              </>
+                            ) : (
+                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>—</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Context line */}
+                        <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)",
+                          display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:4 }}>
+                          <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
+                            52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)}
+                          </span>
+                          <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
+                            {s.direction === "bullish"
+                              ? "Bias: sell put spreads below support"
+                              : s.direction === "bearish"
+                              ? "Bias: sell call spreads above resistance"
+                              : "Bias: consider defined-range condor"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <p style={{ fontSize:9, color:"rgba(255,255,255,0.15)", marginTop:16, lineHeight:1.6 }}>
+                Technical signals computed from 1-year daily OHLCV data (Yahoo Finance).
+                Score combines: volume ratio, RSI zone, MACD momentum, SMA50/200 trend, and VWAP proximity.
+                Not financial advice — verify all setups with your broker before placing trades.
+              </p>
+            </div>
+          );
+        };
+
         // Sub-tab: AI Analysis
         const renderAIAnalysis = () => {
           const riskColor  = { Low:"#22c55e", Medium:"#fbbf24", High:"#ef4444" };
@@ -8179,10 +8498,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             {/* ── Sub-tab navigation ── */}
             <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
               {[
-                ["cc",     "📞 Covered Calls"],
-                ["csp",    "🛡 Cash-Secured Puts"],
-                ["trades", "📋 Trade Log"],
-                ["ai",     "🤖 AI Analysis"],
+                ["cc",      "📞 Covered Calls"],
+                ["csp",     "🛡 Cash-Secured Puts"],
+                ["scanner", "📊 Spread Scanner"],
+                ["trades",  "📋 Trade Log"],
+                ["ai",      "🤖 AI Analysis"],
               ].map(([v,l]) => (
                 <button key={v} className={`tab-btn ${optionSubTab===v?"on":""}`}
                   onClick={() => setOptionSubTab(v)}
@@ -8191,16 +8511,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     ...(v === "ai" && optionSubTab !== "ai"
                       ? { borderColor:"rgba(167,139,250,0.35)", color:"rgba(167,139,250,0.8)" }
                       : {}),
+                    ...(v === "scanner" && optionSubTab !== "scanner"
+                      ? { borderColor:"rgba(34,211,238,0.3)", color:"rgba(34,211,238,0.8)" }
+                      : {}),
                   }}>
                   {l}
+                  {v === "scanner" && spreadSignals?.signals?.length > 0 && (
+                    <span style={{ marginLeft:5, fontSize:8, padding:"1px 5px", borderRadius:10,
+                      background:"rgba(34,211,238,0.15)", color:"#22d3ee",
+                      border:"1px solid rgba(34,211,238,0.3)" }}>
+                      {spreadSignals.signals.length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
 
-            {optionSubTab === "cc"     && renderCC()}
-            {optionSubTab === "csp"    && renderCSP()}
-            {optionSubTab === "trades" && renderTradeLog()}
-            {optionSubTab === "ai"     && renderAIAnalysis()}
+            {optionSubTab === "cc"      && renderCC()}
+            {optionSubTab === "csp"     && renderCSP()}
+            {optionSubTab === "scanner" && renderSpreadScanner()}
+            {optionSubTab === "trades"  && renderTradeLog()}
+            {optionSubTab === "ai"      && renderAIAnalysis()}
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.15)", marginTop:20, lineHeight:1.6 }}>
               ⚠ Not financial advice. Premium estimates are mathematical approximations based on VIX-derived IV and are not live options quotes —
