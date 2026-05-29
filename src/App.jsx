@@ -4530,7 +4530,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         border: `1px solid ${rec.bestFor === "TFSA" ? "rgba(251,191,36,0.25)" : rec.bestFor === "RRSP" ? "rgba(34,211,238,0.25)" : "rgba(167,139,250,0.25)"}` }}>
                         {rec.bestFor === "both" ? "TFSA / RRSP" : rec.bestFor}
                       </span>
-                      {rec.divYield > 0 && (
+                      {rec.divYield >= 3 && (
                         <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:4 }}>{rec.divYield}% yield</p>
                       )}
                       {rec.divYield === 0 && (
@@ -4753,8 +4753,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         border: `1px solid ${rec.bestFor==="TFSA" ? "rgba(251,191,36,0.25)" : rec.bestFor==="RRSP" ? "rgba(34,211,238,0.25)" : "rgba(167,139,250,0.25)"}` }}>
                         Best for {rec.bestFor==="both" ? "TFSA / RRSP" : rec.bestFor}
                       </span>
-                      <p style={{ fontSize:11, color: rec.divYield > 0 ? "#a78bfa" : "#34d399", marginTop:6 }}>
-                        {rec.divYield > 0 ? `${rec.divYield}% dividend yield` : "No dividend — growth only"}
+                      <p style={{ fontSize:11, color: rec.divYield >= 3 ? "#a78bfa" : "#34d399", marginTop:6 }}>
+                        {rec.divYield >= 3 ? `${rec.divYield}% dividend yield` : "No dividend — growth only"}
                       </p>
                       {cagr && <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:3 }}>Est. CAGR: {cagr}%/yr</p>}
                     </div>
