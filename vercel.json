@@ -3,6 +3,10 @@
     {
       "path": "/api/refresh-pulse",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/refresh-bnn",
+      "schedule": "0 13 * * 1-5"
     }
   ],
   "rewrites": [

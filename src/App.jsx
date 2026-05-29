@@ -582,6 +582,7 @@ export default function App() {
   const [diversifySuggestions,setDiversifySuggestions]= useState(() => {
     try { return JSON.parse(localStorage.getItem("diversify:suggestions") || "null"); } catch { return null; }
   });
+  const [bnnCalls,            setBnnCalls]            = useState(null);
   const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
   const [aiOptionsError,      setAiOptionsError]      = useState(null);
   const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
@@ -779,6 +780,18 @@ export default function App() {
           localStorage.setItem("pulse:refreshedAt", scheduledTs);
         }
       } catch { /* network error — silently use cached/bundled data */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load BNN Market Call picks on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/bnn-load");
+        if (!res.ok) return; // no data yet — section stays hidden
+        const data = await res.json();
+        if (data.episode) setBnnCalls(data);
+      } catch { /* silently skip — BNN section stays hidden */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4461,6 +4474,123 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               {filteredRecs.filter(r => r.type !== "etf").length} stocks · {filteredRecs.filter(r => r.type === "etf").length} ETFs · already-owned excluded
             </span>
           </div>
+
+          {/* ── BNN Bloomberg Market Call picks ─────────────────────────── */}
+          {bnnCalls?.episode && (() => {
+            const ep = bnnCalls.episode;
+            const ACTION_COLOR = { buy:"#22c55e", sell:"#ef4444", hold:"#fbbf24" };
+            const ACTION_BG    = { buy:"rgba(34,197,94,0.1)", sell:"rgba(239,68,68,0.1)", hold:"rgba(251,191,36,0.1)" };
+            const TYPE_LABEL   = { top_pick:"Top Pick", past_pick:"Past Pick", market_comment:"Comment" };
+            return (
+              <div className="card" style={{ marginBottom:16, padding:"16px 20px",
+                background:"rgba(239,68,68,0.03)", border:"1px solid rgba(239,68,68,0.18)" }}>
+                {/* Header */}
+                <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between",
+                  flexWrap:"wrap", gap:10, marginBottom:14 }}>
+                  <div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#f87171" }}>
+                        📺 BNN Bloomberg — Market Call
+                      </p>
+                      <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
+                        background:"rgba(248,113,113,0.1)", color:"#f87171",
+                        border:"1px solid rgba(248,113,113,0.25)" }}>
+                        Guest Picks
+                      </span>
+                    </div>
+                    <p style={{ margin:"4px 0 0", fontSize:11, color:"rgba(255,255,255,0.5)" }}>
+                      {ep.guest}{ep.title ? ` · ${ep.title}` : ""}{ep.firm ? ` · ${ep.firm}` : ""}
+                    </p>
+                  </div>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
+                    fontFamily:"'JetBrains Mono',monospace" }}>
+                    {ep.date || bnnCalls.fetchedAt}
+                  </span>
+                </div>
+
+                {/* Pick cards */}
+                {ep.picks?.length > 0 ? (
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:10 }}>
+                    {ep.picks.map((pick, i) => {
+                      const ac = ACTION_COLOR[pick.action] || "#94a3b8";
+                      const ab = ACTION_BG[pick.action]    || "rgba(148,163,184,0.08)";
+                      return (
+                        <div key={i} style={{ padding:"12px 14px", borderRadius:10,
+                          background:"rgba(255,255,255,0.03)",
+                          border:"1px solid rgba(255,255,255,0.07)" }}>
+                          {/* Ticker row */}
+                          <div style={{ display:"flex", alignItems:"center",
+                            justifyContent:"space-between", marginBottom:6, gap:8 }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                              <span style={{ fontSize:16, fontFamily:"'JetBrains Mono',monospace",
+                                fontWeight:700, color:"rgba(255,255,255,0.9)" }}>
+                                {pick.ticker}
+                              </span>
+                              {pick.exchange && (
+                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                                  {pick.exchange}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px",
+                              borderRadius:4, background: ab, color: ac,
+                              border:`1px solid ${ac}35`, textTransform:"uppercase",
+                              letterSpacing:"0.05em" }}>
+                              {pick.action}
+                            </span>
+                          </div>
+                          {/* Company name */}
+                          {pick.name && (
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
+                              marginBottom:6 }}>{pick.name}</p>
+                          )}
+                          {/* Type badge + target */}
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:8 }}>
+                            {pick.type && (
+                              <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3,
+                                background:"rgba(255,255,255,0.05)",
+                                color:"rgba(255,255,255,0.35)",
+                                border:"1px solid rgba(255,255,255,0.08)" }}>
+                                {TYPE_LABEL[pick.type] || pick.type}
+                              </span>
+                            )}
+                            {pick.targetPrice != null && (
+                              <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3,
+                                background:"rgba(34,197,94,0.06)", color:"#4ade80",
+                                border:"1px solid rgba(34,197,94,0.2)" }}>
+                                Target ${pick.targetPrice}
+                              </span>
+                            )}
+                          </div>
+                          {/* Rationale */}
+                          {pick.rationale && (
+                            <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)",
+                              lineHeight:1.5, margin:0 }}>{pick.rationale}</p>
+                          )}
+                          {/* Quick-add */}
+                          <button className="btn"
+                            onClick={() => { setSearchQuery(pick.ticker); setTab("search"); }}
+                            style={{ marginTop:10, width:"100%", fontSize:10, padding:"5px 0",
+                              borderColor:"rgba(255,255,255,0.1)",
+                              color:"rgba(255,255,255,0.35)" }}>
+                            Look up in Search →
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>
+                    No picks extracted from the latest episode.
+                  </p>
+                )}
+
+                <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:12, marginBottom:0 }}>
+                  Guest opinions only — not endorsements. Source: BNN Bloomberg Market Call. Verify before acting.
+                </p>
+              </div>
+            );
+          })()}
 
           {(() => {
             const MOAT_COLOR = {
