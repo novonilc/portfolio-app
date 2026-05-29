@@ -8193,7 +8193,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
                     Scores {signals.length || SPREAD_SCAN_TICKERS.length}+ liquid tickers on Volume, VWAP, SMA 50/200, RSI, and MACD.
                     Higher score = better conditions for vertical spreads.
-                    Cron auto-refresh runs daily at <strong style={{ color:"rgba(255,255,255,0.6)" }}>7:00 AM PST</strong>.
+                    Cron auto-refresh runs daily at <strong style={{ color:"rgba(255,255,255,0.6)" }}>5:30 PM ET (after close)</strong>.
                   </p>
                   {/* Source + timestamp row */}
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:4, flexWrap:"wrap" }}>
@@ -8296,7 +8296,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   <p style={{ fontSize:28, marginBottom:10 }}>📊</p>
                   <p style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:6 }}>No scan data yet</p>
                   <p style={{ fontSize:10, color:"rgba(255,255,255,0.25)", maxWidth:380, margin:"0 auto 16px" }}>
-                    Run a fresh scan now, or wait for the automatic daily refresh at 7 AM PST.
+                    Run a fresh scan now, or wait for the automatic daily refresh at 5:30 PM ET (after close).
                   </p>
                   <button className="btn btn-primary" onClick={runManualSpreadScan}
                     style={{ fontSize:11, padding:"8px 20px",
@@ -8942,7 +8942,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <H2 icon="⚡" title="Options" />
             <P>Generate income from positions you already own using two conservative strategies, find the best tickers to trade spreads on, and track every trade in one place.</P>
             <H3>📊 Spread Scanner — daily vertical spread signals</H3>
-            <P>Every morning at 7 AM PST the app runs a full technical scan across 35+ liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
+            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 35+ liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
             <H3>Covered Calls (CC)</H3>
             <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
             <H3>Cash-Secured Puts (CSP)</H3>
@@ -8970,7 +8970,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   "All portfolio tabs (Dashboard, Rebalance, DCA, Targets)",
                   "Ideas database & Search",
                   "Options strike calculator & trade log",
-                  "📊 Spread Scanner — daily auto-refresh at 7 AM PST",
+                  "📊 Spread Scanner — daily auto-refresh at 5:30 PM ET (after close)",
                   "📰 BNN Bloomberg expert picks (weekday mornings)",
                   "Market Pulse (pre-loaded data)",
                   "Manual ticker entry & CSV import (basic)",

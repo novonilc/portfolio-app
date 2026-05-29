@@ -1,6 +1,6 @@
 # Vertical Spread Scanner
 
-The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 35+ liquid US optionable tickers every morning at **7:00 AM PST**, scores each one for vertical spread suitability using five technical signals, and surfaces a clear recommendation — so you spend your time evaluating setups, not hunting for them.
+The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 35+ liquid US optionable tickers every morning at **5:30 PM ET (after close)**, scores each one for vertical spread suitability using five technical signals, and surfaces a clear recommendation — so you spend your time evaluating setups, not hunting for them.
 
 ---
 
@@ -173,15 +173,16 @@ The AI Options Analysis (Pro) uses your actual holdings and cash to suggest CC a
 
 ## Automatic refresh schedule
 
-The scanner is powered by a **Vercel Cron Job** (`/api/refresh-options-signals`) that runs every day at 7:00 AM PST (15:00 UTC):
+The scanner is powered by a **Vercel Cron Job** (`/api/refresh-options-signals`) that runs **weekdays at 5:30 PM ET (21:30 UTC)** — after NYSE and TSX close:
 
 ```json
-{ "path": "/api/refresh-options-signals", "schedule": "0 15 * * *" }
+{ "path": "/api/refresh-options-signals", "schedule": "30 21 * * 1-5" }
 ```
 
 This means:
-- Data is fresh by the time US pre-market opens (9:30 AM ET is 6:30 AM PST — scanner fires 30 minutes before that)
-- Weekends still refresh, so Monday morning data is ready when the market opens
+- Signals reflect today's **complete** trading session (closing price, full-day volume, final MACD/RSI values) — not yesterday's stale data
+- **Weekdays only** — no wasted runs Saturday/Sunday when options markets are closed and Yahoo Finance serves unchanged Friday data
+- Data is ready for **evening review** (plan entries for tomorrow) and persists through the night for pre-market checks
 - The "Last refresh" timestamp on the scanner tab shows when the data was computed
 
 To manually trigger a refresh (admin / self-hosting):
@@ -227,9 +228,9 @@ To add or remove tickers, edit this array and redeploy to Vercel. No other chang
 
 | Issue | Resolution |
 |---|---|
-| "No scan data yet" shown | The cron hasn't run yet. Click **⟳ Refresh** to pull the latest, or wait until 7 AM PST |
-| Ticker missing from results | It may have been excluded due to insufficient data or a Yahoo Finance fetch error. Check `errors` in the raw API response |
-| Score seems wrong | Scores reflect the prior day's close — intraday moves aren't captured until overnight |
+| "No scan data yet" shown | The cron hasn't run yet (fires 5:30 PM ET weekdays). Click **🔍 Scan Now** to run a live scan immediately, or **⟳ Load cache** to pull the latest scheduled snapshot |
+| Ticker missing from results | It may have been excluded due to insufficient data or a Yahoo Finance fetch error |
+| Score seems wrong | The scheduled cron reflects today's complete closing data. The manual Scan Now fetches live — if run mid-session, the most recent bar is partial |
 | Refresh button returns an error | The Vercel Blob hasn't been populated yet. Trigger the cron manually (admin only) |
 
 ---

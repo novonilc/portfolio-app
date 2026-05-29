@@ -1,5 +1,6 @@
 // Vercel Cron Job — computes technical indicators for vertical spread candidates.
-// Schedule: 0 15 * * * (7:00 AM PST / 15:00 UTC daily)
+// Schedule: 30 21 * * 1-5 (5:30 PM ET / 21:30 UTC, weekdays only)
+// Runs after market close so RSI, MACD, and VWAP reflect the complete trading session.
 // Auth: Authorization: Bearer CRON_SECRET (same pattern as refresh-pulse)
 
 import { put } from "@vercel/blob";
