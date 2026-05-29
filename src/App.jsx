@@ -291,6 +291,109 @@ function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
   return { score, direction, recommendation, recommendationColor };
 }
 
+// ─── Exact trade constructor ───────────────────────────────────────────────
+// Returns a trade setup object for actionable cards, or null for Caution/Skip.
+function buildTradeSetup(s) {
+  const { price, recommendation, sma50, sma200, vwap } = s;
+  if (!price || recommendation === "Caution" || recommendation === "Skip") return null;
+
+  // Round strikes to exchange-standard increments
+  const roundStrike = (v) => {
+    if (price < 10)  return Math.round(v * 2) / 2;        // $0.50
+    if (price < 100) return Math.round(v);                  // $1
+    if (price < 300) return Math.round(v / 5) * 5;         // $5
+    return Math.round(v / 10) * 10;                         // $10
+  };
+
+  // Spread width: one standard increment for the price range
+  const width = price < 10  ? 0.5
+              : price < 30  ? 1
+              : price < 75  ? 2.5
+              : price < 200 ? 5
+              : price < 500 ? 10
+              : 25;
+
+  // Conservative 30% credit-to-width ratio for ~5% OTM, ~35 DTE
+  const creditEst = parseFloat((width * 0.30).toFixed(2));
+
+  // Target expiry: ~35 DTE from today
+  const expTarget = new Date();
+  expTarget.setDate(expTarget.getDate() + 35);
+  const expiryStr = expTarget.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+
+  const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+
+  if (recommendation === "Bull Put Spread") {
+    // Anchor short put just below nearest support (SMA50 or VWAP), staying ≤97% of price
+    const support   = Math.min(sma50 || price, vwap || price);
+    const shortPut  = roundStrike(Math.min(price * 0.97, support * 1.005));
+    const longPut   = roundStrike(shortPut - width);
+    const breakEven = parseFloat((shortPut - creditEst).toFixed(2));
+    const anchor    = sma50 ? `SMA50 $${fmt(sma50)}` : vwap ? `VWAP $${fmt(vwap)}` : null;
+    return {
+      type: "bull_put",
+      legs: [
+        { action:"SELL", contract:`$${fmt(shortPut)} Put`, role:"short" },
+        { action:"BUY",  contract:`$${fmt(longPut)} Put`,  role:"long"  },
+      ],
+      width: `$${width}-wide`,
+      creditEst,
+      maxLoss: parseFloat((width - creditEst).toFixed(2)),
+      breakEven: `$${fmt(breakEven)}`,
+      expiry: `~35 DTE · target ${expiryStr}`,
+      rationale: anchor ? `Short put anchored near support (${anchor})` : "Short put 3% below current price",
+    };
+  }
+
+  if (recommendation === "Bear Call Spread") {
+    const resistance = Math.max(sma50 || price, vwap || price);
+    const shortCall  = roundStrike(Math.max(price * 1.03, resistance * 0.995));
+    const longCall   = roundStrike(shortCall + width);
+    const breakEven  = parseFloat((shortCall + creditEst).toFixed(2));
+    const anchor     = sma50 ? `SMA50 $${fmt(sma50)}` : vwap ? `VWAP $${fmt(vwap)}` : null;
+    return {
+      type: "bear_call",
+      legs: [
+        { action:"SELL", contract:`$${fmt(shortCall)} Call`, role:"short" },
+        { action:"BUY",  contract:`$${fmt(longCall)} Call`,  role:"long"  },
+      ],
+      width: `$${width}-wide`,
+      creditEst,
+      maxLoss: parseFloat((width - creditEst).toFixed(2)),
+      breakEven: `$${fmt(breakEven)}`,
+      expiry: `~35 DTE · target ${expiryStr}`,
+      rationale: anchor ? `Short call anchored near resistance (${anchor})` : "Short call 3% above current price",
+    };
+  }
+
+  if (recommendation === "Iron Condor") {
+    const support    = sma50 ? Math.min(sma50, price * 0.97) : price * 0.96;
+    const resistance = sma200 ? Math.max(sma200, price * 1.03) : sma50 ? price * 1.04 : price * 1.04;
+    const shortPut   = roundStrike(Math.min(price * 0.96, support * 1.005));
+    const longPut    = roundStrike(shortPut - width);
+    const shortCall  = roundStrike(Math.max(price * 1.04, resistance * 0.995));
+    const longCall   = roundStrike(shortCall + width);
+    const totalCredit = parseFloat((creditEst * 2).toFixed(2));
+    return {
+      type: "iron_condor",
+      legs: [
+        { action:"SELL", contract:`$${fmt(shortPut)} Put`,   role:"short" },
+        { action:"BUY",  contract:`$${fmt(longPut)} Put`,    role:"long"  },
+        { action:"SELL", contract:`$${fmt(shortCall)} Call`, role:"short" },
+        { action:"BUY",  contract:`$${fmt(longCall)} Call`,  role:"long"  },
+      ],
+      width: `$${width}-wide each wing`,
+      creditEst: totalCredit,
+      maxLoss: parseFloat((width - creditEst).toFixed(2)),
+      breakEven: `$${fmt(shortPut - creditEst)} – $${fmt(shortCall + creditEst)}`,
+      expiry: `~35 DTE · target ${expiryStr}`,
+      rationale: "Price in neutral zone — sell both wings for premium",
+    };
+  }
+
+  return null;
+}
+
 // Options constants
 const SECTOR_IV_MULT = {
   "Semiconductor":3.0, "Technology":2.4, "Aerospace/Defense":1.6,
@@ -8327,6 +8430,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     const goldenCross    = s.sma50 && s.sma200 && s.sma50 > s.sma200;
                     const deathCross     = s.sma50 && s.sma200 && s.sma50 < s.sma200;
 
+                    const tradeSetup = buildTradeSetup(s);
+
                     return (
                       <div key={s.ticker} className="card" style={{ padding:"14px 16px",
                         background:rc.bg, border:`1px solid ${rc.border}` }}>
@@ -8474,20 +8579,101 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </div>
                         </div>
 
-                        {/* Context line */}
-                        <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)",
-                          display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:4 }}>
-                          <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
-                            52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)}
-                          </span>
-                          <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
-                            {s.direction === "bullish"
-                              ? "Bias: sell put spreads below support"
-                              : s.direction === "bearish"
-                              ? "Bias: sell call spreads above resistance"
-                              : "Bias: consider defined-range condor"}
-                          </span>
-                        </div>
+                        {/* Trade Setup */}
+                        {tradeSetup ? (
+                          <div style={{ marginTop:12, paddingTop:10, borderTop:"1px solid rgba(255,255,255,0.07)" }}>
+                            <p style={{ fontSize:8, fontWeight:700, letterSpacing:"0.08em",
+                              color:"rgba(255,255,255,0.35)", marginBottom:8 }}>SUGGESTED TRADE</p>
+
+                            {/* Legs */}
+                            {(() => {
+                              const LegRow = ({ leg }) => (
+                                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                  <span style={{ fontSize:9, fontWeight:700, minWidth:28, padding:"1px 5px",
+                                    borderRadius:3, textAlign:"center",
+                                    background: leg.action === "SELL" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.12)",
+                                    color:       leg.action === "SELL" ? "#22c55e" : "#ef4444",
+                                    border:`1px solid ${leg.action === "SELL" ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.25)"}` }}>
+                                    {leg.action}
+                                  </span>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11,
+                                    fontWeight:700, color:"#f1f5f9" }}>
+                                    {leg.contract}
+                                  </span>
+                                </div>
+                              );
+                              if (tradeSetup.type === "iron_condor") {
+                                return (
+                                  <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
+                                    <LegRow leg={tradeSetup.legs[0]} />
+                                    <LegRow leg={tradeSetup.legs[1]} />
+                                    <div style={{ borderTop:"1px dashed rgba(255,255,255,0.08)", margin:"2px 0" }} />
+                                    <LegRow leg={tradeSetup.legs[2]} />
+                                    <LegRow leg={tradeSetup.legs[3]} />
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:8 }}>
+                                  {tradeSetup.legs.map((leg, li) => <LegRow key={li} leg={leg} />)}
+                                </div>
+                              );
+                            })()}
+
+                            {/* Metrics row */}
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px 8px",
+                              padding:"8px 10px", borderRadius:6,
+                              background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.06)" }}>
+                              <div>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>WIDTH</p>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                  color:"rgba(255,255,255,0.6)" }}>{tradeSetup.width}</span>
+                              </div>
+                              <div>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>EST. CREDIT</p>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                  fontWeight:700, color:"#22c55e" }}>~${tradeSetup.creditEst}</span>
+                              </div>
+                              <div>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS</p>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                  color:"#ef4444" }}>${tradeSetup.maxLoss}</span>
+                              </div>
+                              <div style={{ gridColumn:"1/-1" }}>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BREAK-EVEN</p>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                  color:"#fbbf24" }}>{tradeSetup.breakEven}</span>
+                              </div>
+                            </div>
+
+                            {/* Expiry + rationale */}
+                            <div style={{ marginTop:6, display:"flex", flexWrap:"wrap",
+                              justifyContent:"space-between", alignItems:"center", gap:4 }}>
+                              <span style={{ fontSize:8, color:"rgba(255,255,255,0.25)" }}>
+                                📅 {tradeSetup.expiry}
+                              </span>
+                              <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)", maxWidth:220, textAlign:"right" }}>
+                                {tradeSetup.rationale}
+                              </span>
+                            </div>
+
+                            {/* 52w context */}
+                            <p style={{ fontSize:7, color:"rgba(255,255,255,0.15)", marginTop:6 }}>
+                              52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)} &nbsp;·&nbsp;
+                              Credits are estimates; verify against live chain & IV.
+                            </p>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid rgba(255,255,255,0.05)",
+                            display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:4 }}>
+                            <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
+                              52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)}
+                            </span>
+                            <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
+                              {s.recommendation === "Caution" ? "Conditions borderline — wait for clearer setup" : "No trade setup — skip this ticker"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
