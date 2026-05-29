@@ -1,21 +1,20 @@
-// Vercel Cron Job — fetches BNN Bloomberg's Market Call page, extracts guest picks
-// via Claude, and stores structured JSON in Vercel Blob.
+// Vercel Cron Job — fetches BNN Bloomberg Market Call picks from Stockchase.com
+// (a structured aggregator of BNN Market Call recommendations), extracts them
+// via Claude, and stores JSON in Vercel Blob.
 //
 // Schedule: weekdays at 13:00 UTC (9am ET) — shortly after the live show airs.
 // Configured in vercel.json under "crons".
 //
-// NOTE: This fetches a publicly accessible web page for informational/educational
-// purposes. BNN Bloomberg editorial content remains their property. Picks are
-// attributed to the guest and source on every display. Check their robots.txt
-// and ToS periodically to ensure continued compliance.
+// Why Stockchase? BNN Bloomberg's own site is JavaScript-rendered (SPA) so a
+// simple fetch() only gets a blank shell. Stockchase.com has tracked and published
+// BNN Market Call guest picks in plain HTML since 2013 and is publicly accessible.
+// Picks are attributed to the original guest and source on every display.
 
 import { put } from "@vercel/blob";
 
-const BNN_MARKET_CALL_URL = "https://www.bnnbloomberg.ca/market-call";
-const BLOB_PATH            = "bnn-calls/latest.json";
+const SOURCE_URL = "https://stockchase.com/opinions/recent";
+const BLOB_PATH  = "bnn-calls/latest.json";
 
-// Strip HTML boilerplate — remove scripts/styles/nav then collapse tags to spaces.
-// Keeps text compact enough to send to Claude without burning tokens on markup.
 function extractPageText(html) {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -31,52 +30,54 @@ function extractPageText(html) {
     .replace(/&gt;/g, ">")
     .replace(/\s{2,}/g, " ")
     .trim()
-    .slice(0, 14000); // ~3.5k tokens — enough to cover the most recent episode
+    .slice(0, 16000);
 }
 
 function buildPrompt(pageText, today) {
-  return `You are a financial data extraction assistant. Extract structured market call picks from the following BNN Bloomberg Market Call page text.
+  return `You are a financial data extraction assistant. Extract structured BNN Bloomberg Market Call picks from the following Stockchase.com page content.
 
 Today's date: ${today}
 
-Page text:
+Page content:
 ---
 ${pageText}
 ---
 
-Extract the MOST RECENT episode only. Return JSON inside a single \`\`\`json code block — no text before or after.
+Extract all expert picks from today's (most recent) session. Group by expert. Return JSON inside a single \`\`\`json code block — no text before or after.
 
 Schema:
 {
   "fetchedAt": "${today}",
-  "episode": {
-    "guest": "Full name",
-    "title": "Guest title/role",
-    "firm": "Investment firm",
-    "date": "YYYY-MM-DD of the episode (use today if unclear)",
-    "picks": [
-      {
-        "ticker": "EXCHANGE_SYMBOL",
-        "name": "Full company name",
-        "action": "buy",
-        "exchange": "TSX or NYSE or NASDAQ etc",
-        "targetPrice": null,
-        "rationale": "One sentence from the guest's stated rationale",
-        "type": "top_pick"
-      }
-    ]
-  }
+  "source": "BNN Bloomberg Market Call via Stockchase.com",
+  "date": "YYYY-MM-DD",
+  "experts": [
+    {
+      "guest": "Full name",
+      "firm": "Firm name or empty string",
+      "picks": [
+        {
+          "ticker": "TICKER",
+          "name": "Company full name",
+          "action": "buy",
+          "exchange": "TSX or NYSE or NASDAQ etc",
+          "targetPrice": null,
+          "rationale": "One sentence rationale",
+          "rawAction": "ORIGINAL ACTION TEXT e.g. BUY ON WEAKNESS"
+        }
+      ]
+    }
+  ]
 }
 
-Rules:
-- action must be "buy", "sell", or "hold" (lowercase only)
-- type must be "top_pick" or "past_pick"
-- ticker must be the exchange ticker symbol (e.g. CNQ, not Canadian Natural Resources)
-- Append .TO for TSX-listed tickers (e.g. CNQ.TO, ENB.TO)
-- targetPrice is a number or null
-- rationale: one concise sentence max
-- If you cannot identify clear stock picks, return: { "fetchedAt": "${today}", "episode": null, "error": "No picks found on page" }
-- Do not invent data — only include what is stated on the page`;
+Action normalisation rules (set "action" field):
+- "TOP PICK", "BUY", "BUY ON WEAKNESS", "PAST TOP PICK" → "buy"
+- "HOLD", "WAIT", "WATCH" → "hold"
+- "SELL", "PARTIAL SELL", "DON'T BUY", "TENDER" → "sell"
+- "RISKY" → "caution"
+
+Always set rawAction to the original text from the page.
+For TSX tickers remove the "-T" or "-TO" suffix and add ".TO" (e.g. "ATRL-TO" → ticker "ATRL" exchange "TSX" — do NOT include exchange suffix in the ticker field).
+If you cannot identify picks return: { "fetchedAt": "${today}", "experts": [], "error": "No picks found" }`;
 }
 
 export default async function handler(req, res) {
@@ -84,7 +85,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Cron secret — Vercel injects this automatically; manual triggers must supply it.
   const secret = process.env.CRON_SECRET;
   const auth   = (req.headers.authorization || "").trim();
   if (secret && auth !== `Bearer ${secret}`) {
@@ -97,8 +97,7 @@ export default async function handler(req, res) {
   const today = new Date().toISOString().split("T")[0];
 
   try {
-    // 1. Fetch BNN Bloomberg market calls page
-    const pageRes = await fetch(BNN_MARKET_CALL_URL, {
+    const pageRes = await fetch(SOURCE_URL, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept":     "text/html,application/xhtml+xml",
@@ -107,17 +106,16 @@ export default async function handler(req, res) {
     });
 
     if (!pageRes.ok) {
-      return res.status(502).json({ error: `BNN fetch failed: HTTP ${pageRes.status}` });
+      return res.status(502).json({ error: `Stockchase fetch failed: HTTP ${pageRes.status}` });
     }
 
     const html     = await pageRes.text();
     const pageText = extractPageText(html);
 
     if (pageText.length < 200) {
-      return res.status(502).json({ error: "BNN page returned insufficient content — may be blocked or down" });
+      return res.status(502).json({ error: "Stockchase page returned insufficient content" });
     }
 
-    // 2. Send to Claude Haiku for cost-efficient extraction
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -127,7 +125,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model:      "claude-haiku-4-5-20251001",
-        max_tokens: 2048,
+        max_tokens: 3000,
         messages:   [{ role: "user", content: buildPrompt(pageText, today) }],
       }),
     });
@@ -140,7 +138,6 @@ export default async function handler(req, res) {
     const aiData  = await aiRes.json();
     const rawText = (aiData.content?.[0]?.text || "").trim();
 
-    // Extract JSON from code fence or bare object
     let jsonStr = rawText;
     const fence = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
     if (fence) {
@@ -151,9 +148,8 @@ export default async function handler(req, res) {
     }
 
     const parsed = JSON.parse(jsonStr);
-
-    // 3. Store in Vercel Blob
     const payload = { ...parsed, _scheduledAt: new Date().toISOString() };
+
     await put(BLOB_PATH, JSON.stringify(payload), {
       access:          "public",
       contentType:     "application/json",
@@ -161,12 +157,13 @@ export default async function handler(req, res) {
       allowOverwrite:  true,
     });
 
+    const totalPicks = (parsed.experts || []).reduce((s, e) => s + (e.picks?.length || 0), 0);
     return res.status(200).json({
-      ok:        true,
-      fetchedAt: parsed.fetchedAt,
-      guest:     parsed.episode?.guest ?? null,
-      pickCount: parsed.episode?.picks?.length ?? 0,
-      error:     parsed.error ?? null,
+      ok:          true,
+      fetchedAt:   parsed.fetchedAt,
+      expertCount: parsed.experts?.length ?? 0,
+      totalPicks,
+      error:       parsed.error ?? null,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
