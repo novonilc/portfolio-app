@@ -2,7 +2,7 @@
 // (a structured aggregator of BNN Market Call recommendations), extracts them
 // via Claude, and stores JSON in Vercel Blob.
 //
-// Schedule: weekdays at 13:00 UTC (9am ET) — shortly after the live show airs.
+// Schedule: daily at 13:00 UTC (9am ET) — shortly after the live show airs on weekdays.
 // Configured in vercel.json under "crons".
 //
 // Why Stockchase? BNN Bloomberg's own site is JavaScript-rendered (SPA) so a

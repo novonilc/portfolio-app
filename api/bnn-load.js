@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") { res.status(200).end(); return; }
   if (req.method !== "GET")    { res.status(405).end(); return; }
 
-  // Cache for 2 hours — cron runs once per weekday so staleness is fine.
+  // Cache for 2 hours — cron runs once per day so staleness is fine.
   res.setHeader("Cache-Control", "public, max-age=7200, stale-while-revalidate=86400");
 
   try {

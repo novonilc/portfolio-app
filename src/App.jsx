@@ -745,6 +745,7 @@ export default function App() {
   const [openTradeSort,   setOpenTradeSort]   = useState({ col: null, dir: "asc" });
   const [closedTradeSort, setClosedTradeSort] = useState({ col: null, dir: "asc" });
   const [aiSugSort,       setAiSugSort]       = useState({ col: null, dir: "asc" });
+  const [noteGenerating,  setNoteGenerating]  = useState(new Set()); // tickers currently auto-generating a note
   const [cloudSyncStatus, setCloudSyncStatus] = useState("idle"); // "idle"|"syncing"|"synced"|"error"
   const [cloudSyncedAt,   setCloudSyncedAt]   = useState(() => localStorage.getItem("portfolio:cloud:ts") || null);
   // Spread scanner signals (loaded from /api/options-signals-load or live scan)
@@ -1242,6 +1243,10 @@ export default function App() {
       alert(`${ticker} already exists in ${account}`);
       return;
     }
+    if (Object.values(holdings).flat().length >= 30) {
+      alert("Portfolio limit reached (30 holdings). Remove a position before adding a new one.");
+      return;
+    }
     const next = { ...holdings };
     next[account] = [...next[account], {
       ticker,
@@ -1273,6 +1278,10 @@ export default function App() {
       alert(`${rec.ticker} already exists in ${targetAccount}`);
       return;
     }
+    if (Object.values(holdings).flat().length >= 30) {
+      alert("Portfolio limit reached (30 holdings). Remove a position before adding a new one.");
+      return;
+    }
     const next = { ...holdings };
     next[targetAccount] = [...next[targetAccount], {
       ticker:    rec.ticker,
@@ -1292,6 +1301,50 @@ export default function App() {
     setTab("targets");
   }
 
+  // ── Auto-generate "why I bought this" notes via Claude ────────────────
+  async function generateNote(idx, h) {
+    const ticker = h.ticker;
+    setNoteGenerating(s => new Set(s).add(ticker));
+    try {
+      const acctCtx = account === "TFSA"
+        ? "TFSA — dividends and capital gains fully sheltered from tax"
+        : account === "RRSP"
+        ? "RRSP — US dividends exempt from 15% withholding tax"
+        : account;
+      const cagr = h.cagr ?? DEFAULT_CAGR?.[ticker] ?? 10;
+      const pnlLine = h.costBasis > 0
+        ? `\nCurrent P&L: ${(((h.current - h.costBasis) / h.costBasis) * 100).toFixed(1)}%`
+        : "";
+      const prompt = `Write one sentence (max 120 characters) explaining why this stock belongs in this portfolio. Be specific — mention the account tax advantage if relevant. No quotes, no preamble, no period at the end.
+
+Ticker: ${ticker}
+Name: ${h.name}
+Account: ${acctCtx}
+Estimated CAGR: ${cagr}%
+Dividend yield: ${h.divYield || 0}%${pnlLine}`;
+
+      const res = await callClaude({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 100,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text?.trim().replace(/^["']|["']$/g, "");
+      if (text) updateHolding(idx, "notes", text);
+    } catch (e) {
+      console.error("generateNote failed", e);
+    } finally {
+      setNoteGenerating(s => { const n = new Set(s); n.delete(ticker); return n; });
+    }
+  }
+
+  async function generateAllNotes() {
+    const list = holdings[account];
+    for (let i = 0; i < list.length; i++) {
+      if (!list[i].notes) await generateNote(i, list[i]);
+    }
+  }
+
   // ── Pulse Quick Trade helpers ──────────────────────────────────────────
   function logPulseTrade(entry) {
     const next = [entry, ...pulseTradeLog].slice(0, 50);
@@ -1308,6 +1361,10 @@ export default function App() {
       next[acct] = [...next[acct]];
       next[acct][idx] = { ...next[acct][idx], current: next[acct][idx].current + amt };
     } else {
+      if (Object.values(next).flat().length >= 30) {
+        setPulseTradeFlash({ msg:"Portfolio limit reached (30 holdings) — remove a position first.", ok:false });
+        return;
+      }
       next[acct] = [...next[acct], {
         ticker, name: name || ticker, current: amt, costBasis: amt,
         target: 0, divYield: 0, cagr: DEFAULT_CAGR[ticker] || 10,
@@ -2450,6 +2507,17 @@ Return ONLY a valid JSON object, no markdown:
     currentTotal > 0 && (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100 > 20
   );
 
+  // Total holdings across ALL accounts — hard cap is 30
+  const totalHoldingsCount = Object.values(holdings).flat().length;
+  const atHoldingsCap = totalHoldingsCount >= 30;
+
+  // 4× take-profit alerts — any holding where current ≥ 4× cost basis
+  const fourXAlerts = Object.entries(holdings).flatMap(([acct, list]) =>
+    list
+      .filter(h => h.costBasis > 0 && h.current > 0 && h.current / h.costBasis >= 4)
+      .map(h => ({ ...h, acct, multiple: (h.current / h.costBasis).toFixed(1) }))
+  );
+
   // WHT sell recommendations — TFSA positions losing ≥$20/yr to IRS withholding (in CAD)
   const whtSellRecs = account === "TFSA"
     ? current
@@ -3255,6 +3323,48 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         </div>
       )}
 
+      {/* ── 4× take-profit alerts ── */}
+      {fourXAlerts.length > 0 && (
+        <div style={{ padding:"12px 28px 0" }}>
+          <div style={{
+            display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px",
+            background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.3)",
+            borderRadius:8,
+          }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>💰</span>
+            <div style={{ fontSize:12, lineHeight:1.6, color:"rgba(255,255,255,0.85)" }}>
+              <strong style={{ color:"#fbbf24" }}>Take-profit signal:</strong>{" "}
+              {fourXAlerts.map((h, i) => (
+                <span key={h.ticker + h.acct}>
+                  <strong style={{ color:"#fbbf24" }}>{h.ticker}</strong>
+                  <span style={{ color:"rgba(255,255,255,0.5)", fontSize:11 }}> ({h.acct})</span>
+                  {" "}is up <strong style={{ color:"#34d399" }}>{h.multiple}×</strong> your cost basis
+                  {i < fourXAlerts.length - 1 ? "; " : ""}
+                </span>
+              ))}
+              {" "}— consider trimming to lock in gains and redeploy into underweight positions.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Holdings cap warning ── */}
+      {atHoldingsCap && (
+        <div style={{ padding:"12px 28px 0" }}>
+          <div style={{
+            display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+            background:"rgba(239,68,68,0.06)", border:"1px solid rgba(239,68,68,0.3)",
+            borderRadius:8, fontSize:12, color:"rgba(255,255,255,0.8)",
+          }}>
+            <span style={{ fontSize:16 }}>🚫</span>
+            <span>
+              <strong style={{ color:"#ef4444" }}>Portfolio full ({totalHoldingsCount}/30 holdings)</strong>{" "}
+              — remove a position before adding new ones.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* ── Summary cards ── */}
       <div style={{ padding:"18px 28px 0", display:"grid",
         gridTemplateColumns:"repeat(auto-fit, minmax(152px, 1fr))", gap:10 }}>
@@ -3915,6 +4025,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", padding:0, lineHeight:1 }}>✕</button>
                 </span>
               )}
+              {(() => {
+                const missing = holdings[account].filter(h => !h.notes).length;
+                const anyGenerating = noteGenerating.size > 0;
+                return missing > 0 && (
+                  <button
+                    onClick={generateAllNotes}
+                    disabled={anyGenerating}
+                    style={{
+                      display:"flex", alignItems:"center", gap:6,
+                      padding:"7px 13px", borderRadius:8, fontSize:12, fontWeight:500,
+                      border:"1px solid rgba(52,211,153,0.4)",
+                      background: anyGenerating ? "rgba(52,211,153,0.04)" : "rgba(52,211,153,0.08)",
+                      color:"#34d399", cursor: anyGenerating ? "wait" : "pointer",
+                      opacity: anyGenerating ? 0.7 : 1, transition:"all 0.15s",
+                    }}
+                    title={`Auto-generate "why I bought" notes for ${missing} holding${missing===1?"":"s"} missing a note`}
+                  >
+                    <span style={{ fontSize:14 }}>{anyGenerating ? "⏳" : "✨"}</span>
+                    {anyGenerating ? `Generating… (${noteGenerating.size} left)` : `Generate ${missing} missing note${missing===1?"":"s"}`}
+                  </button>
+                );
+              })()}
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
               <div style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:10, padding:"6px 10px" }}>
@@ -3992,6 +4124,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   const cb        = h.costBasis || 0;
                   const posPnl    = cb > 0 ? h.current - cb : null;
                   const posPnlPct = cb > 0 ? ((h.current - cb) / cb) * 100 : null;
+                  const isFourX   = cb > 0 && h.current / cb >= 4;
+                  const multiple  = cb > 0 ? (h.current / cb).toFixed(1) : null;
                   const contrib     = monthlyContribEq;
                   const holdingPMT  = contrib > 0 ? (h.target / 100) * contrib : 0;
                   const currentCAD  = toCAD(h.current, h.ticker, h.currencyOverride);
@@ -4005,10 +4139,51 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     return `C$${Math.round(fv).toLocaleString()}`;
                   };
                   return (
-                    <tr key={h.ticker}>
+                    <tr key={h.ticker} style={isFourX ? { background:"rgba(251,191,36,0.05)", outline:"1px solid rgba(251,191,36,0.18)" } : undefined}>
                       <td className="td td-main">
-                        <strong style={{ color:accentColor }}>{h.ticker}</strong>
+                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                          <strong style={{ color:accentColor }}>{h.ticker}</strong>
+                          {isFourX && (
+                            <span style={{
+                              fontSize:9, padding:"1px 5px", borderRadius:4, fontWeight:700,
+                              background:"rgba(251,191,36,0.15)", border:"1px solid rgba(251,191,36,0.4)",
+                              color:"#fbbf24", letterSpacing:"0.04em",
+                            }} title={`Up ${multiple}× cost basis — consider taking profits`}>
+                              💰 {multiple}×
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize:10, color:"rgba(255,255,255,0.3)", marginTop:2 }}>{h.name}</div>
+                        <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:5 }}>
+                          <input
+                            type="text"
+                            value={h.notes || ""}
+                            placeholder="Why I bought this…"
+                            onChange={e => updateHolding(idx, "notes", e.target.value)}
+                            style={{
+                              flex:1, fontSize:10, padding:"3px 6px",
+                              background:"rgba(255,255,255,0.04)",
+                              border:"1px solid rgba(255,255,255,0.08)",
+                              borderRadius:4, color:"rgba(255,255,255,0.55)",
+                              outline:"none", minWidth:0,
+                            }}
+                          />
+                          <button
+                            onClick={() => generateNote(idx, h)}
+                            disabled={noteGenerating.has(h.ticker)}
+                            title="Auto-generate note with AI"
+                            style={{
+                              flexShrink:0, fontSize:11, padding:"2px 6px",
+                              background:"rgba(167,139,250,0.1)",
+                              border:"1px solid rgba(167,139,250,0.25)",
+                              borderRadius:4, color:"#a78bfa",
+                              cursor: noteGenerating.has(h.ticker) ? "wait" : "pointer",
+                              opacity: noteGenerating.has(h.ticker) ? 0.5 : 1,
+                            }}
+                          >
+                            {noteGenerating.has(h.ticker) ? "…" : "✨"}
+                          </button>
+                        </div>
                       </td>
                       <td className="td">
                         <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
@@ -4202,11 +4377,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           })()}
 
           {/* Add ticker */}
-          <div style={{ marginTop:12, display:"flex", gap:8 }}>
+          <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             <button className={`btn ${addForm ? "btn-primary" : ""}`}
+              disabled={!addForm && atHoldingsCap}
+              title={!addForm && atHoldingsCap ? "Portfolio limit reached (30 holdings) — remove a position first" : undefined}
               onClick={() => setAddForm(addForm ? null : { ...BLANK_FORM })}>
               {addForm ? "✕ Cancel" : "+ Add Ticker"}
             </button>
+            <span style={{
+              fontSize:11, padding:"3px 9px", borderRadius:12, fontWeight:600,
+              background: atHoldingsCap ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
+              border: atHoldingsCap ? "1px solid rgba(239,68,68,0.35)" : "1px solid rgba(255,255,255,0.1)",
+              color: atHoldingsCap ? "#ef4444" : "rgba(255,255,255,0.4)",
+            }}>
+              {totalHoldingsCount} / 30 holdings
+            </span>
           </div>
 
           {addForm && (

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/refresh-bnn",
-      "schedule": "0 13 * * 1-5"
+      "schedule": "0 13 * * *"
     },
     {
       "path": "/api/refresh-options-signals",
