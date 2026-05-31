@@ -106,9 +106,44 @@ function computeVWAP(highs, lows, closes, volumes, period = 20) {
   return sumV > 0 ? parseFloat((sumPV / sumV).toFixed(2)) : null;
 }
 
+// ATR (14-period Wilder smoothing) — returns { atr, atrPct }
+function computeATR(highs, lows, closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < closes.length; i++) {
+    trs.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i-1]), Math.abs(lows[i] - closes[i-1])));
+  }
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trs.length; i++) atr = (atr * (period - 1) + trs[i]) / period;
+  const price = closes[closes.length - 1];
+  return { atr: parseFloat(atr.toFixed(3)), atrPct: parseFloat((atr / price * 100).toFixed(2)) };
+}
+
+// 20-day Historical Volatility (annualised %) from log returns
+function computeHV(closes, period = 20) {
+  if (closes.length < period + 2) return null;
+  const lr = [];
+  for (let i = 1; i < closes.length; i++) if (closes[i-1] > 0) lr.push(Math.log(closes[i] / closes[i-1]));
+  const rec = lr.slice(-period);
+  const mean = rec.reduce((a, b) => a + b, 0) / rec.length;
+  const variance = rec.reduce((s, r) => s + (r - mean) ** 2, 0) / (rec.length - 1);
+  return parseFloat((Math.sqrt(variance * 252) * 100).toFixed(1));
+}
+
+// Bollinger Band position: 0 = at lower band, 1 = at upper band
+function computeBBPos(closes, period = 20) {
+  if (closes.length < period) return null;
+  const sl = closes.slice(-period);
+  const mean = sl.reduce((a, b) => a + b, 0) / period;
+  const std  = Math.sqrt(sl.reduce((s, c) => s + (c - mean) ** 2, 0) / period);
+  if (std === 0) return 0.5;
+  const pos = (closes[closes.length - 1] - (mean - 2 * std)) / (4 * std);
+  return parseFloat(Math.max(0, Math.min(1, pos)).toFixed(2));
+}
+
 // ─── Spread scoring ───────────────────────────────────────────────────────────
 
-function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
+function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, bbPos }) {
   let score = 40;
   let bull = 0, bear = 0;
 
@@ -116,15 +151,14 @@ function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio })
   if      (volumeRatio >= 2.0) { score += 20; bull += 1; bear += 1; }
   else if (volumeRatio >= 1.5) { score += 14; bull += 1; bear += 1; }
   else if (volumeRatio >= 1.0) { score += 8;  }
-  else if (volumeRatio < 0.6)  { score -= 12; } // thin market — wide spreads
+  else if (volumeRatio < 0.6)  { score -= 12; }
 
-  // RSI: 35–65 is the sweet spot for premium selling (avoids gaps at extremes)
+  // RSI: 35–65 is the sweet spot for premium selling
   if (rsi != null) {
     if      (rsi >= 35 && rsi <= 65) score += 18;
     else if (rsi >= 28 && rsi <  35) score += 8;
     else if (rsi >  65 && rsi <= 73) score += 8;
-    else                             score -= 12; // extreme RSI = avoid
-
+    else                             score -= 12;
     if (rsi >= 52) bull += 2;
     else           bear += 2;
   }
@@ -135,7 +169,6 @@ function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio })
     score += Math.min(12, Math.round(relMag * 6));
     if (macd.histogram > 0) { bull += 3; }
     else                    { bear += 3; }
-    // Fresh MACD cross adds directional clarity
     if (macd.macd > macd.signal && macd.macd > 0) bull++;
     if (macd.macd < macd.signal && macd.macd < 0) bear++;
   }
@@ -163,14 +196,35 @@ function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio })
     else              bear++;
   }
 
+  // ATR% — lower = tighter daily ranges = better premium-selling conditions
+  if (atrPct != null) {
+    if      (atrPct < 1.5) score += 8;
+    else if (atrPct < 2.5) score += 4;
+    else if (atrPct < 3.5) score += 1;
+    else if (atrPct > 5.0) score -= 12;
+    else if (atrPct > 4.0) score -= 6;
+  }
+
+  // HV20 — 18–45% annualised is the sweet spot: meaningful premium, not chaotic
+  if (hvPct != null) {
+    if (hvPct >= 18 && hvPct <= 45) score += 5;
+    else if (hvPct > 55)            score -= 5;
+  }
+
+  // Bollinger Band position: mid-range = IC territory; extremes signal direction
+  if (bbPos != null) {
+    if      (bbPos >= 0.25 && bbPos <= 0.75) { score += 6; }
+    else if (bbPos < 0.20) { score += 4; bull += 2; }
+    else if (bbPos > 0.80) { score += 4; bear += 2; }
+    else                   { score += 2; }
+  }
+
   score = Math.max(0, Math.min(100, Math.round(score)));
 
-  // Direction: require a margin of 3+ to call directional
   let direction = "neutral";
   if      (bull >= bear + 3) direction = "bullish";
   else if (bear >= bull + 3) direction = "bearish";
 
-  // Recommendation
   let recommendation, recommendationColor;
   if (score >= 65 && direction === "bullish") {
     recommendation = "Bull Put Spread";
@@ -194,11 +248,23 @@ function scoreForSpreads({ rsi, macd, price, sma50, sma200, vwap, volumeRatio })
 
 // ─── Per-ticker fetch + compute ───────────────────────────────────────────────
 
-async function analyzeTickerForSpreads(ticker) {
+async function fetchYahooChart(ticker, attempt = 0) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (e) {
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 600 * (attempt + 1)));
+      return fetchYahooChart(ticker, attempt + 1);
+    }
+    throw e;
+  }
+}
+
+async function analyzeTickerForSpreads(ticker) {
+  const data = await fetchYahooChart(ticker);
 
   const result = data.chart?.result?.[0];
   if (!result) throw new Error("No chart data");
@@ -209,12 +275,11 @@ async function analyzeTickerForSpreads(ticker) {
   const rawL    = quote.low    || [];
   const rawV    = quote.volume || [];
 
-  // Zip and filter out null bars (Yahoo sometimes returns null mid-series)
   const bars = rawC.map((c, i) => ({
     c: rawC[i], h: rawH[i], l: rawL[i], v: rawV[i],
   })).filter(b => b.c != null && b.h != null && b.l != null && b.v != null);
 
-  if (bars.length < 30) throw new Error("Insufficient history");
+  if (bars.length < 50) throw new Error("Insufficient history (<50 bars)");
 
   const closes  = bars.map(b => b.c);
   const highs   = bars.map(b => b.h);
@@ -228,30 +293,38 @@ async function analyzeTickerForSpreads(ticker) {
   const rsi       = computeRSI(closes);
   const macd      = computeMACD(closes);
   const vwap      = computeVWAP(highs, lows, closes, volumes, 20);
+  const atrResult = computeATR(highs, lows, closes);
+  const atrPct    = atrResult?.atrPct ?? null;
+  const hvPct     = computeHV(closes);
+  const bbPos     = computeBBPos(closes);
 
   const lastVol   = volumes[volumes.length - 1];
   const avg20Vol  = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
   const volumeRatio = avg20Vol > 0 ? parseFloat((lastVol / avg20Vol).toFixed(2)) : 1;
 
-  const { score, direction, recommendation, recommendationColor } = scoreForSpreads({
-    rsi, macd, price, sma50, sma200, vwap, volumeRatio,
+  const { score, direction, recommendation, recommendationColor, bull, bear } = scoreForSpreads({
+    rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, bbPos,
   });
 
-  // 52-week high/low context
   const high52w = parseFloat(Math.max(...highs).toFixed(2));
   const low52w  = parseFloat(Math.min(...lows).toFixed(2));
 
   return {
     ticker,
-    price:         parseFloat(price.toFixed(2)),
+    price:          parseFloat(price.toFixed(2)),
     priceChangePct: prevClose ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2)) : 0,
-    volume:        lastVol,
+    volume:         lastVol,
     volumeRatio,
     vwap,
     sma50,
     sma200,
     rsi,
     macd,
+    atrPct,
+    hvPct,
+    bbPos,
+    bull,
+    bear,
     score,
     direction,
     recommendation,

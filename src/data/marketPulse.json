@@ -53,6 +53,17 @@
     "trajectory": "Curve is bear-steepening — short end anchored by Fed hold while long end drifts higher on fiscal deficit concerns and term premium normalization; full un-inversion likely within 2–3 months if ceasefire holds.",
     "canadianCurve": "BoC curve is already positively sloped (rate at 2.25% vs. 10Y GoC ~3.65%); ZAG.TO benefits if BoC resumes cuts in H2 — duration risk is manageable here compared to the US."
   },
+  "buffettIndicator": {
+    "value": "~182%",
+    "valueLabel": "Significantly Overvalued",
+    "color": "#ef4444",
+    "score": 78,
+    "historicalAvg": "~85% (1950–2024 avg)",
+    "fairValueZone": "75–100%",
+    "trend": "up",
+    "description": "US total equity market cap at ~182% of nominal GDP — well above the 100% threshold Buffett has called the single best measure of valuation; the ratio has been above fair value since 2015 with brief dips in 2022.",
+    "implication": "Elevated ratio argues for quality-bias, margin of safety in position sizing, and avoiding highly speculative positions — does not predict the timing of a drawdown."
+  },
   "macroSignals": [
     {
       "category": "Equities",
@@ -85,6 +96,40 @@
           "trend": "up",
           "status": "bullish",
           "note": "AI infrastructure theme intact; mega-caps (NVDA, META, AMZN) reported solid Q1. Russell 2000 lagging, confirming large-cap quality bias."
+        }
+      ]
+    },
+    {
+      "category": "Valuation",
+      "icon": "📊",
+      "signals": [
+        {
+          "label": "Buffett Indicator",
+          "value": "~182%",
+          "trend": "up",
+          "status": "bearish",
+          "note": "Total US market cap ~182% of GDP; Buffett's preferred macro-valuation yardstick. Fair value zone: 75–100%. Market has been elevated since 2015."
+        },
+        {
+          "label": "Shiller CAPE",
+          "value": "~34×",
+          "trend": "up",
+          "status": "bearish",
+          "note": "Cyclically adjusted P/E (10-year real earnings) well above the 17× historical mean; only the dot-com era saw higher readings — signals long-run return headwinds."
+        },
+        {
+          "label": "S&P 500 Forward P/E",
+          "value": "~21×",
+          "trend": "sideways",
+          "status": "caution",
+          "note": "Forward P/E above 20× historical average of ~16×; justified by AI growth premium but leaves little margin for earnings misses."
+        },
+        {
+          "label": "S&P 500 Earnings Yield",
+          "value": "~4.8%",
+          "trend": "down",
+          "status": "caution",
+          "note": "Earnings yield vs. 10Y Treasury (~4.35%) spread near zero — the equity risk premium is at its lowest since 2007, reducing the relative attractiveness of equities vs. bonds."
         }
       ]
     },
@@ -146,6 +191,34 @@
           "trend": "sideways",
           "status": "caution",
           "note": "Inflation re-accelerated in Q1 on oil spike; now fading as energy prices pull back but services inflation remains sticky above 4%."
+        },
+        {
+          "label": "US Core PCE (YoY)",
+          "value": "~2.8%",
+          "trend": "sideways",
+          "status": "caution",
+          "note": "Fed's preferred inflation gauge still above the 2% target; services PCE component sticky — key reason Fed cannot cut despite slowing growth."
+        },
+        {
+          "label": "ISM Manufacturing",
+          "value": "49.0",
+          "trend": "sideways",
+          "status": "caution",
+          "note": "Contracting (below 50) for the third consecutive month; new orders sub-index weakening — confirms goods-sector deceleration but does not yet signal recession."
+        },
+        {
+          "label": "ISM Services",
+          "value": "53.5",
+          "trend": "down",
+          "status": "neutral",
+          "note": "Services sector still expanding but pace slowing; business activity and new orders indices softening — consumer resilience the key support."
+        },
+        {
+          "label": "M2 Growth (YoY)",
+          "value": "~+4.2%",
+          "trend": "up",
+          "status": "neutral",
+          "note": "M2 recovering from 2023 contraction; moderate positive growth supportive of liquidity without re-igniting inflation — watch for acceleration as Fed signal shifts."
         },
         {
           "label": "US Unemployment",
@@ -269,6 +342,13 @@
           "trend": "down",
           "status": "neutral",
           "note": "Declining from elevated March levels; near-neutral hedging demand confirms market is not in panic mode."
+        },
+        {
+          "label": "US Consumer Confidence",
+          "value": "~98 (Michigan)",
+          "trend": "down",
+          "status": "caution",
+          "note": "University of Michigan Consumer Sentiment below 100 for fourth straight month; inflation expectations (5-year) rising — headwind for consumer discretionary spending."
         },
         {
           "label": "Earnings Revisions",

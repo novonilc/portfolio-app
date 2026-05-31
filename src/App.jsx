@@ -252,7 +252,39 @@ function _ssVWAP(highs, lows, closes, volumes, period = 20) {
   }
   return sumV > 0 ? parseFloat((sumPV / sumV).toFixed(2)) : null;
 }
-function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
+// ATR (14-period Wilder smoothing) — returns { atr, atrPct }
+function _ssATR(highs, lows, closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  const trs = [];
+  for (let i = 1; i < closes.length; i++) {
+    trs.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i-1]), Math.abs(lows[i] - closes[i-1])));
+  }
+  let atr = trs.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  for (let i = period; i < trs.length; i++) atr = (atr * (period - 1) + trs[i]) / period;
+  const price = closes[closes.length - 1];
+  return { atr: parseFloat(atr.toFixed(3)), atrPct: parseFloat((atr / price * 100).toFixed(2)) };
+}
+// Historical Volatility (20-day, annualised %) from log returns
+function _ssHV(closes, period = 20) {
+  if (closes.length < period + 2) return null;
+  const lr = [];
+  for (let i = 1; i < closes.length; i++) if (closes[i-1] > 0) lr.push(Math.log(closes[i] / closes[i-1]));
+  const rec = lr.slice(-period);
+  const mean = rec.reduce((a, b) => a + b, 0) / rec.length;
+  const variance = rec.reduce((s, r) => s + (r - mean) ** 2, 0) / (rec.length - 1);
+  return parseFloat((Math.sqrt(variance * 252) * 100).toFixed(1));
+}
+// Bollinger Band position (0 = at lower band, 1 = at upper band)
+function _ssBBPos(closes, period = 20) {
+  if (closes.length < period) return null;
+  const sl = closes.slice(-period);
+  const mean = sl.reduce((a, b) => a + b, 0) / period;
+  const std  = Math.sqrt(sl.reduce((s, c) => s + (c - mean) ** 2, 0) / period);
+  if (std === 0) return 0.5;
+  const pos = (closes[closes.length - 1] - (mean - 2 * std)) / (4 * std);
+  return parseFloat(Math.max(0, Math.min(1, pos)).toFixed(2));
+}
+function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, bbPos }) {
   let score = 40, bull = 0, bear = 0;
   if      (volumeRatio >= 2.0) { score += 20; bull++; bear++; }
   else if (volumeRatio >= 1.5) { score += 14; bull++; bear++; }
@@ -278,6 +310,26 @@ function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
     if (pct <= 0.015) score += 10; else if (pct <= 0.04) score += 5;
     if (price > vwap) bull++; else bear++;
   }
+  // ATR% — lower is better for premium selling (tighter, more predictable range)
+  if (atrPct != null) {
+    if      (atrPct < 1.5) score += 8;
+    else if (atrPct < 2.5) score += 4;
+    else if (atrPct < 3.5) score += 1;
+    else if (atrPct > 5.0) score -= 12;
+    else if (atrPct > 4.0) score -= 6;
+  }
+  // HV20 — 18–45% is the sweet spot: enough premium, not chaotic
+  if (hvPct != null) {
+    if (hvPct >= 18 && hvPct <= 45) score += 5;
+    else if (hvPct > 55)            score -= 5;
+  }
+  // Bollinger Band position — middle range suits IC; extremes give directional edge
+  if (bbPos != null) {
+    if      (bbPos >= 0.25 && bbPos <= 0.75) { score += 6; }
+    else if (bbPos < 0.20) { score += 4; bull += 2; }
+    else if (bbPos > 0.80) { score += 4; bear += 2; }
+    else                   { score += 2; }
+  }
   score = Math.max(0, Math.min(100, Math.round(score)));
   let direction = "neutral";
   if (bull >= bear + 3) direction = "bullish";
@@ -288,7 +340,7 @@ function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio }) {
   else if (score >= 65)                            { recommendation = "Iron Condor";      recommendationColor = "#a78bfa"; }
   else if (score >= 48)                            { recommendation = "Caution";          recommendationColor = "#fbbf24"; }
   else                                             { recommendation = "Skip";             recommendationColor = "rgba(255,255,255,0.3)"; }
-  return { score, direction, recommendation, recommendationColor };
+  return { score, direction, recommendation, recommendationColor, bull, bear };
 }
 
 // ─── Exact trade constructor ───────────────────────────────────────────────
@@ -2370,9 +2422,13 @@ Return ONLY a valid JSON object, no markdown:
           const lastVol = volumes[volumes.length - 1];
           const avg20V  = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
           const volumeRatio = parseFloat((avg20V > 0 ? lastVol / avg20V : 1).toFixed(2));
+          const atrResult   = _ssATR(highs, lows, closes);
+          const atrPct      = atrResult?.atrPct ?? null;
+          const hvPct       = _ssHV(closes);
+          const bbPos       = _ssBBPos(closes);
 
-          const { score, direction, recommendation, recommendationColor } =
-            _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio });
+          const { score, direction, recommendation, recommendationColor, bull, bear } =
+            _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, bbPos });
 
           return {
             ticker,
@@ -2385,6 +2441,11 @@ Return ONLY a valid JSON object, no markdown:
             sma200,
             rsi,
             macd,
+            atrPct,
+            hvPct,
+            bbPos,
+            bull,
+            bear,
             score,
             direction,
             recommendation,
@@ -6120,6 +6181,99 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             </div>
 
+            {/* ── Buffett Indicator card ── */}
+            {mp.buffettIndicator && (() => {
+              const bi = mp.buffettIndicator;
+              const pct = parseFloat(bi.value) || 0;
+              const zones = [
+                { label:"Undervalued",           max:75,  color:"#22c55e" },
+                { label:"Fair Value",             max:100, color:"#84cc16" },
+                { label:"Modestly Overvalued",    max:130, color:"#fbbf24" },
+                { label:"Significantly OV",       max:165, color:"#f97316" },
+                { label:"Extremely Overvalued",   max:300, color:"#ef4444" },
+              ];
+              const maxScale = 250;
+              const needlePct = Math.min(pct / maxScale * 100, 100);
+              const trendIcon2 = bi.trend === "up" ? "↑" : bi.trend === "down" ? "↓" : "→";
+              return (
+                <div className="card" style={{ marginBottom:16, padding:"16px 20px",
+                  background:"rgba(239,68,68,0.03)", borderColor: bi.color + "44" }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:16, flexWrap:"wrap" }}>
+                    {/* Left: label + description */}
+                    <div style={{ flex:"1 1 280px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", letterSpacing:"0.08em",
+                          textTransform:"uppercase", margin:0 }}>Buffett Indicator</p>
+                        <span style={{ fontSize:9, padding:"1px 7px", borderRadius:4,
+                          background: bi.color + "20", color: bi.color,
+                          border:`1px solid ${bi.color}44` }}>
+                          {trendIcon2} {bi.valueLabel}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", alignItems:"baseline", gap:8, marginBottom:6 }}>
+                        <span style={{ fontSize:28, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                          color: bi.color }}>{bi.value}</span>
+                        <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>
+                          of GDP &nbsp;·&nbsp; fair value {bi.fairValueZone} &nbsp;·&nbsp; avg {bi.historicalAvg}
+                        </span>
+                      </div>
+                      <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.55, marginBottom:6, maxWidth:560 }}>
+                        {bi.description}
+                      </p>
+                      <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic", lineHeight:1.4 }}>
+                        💡 {bi.implication}
+                      </p>
+                    </div>
+                    {/* Right: gauge bar */}
+                    <div style={{ flex:"0 0 240px", minWidth:200 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                        <span style={{ fontSize:8, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em" }}>0%</span>
+                        <span style={{ fontSize:8, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em" }}>250%</span>
+                      </div>
+                      {/* Segmented gauge */}
+                      <div style={{ position:"relative", height:14, borderRadius:7, overflow:"hidden",
+                        display:"flex", gap:1 }}>
+                        {zones.map((z, i) => {
+                          const prev = i === 0 ? 0 : zones[i-1].max;
+                          const width = ((z.max - prev) / maxScale) * 100;
+                          return (
+                            <div key={z.label} style={{
+                              width:`${width}%`, height:"100%",
+                              background: z.color + (pct <= z.max && (i === 0 || pct > zones[i-1].max) ? "cc" : "33"),
+                              borderRadius: i === 0 ? "7px 0 0 7px" : i === zones.length-1 ? "0 7px 7px 0" : 0,
+                            }} />
+                          );
+                        })}
+                        {/* Needle */}
+                        <div style={{
+                          position:"absolute", top:0, bottom:0,
+                          left:`${Math.min(needlePct, 98)}%`,
+                          width:2, background:"#fff", borderRadius:1,
+                          boxShadow:"0 0 6px rgba(255,255,255,0.8)",
+                        }} />
+                      </div>
+                      {/* Zone labels */}
+                      <div style={{ display:"flex", marginTop:4, gap:1 }}>
+                        {zones.map((z, i) => {
+                          const prev = i === 0 ? 0 : zones[i-1].max;
+                          const width = ((z.max - prev) / maxScale) * 100;
+                          const active = pct <= z.max && (i === 0 || pct > zones[i-1].max);
+                          return (
+                            <div key={z.label} style={{ width:`${width}%`, fontSize:6,
+                              color: active ? z.color : "rgba(255,255,255,0.2)",
+                              fontWeight: active ? 700 : 400, textAlign:"center",
+                              whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                              {active ? z.label : (i === 0 ? "UV" : i === 1 ? "FV" : "OV")}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Macro signals grid */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(280px, 1fr))", gap:12, marginBottom:16 }}>
               {mp.macroSignals.map(cat => (
@@ -8488,7 +8642,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14, flexWrap:"wrap" }}>
                 <div style={{ flex:1, minWidth:240 }}>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
-                    Scores {signals.length || SPREAD_SCAN_TICKERS.length}+ liquid tickers on Volume, VWAP, SMA 50/200, RSI, and MACD.
+                    Scores {signals.length || SPREAD_SCAN_TICKERS.length}+ liquid tickers on <strong style={{ color:"rgba(255,255,255,0.6)" }}>8 signals</strong>: Volume, RSI, MACD, SMA 50/200, VWAP, ATR%, HV20, Bollinger Bands.
                     Higher score = better conditions for vertical spreads.
                     Cron auto-refresh runs daily at <strong style={{ color:"rgba(255,255,255,0.6)" }}>5:30 PM ET (after close)</strong>.
                   </p>
@@ -8669,6 +8823,32 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </div>
                         </div>
 
+                        {/* Signal consensus bar */}
+                        {(s.bull != null || s.bear != null) && (() => {
+                          const b = s.bull || 0, br = s.bear || 0, total = b + br;
+                          const bullPct = total > 0 ? Math.round((b / total) * 100) : 50;
+                          const dir = b > br + 2 ? "bullish" : br > b + 2 ? "bearish" : "neutral";
+                          const barColor = dir === "bullish" ? "#22c55e" : dir === "bearish" ? "#ef4444" : "#a78bfa";
+                          return (
+                            <div style={{ marginBottom:8, padding:"5px 8px", borderRadius:5,
+                              background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)" }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                                <span style={{ fontSize:8, color:"rgba(255,255,255,0.3)" }}>SIGNAL CONSENSUS</span>
+                                <span style={{ fontSize:8, fontFamily:"'JetBrains Mono',monospace",
+                                  color:"rgba(255,255,255,0.4)" }}>
+                                  <span style={{ color:"#22c55e" }}>{b}↑</span>
+                                  {" · "}
+                                  <span style={{ color:"#ef4444" }}>{br}↓</span>
+                                </span>
+                              </div>
+                              <div style={{ height:3, borderRadius:2, background:"rgba(239,68,68,0.3)" }}>
+                                <div style={{ width:`${bullPct}%`, height:"100%", borderRadius:2,
+                                  background: barColor, transition:"width 0.3s" }} />
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {/* Signal grid */}
                         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px 10px" }}>
 
@@ -8761,6 +8941,60 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             ) : (
                               <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>—</span>
                             )}
+                          </div>
+
+                          {/* ATR% */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>ATR% (14d)</p>
+                            {s.atrPct != null ? (
+                              <>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600,
+                                  color: s.atrPct < 2.5 ? "#22c55e" : s.atrPct < 4.0 ? "#fbbf24" : "#ef4444" }}>
+                                  {s.atrPct}%
+                                </span>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>
+                                  {s.atrPct < 1.5 ? "Very stable ✓" : s.atrPct < 2.5 ? "Stable" : s.atrPct < 4.0 ? "Elevated" : "High vol ⚠"}
+                                </p>
+                              </>
+                            ) : <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>—</span>}
+                          </div>
+
+                          {/* HV20 */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>HV20 (ann.)</p>
+                            {s.hvPct != null ? (
+                              <>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:600,
+                                  color: s.hvPct >= 18 && s.hvPct <= 45 ? "#22c55e" : s.hvPct > 55 ? "#ef4444" : "#fbbf24" }}>
+                                  {s.hvPct}%
+                                </span>
+                                <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>
+                                  {s.hvPct >= 18 && s.hvPct <= 45 ? "Sweet spot ✓" : s.hvPct < 18 ? "Low premium" : "Rich vol ⚠"}
+                                </p>
+                              </>
+                            ) : <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>—</span>}
+                          </div>
+
+                          {/* Bollinger Band position */}
+                          <div>
+                            <p style={{ fontSize:8, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BB POSITION</p>
+                            {s.bbPos != null ? (() => {
+                              const pct = Math.round(s.bbPos * 100);
+                              const label = s.bbPos < 0.20 ? "Near low ▲" : s.bbPos > 0.80 ? "Near high ▼" : "Mid-range ◈";
+                              const color = s.bbPos < 0.20 ? "#22c55e" : s.bbPos > 0.80 ? "#ef4444" : "#a78bfa";
+                              return (
+                                <>
+                                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                                    <div style={{ flex:1, height:3, borderRadius:2, background:"rgba(255,255,255,0.07)" }}>
+                                      <div style={{ width:`${pct}%`, height:"100%", borderRadius:2, background:color }} />
+                                    </div>
+                                    <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
+                                      color, minWidth:22, textAlign:"right" }}>{pct}%</span>
+                                  </div>
+                                  <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", marginTop:1 }}>{label}</p>
+                                </>
+                              );
+                            })() : <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>—</span>}
                           </div>
                         </div>
 
@@ -8866,9 +9100,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               )}
 
               <p style={{ fontSize:9, color:"rgba(255,255,255,0.15)", marginTop:16, lineHeight:1.6 }}>
-                Technical signals computed from 1-year daily OHLCV data (Yahoo Finance).
-                Score combines: volume ratio, RSI zone, MACD momentum, SMA50/200 trend, and VWAP proximity.
-                Not financial advice — verify all setups with your broker before placing trades.
+                Signals computed from 1-year daily OHLCV data (Yahoo Finance).
+                Score combines: Volume ratio, RSI zone, MACD momentum, SMA 50/200 trend, VWAP proximity, ATR% (volatility), HV20 (realised vol), Bollinger Band position.
+                ATR% &lt;2.5% = good for tight spreads · HV20 18–45% = premium-selling sweet spot · BB mid-range = Iron Condor territory.
+                Not financial advice — always verify strikes, credits, and IV against your live broker chain before placing trades.
               </p>
             </div>
           );

@@ -35,8 +35,11 @@ async function fetchLiveSignals() {
     tryFetch("https://open.er-api.com/v6/latest/USD").then(d => {
       live.usdCad = d.rates?.CAD;
     }),
-    tryFetchFredCSV("T10YIE").then(v => { live.breakeven10y = v; }),
-    tryFetchFredCSV("DFII10").then(v => { live.realYield10y = v; }),
+    tryFetchFredCSV("T10YIE").then(v  => { live.breakeven10y  = v; }),
+    tryFetchFredCSV("DFII10").then(v  => { live.realYield10y  = v; }),
+    tryFetchFredCSV("GDP").then(v     => { live.gdpBillions   = v; }),   // US nominal GDP (quarterly, SAAR, $B)
+    tryFetchFredCSV("M2SL").then(v    => { live.m2Billions    = v; }),   // M2 money supply ($B, monthly SA)
+    tryFetchFredCSV("PCETRIM").then(v => { live.pce16trimmed  = v; }),   // 16% trimmed mean PCE (monthly, annualised %)
     ...[
       ["sp500",       "^GSPC"],
       ["tsx",         "^GSPTSE"],
@@ -47,6 +50,7 @@ async function fetchLiveSignals() {
       ["treasury5y",  "^FVX"],
       ["treasury10y", "^TNX"],
       ["treasury30y", "^TYX"],
+      ["wilshire5000","^W5000"],   // Wilshire 5000 — proxy for total US equity market level
     ].map(([key, sym]) =>
       tryFetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=5d`,
@@ -58,6 +62,15 @@ async function fetchLiveSignals() {
       })
     ),
   ]);
+
+  // Buffett Indicator estimate: Wilshire 5000 points ≈ total US market cap in $B
+  // (1 Wilshire point ≈ $1.16B based on mid-2024 calibration; GDP in $B quarterly → annualise)
+  if (live.wilshire5000 && live.gdpBillions) {
+    const marketCapB = live.wilshire5000 * 1.16;       // approximate $B
+    const annualGdpB = live.gdpBillions;               // already annualised SAAR
+    live.buffettIndicatorPct = parseFloat((marketCapB / annualGdpB * 100).toFixed(1));
+  }
+
   return live;
 }
 
@@ -87,6 +100,11 @@ function buildPrompt(live) {
   } else if (live.treasury10y && live.breakeven10y) {
     lines.push(`- 10Y Real Yield (computed): ${(live.treasury10y - live.breakeven10y).toFixed(2)}%`);
   }
+  if (live.gdpBillions)        lines.push(`- US Nominal GDP (FRED, latest quarter SAAR): $${live.gdpBillions.toFixed(0)}B (~$${(live.gdpBillions/1000).toFixed(1)}T annualised)`);
+  if (live.m2Billions)         lines.push(`- M2 Money Supply (FRED, latest month): $${live.m2Billions.toFixed(0)}B`);
+  if (live.pce16trimmed)       lines.push(`- 16% Trimmed-Mean PCE Inflation (FRED, annualised): ${live.pce16trimmed.toFixed(2)}%`);
+  if (live.wilshire5000)       lines.push(`- Wilshire 5000 Index (Yahoo): ${live.wilshire5000.toFixed(0)} (proxy for total US equity market level)`);
+  if (live.buffettIndicatorPct != null) lines.push(`- Buffett Indicator estimate (Wilshire×1.16/$GDP): ${live.buffettIndicatorPct}%`);
 
   const spreadLines = [];
   if (live.treasury3m && live.treasury10y)
@@ -104,9 +122,13 @@ Live market data fetched right now:
 ${lines.length ? lines.join("\n") : "(fetch failed — use your best current knowledge)"}
 ${spreadLines.length ? "\nComputed yield curve spreads:\n" + spreadLines.join("\n") : ""}
 
-Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured: Fed/BoC policy stance, full yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, credit spreads, DXY, copper, global macro. Weight the live numbers heavily.
+Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured: Fed/BoC policy stance, full yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, credit spreads, DXY, copper, global macro, valuation metrics. Weight the live numbers heavily.
 
 For yieldCurve: classify curve shape, report all five benchmark yields, compute spreads in bps, estimate NY Fed 12-month recession probability, and give a one-sentence trajectory.
+
+For buffettIndicator: use the live Buffett estimate if provided (Wilshire×1.16/GDP), or your best current estimate. Classify as: Undervalued (<75%), Fair Value (75–100%), Modestly Overvalued (100–130%), Significantly Overvalued (130–165%), or Extremely Overvalued (>165%). Provide the 1950–2024 historical average (~85%) as context. Score 0–100 where 100 = most overvalued historically.
+
+For valuation macroSignals: provide Shiller CAPE (10-year cyclically adjusted P/E), S&P 500 Forward P/E (next 12 months consensus), and S&P 500 Earnings Yield (= 1/ForwardPE × 100%). For Shiller CAPE: normal <20, elevated 20–30, extreme >30.
 
 For newsSignals: exactly 4 recent, specific headlines from Bloomberg, CNBC, Reuters, FT, or WSJ. Each must name the source. Keep portfolioImpact to one sentence relevant to a Canadian TFSA/RRSP investor.
 
@@ -150,12 +172,29 @@ Required schema (scenario probabilities within each outlook must sum to exactly 
     "trajectory": "",
     "canadianCurve": ""
   },
+  "buffettIndicator": {
+    "value": "XXX%",
+    "valueLabel": "Undervalued|Fair Value|Modestly Overvalued|Significantly Overvalued|Extremely Overvalued",
+    "color": "#22c55e|#fbbf24|#ef4444",
+    "score": 0,
+    "historicalAvg": "~85% (1950–2024 avg)",
+    "fairValueZone": "75–100%",
+    "trend": "up|down|sideways",
+    "description": "one sentence with current context",
+    "implication": "one sentence portfolio implication"
+  },
   "macroSignals": [
     { "category": "Equities", "icon": "📈", "signals": [
       { "label": "S&P 500",       "value": "", "trend": "up|down|sideways", "status": "bullish|bearish|caution|neutral", "note": "" },
       { "label": "TSX Composite", "value": "", "trend": "", "status": "", "note": "" },
       { "label": "VIX",           "value": "", "trend": "", "status": "", "note": "" },
       { "label": "Nasdaq / Tech", "value": "", "trend": "", "status": "", "note": "" }
+    ]},
+    { "category": "Valuation", "icon": "📊", "signals": [
+      { "label": "Buffett Indicator",   "value": "", "trend": "", "status": "bullish (<100%)|caution (100–130%)|bearish (>130%)", "note": "" },
+      { "label": "Shiller CAPE",        "value": "", "trend": "", "status": "bullish (<20)|caution (20–30)|bearish (>30)",        "note": "" },
+      { "label": "S&P 500 Forward P/E", "value": "", "trend": "", "status": "",                                                  "note": "" },
+      { "label": "S&P 500 Earnings Yield","value":"","trend": "", "status": "",                                                  "note": "" }
     ]},
     { "category": "Rates & Bonds", "icon": "🏦", "signals": [
       { "label": "Fed Funds Rate",          "value": "", "trend": "", "status": "", "note": "" },
@@ -166,11 +205,15 @@ Required schema (scenario probabilities within each outlook must sum to exactly 
       { "label": "BoC Rate",                "value": "", "trend": "", "status": "", "note": "" }
     ]},
     { "category": "Macro", "icon": "🌐", "signals": [
-      { "label": "US CPI (YoY)",    "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "US Unemployment", "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Oil (WTI)",       "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Gold",            "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "USD/CAD",         "value": "", "trend": "", "status": "", "note": "" }
+      { "label": "US CPI (YoY)",        "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "US Core PCE (YoY)",   "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "US Unemployment",     "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "ISM Manufacturing",   "value": "", "trend": "", "status": "bullish (>55)|caution (50–55)|bearish (<50)", "note": "" },
+      { "label": "ISM Services",        "value": "", "trend": "", "status": "bullish (>55)|caution (50–55)|bearish (<50)", "note": "" },
+      { "label": "M2 Growth (YoY)",     "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Oil (WTI)",           "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Gold",                "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "USD/CAD",             "value": "", "trend": "", "status": "", "note": "" }
     ]},
     { "category": "Credit & Risk", "icon": "💳", "signals": [
       { "label": "HY Credit Spread (CDX HY)", "value": "", "trend": "", "status": "bullish (<350 bps)|caution (350-500)|bearish (>500)", "note": "" },
@@ -179,16 +222,17 @@ Required schema (scenario probabilities within each outlook must sum to exactly 
       { "label": "Bank Lending Standards",    "value": "", "trend": "", "status": "", "note": "" }
     ]},
     { "category": "Global & Commodities", "icon": "🌍", "signals": [
-      { "label": "DXY (US Dollar Index)", "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Copper (front-month)",  "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "China PMI",             "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Eurozone CPI",          "value": "", "trend": "", "status": "", "note": "" }
+      { "label": "DXY (US Dollar Index)",   "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Copper (front-month)",    "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "China PMI",               "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Eurozone CPI",            "value": "", "trend": "", "status": "", "note": "" }
     ]},
     { "category": "Sentiment", "icon": "🧠", "signals": [
-      { "label": "Fear & Greed",       "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "AAII Bull/Bear",     "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Put/Call Ratio",     "value": "", "trend": "", "status": "", "note": "" },
-      { "label": "Earnings Revisions", "value": "", "trend": "", "status": "", "note": "" }
+      { "label": "Fear & Greed",              "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "AAII Bull/Bear",            "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Put/Call Ratio",            "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "US Consumer Confidence",   "value": "", "trend": "", "status": "", "note": "" },
+      { "label": "Earnings Revisions",       "value": "", "trend": "", "status": "", "note": "" }
     ]}
   ],
   "newsSignals": [
