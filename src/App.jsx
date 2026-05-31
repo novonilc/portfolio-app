@@ -346,18 +346,16 @@ function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, 
 // ─── Exact trade constructor ───────────────────────────────────────────────
 // Returns a trade setup object for actionable cards, or null for Caution/Skip.
 function buildTradeSetup(s) {
-  const { price, recommendation, sma50, sma200, vwap } = s;
+  const { price, recommendation, sma50, sma200, vwap, hvPct } = s;
   if (!price || recommendation === "Caution" || recommendation === "Skip") return null;
 
-  // Round strikes to exchange-standard increments
   const roundStrike = (v) => {
-    if (price < 10)  return Math.round(v * 2) / 2;        // $0.50
-    if (price < 100) return Math.round(v);                  // $1
-    if (price < 300) return Math.round(v / 5) * 5;         // $5
-    return Math.round(v / 10) * 10;                         // $10
+    if (price < 10)  return Math.round(v * 2) / 2;
+    if (price < 100) return Math.round(v);
+    if (price < 300) return Math.round(v / 5) * 5;
+    return Math.round(v / 10) * 10;
   };
 
-  // Spread width: one standard increment for the price range
   const width = price < 10  ? 0.5
               : price < 30  ? 1
               : price < 75  ? 2.5
@@ -365,33 +363,44 @@ function buildTradeSetup(s) {
               : price < 500 ? 10
               : 25;
 
-  // Conservative 30% credit-to-width ratio for ~5% OTM, ~35 DTE
-  const creditEst = parseFloat((width * 0.30).toFixed(2));
+  // BSM-based credit estimation using HV20 as IV proxy (IV ≈ HV × 1.25)
+  // Uses the same simplified Black-Scholes approximation as estimatePremium()
+  const ivDecimal = Math.min(Math.max(((hvPct || 30) * 1.25) / 100, 0.12), 1.20);
+  const DTE = 35;
+  const atmBase = price * ivDecimal * Math.sqrt(DTE / 365) * 0.4;
+  const legPremium = (strike) =>
+    parseFloat(Math.max(0, atmBase * Math.exp(-3.8 * Math.abs(price - strike) / price)).toFixed(2));
 
-  // Target expiry: ~35 DTE from today
+  // Clamp credit to a sane 10%–50% of width (avoids extreme outliers)
+  const clampCredit = (c) => parseFloat(Math.min(width * 0.50, Math.max(width * 0.10, c)).toFixed(2));
+
   const expTarget = new Date();
   expTarget.setDate(expTarget.getDate() + 35);
   const expiryStr = expTarget.toLocaleDateString("en-US", { month:"short", day:"numeric" });
-
   const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
 
   if (recommendation === "Bull Put Spread") {
-    // Anchor short put just below nearest support (SMA50 or VWAP), staying ≤97% of price
-    const support   = Math.min(sma50 || price, vwap || price);
-    const shortPut  = roundStrike(Math.min(price * 0.97, support * 1.005));
-    const longPut   = roundStrike(shortPut - width);
-    const breakEven = parseFloat((shortPut - creditEst).toFixed(2));
-    const anchor    = sma50 ? `SMA50 $${fmt(sma50)}` : vwap ? `VWAP $${fmt(vwap)}` : null;
+    const support  = Math.min(sma50 || price, vwap || price);
+    const shortPut = roundStrike(Math.min(price * 0.97, support * 1.005));
+    const longPut  = roundStrike(shortPut - width);
+    const credit   = clampCredit(legPremium(shortPut) - legPremium(longPut));
+    const maxLoss  = parseFloat((width - credit).toFixed(2));
+    const beNum    = parseFloat((shortPut - credit).toFixed(2));
+    const anchor   = sma50 ? `SMA50 $${fmt(sma50)}` : vwap ? `VWAP $${fmt(vwap)}` : null;
     return {
       type: "bull_put",
       legs: [
         { action:"SELL", contract:`$${fmt(shortPut)} Put`, role:"short" },
-        { action:"BUY",  contract:`$${fmt(longPut)} Put`,  role:"long"  },
+        { action:"BUY",  contract:`$${fmt(longPut)}  Put`, role:"long"  },
       ],
-      width: `$${width}-wide`,
-      creditEst,
-      maxLoss: parseFloat((width - creditEst).toFixed(2)),
-      breakEven: `$${fmt(breakEven)}`,
+      width: `$${width}`,
+      creditEst: credit, maxLoss,
+      maxGain: credit,
+      creditPerContract: Math.round(credit * 100),
+      maxLossPerContract: Math.round(maxLoss * 100),
+      breakEven: `$${fmt(beNum)}`,
+      breakEvenNums: [beNum],
+      strikesRaw: { longPut, shortPut },
       expiry: `~35 DTE · target ${expiryStr}`,
       rationale: anchor ? `Short put anchored near support (${anchor})` : "Short put 3% below current price",
     };
@@ -401,18 +410,24 @@ function buildTradeSetup(s) {
     const resistance = Math.max(sma50 || price, vwap || price);
     const shortCall  = roundStrike(Math.max(price * 1.03, resistance * 0.995));
     const longCall   = roundStrike(shortCall + width);
-    const breakEven  = parseFloat((shortCall + creditEst).toFixed(2));
+    const credit     = clampCredit(legPremium(shortCall) - legPremium(longCall));
+    const maxLoss    = parseFloat((width - credit).toFixed(2));
+    const beNum      = parseFloat((shortCall + credit).toFixed(2));
     const anchor     = sma50 ? `SMA50 $${fmt(sma50)}` : vwap ? `VWAP $${fmt(vwap)}` : null;
     return {
       type: "bear_call",
       legs: [
         { action:"SELL", contract:`$${fmt(shortCall)} Call`, role:"short" },
-        { action:"BUY",  contract:`$${fmt(longCall)} Call`,  role:"long"  },
+        { action:"BUY",  contract:`$${fmt(longCall)}  Call`, role:"long"  },
       ],
-      width: `$${width}-wide`,
-      creditEst,
-      maxLoss: parseFloat((width - creditEst).toFixed(2)),
-      breakEven: `$${fmt(breakEven)}`,
+      width: `$${width}`,
+      creditEst: credit, maxLoss,
+      maxGain: credit,
+      creditPerContract: Math.round(credit * 100),
+      maxLossPerContract: Math.round(maxLoss * 100),
+      breakEven: `$${fmt(beNum)}`,
+      breakEvenNums: [beNum],
+      strikesRaw: { shortCall, longCall },
       expiry: `~35 DTE · target ${expiryStr}`,
       rationale: anchor ? `Short call anchored near resistance (${anchor})` : "Short call 3% above current price",
     };
@@ -425,19 +440,29 @@ function buildTradeSetup(s) {
     const longPut    = roundStrike(shortPut - width);
     const shortCall  = roundStrike(Math.max(price * 1.04, resistance * 0.995));
     const longCall   = roundStrike(shortCall + width);
-    const totalCredit = parseFloat((creditEst * 2).toFixed(2));
+    const putCredit  = clampCredit(legPremium(shortPut)  - legPremium(longPut));
+    const callCredit = clampCredit(legPremium(shortCall) - legPremium(longCall));
+    const totalCredit = parseFloat((putCredit + callCredit).toFixed(2));
+    // Max loss: worst wing loss minus total credit received from BOTH wings
+    const maxLoss    = parseFloat((width - totalCredit).toFixed(2));
+    const beLow      = parseFloat((shortPut  - totalCredit).toFixed(2));
+    const beHigh     = parseFloat((shortCall + totalCredit).toFixed(2));
     return {
       type: "iron_condor",
       legs: [
-        { action:"SELL", contract:`$${fmt(shortPut)} Put`,   role:"short" },
-        { action:"BUY",  contract:`$${fmt(longPut)} Put`,    role:"long"  },
+        { action:"SELL", contract:`$${fmt(shortPut)}  Put`,  role:"short" },
+        { action:"BUY",  contract:`$${fmt(longPut)}   Put`,  role:"long"  },
         { action:"SELL", contract:`$${fmt(shortCall)} Call`, role:"short" },
-        { action:"BUY",  contract:`$${fmt(longCall)} Call`,  role:"long"  },
+        { action:"BUY",  contract:`$${fmt(longCall)}  Call`, role:"long"  },
       ],
-      width: `$${width}-wide each wing`,
-      creditEst: totalCredit,
-      maxLoss: parseFloat((width - creditEst).toFixed(2)),
-      breakEven: `$${fmt(shortPut - creditEst)} – $${fmt(shortCall + creditEst)}`,
+      width: `$${width} each wing`,
+      creditEst: totalCredit, maxLoss,
+      maxGain: totalCredit,
+      creditPerContract: Math.round(totalCredit * 100),
+      maxLossPerContract: Math.round(maxLoss * 100),
+      breakEven: `$${fmt(beLow)} – $${fmt(beHigh)}`,
+      breakEvenNums: [beLow, beHigh],
+      strikesRaw: { longPut, shortPut, shortCall, longCall },
       expiry: `~35 DTE · target ${expiryStr}`,
       rationale: "Price in neutral zone — sell both wings for premium",
     };
@@ -8697,6 +8722,113 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             );
           };
 
+          // ── Payoff Diagram component ──────────────────────────────────────────
+          const PayoffDiagram = ({ setup, currentPrice, ticker }) => {
+            if (!setup?.strikesRaw) return null;
+            const W = 400, H = 96;
+            const pad = { l: 38, r: 6, t: 6, b: 22 };
+            const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
+            const { type, strikesRaw, creditEst, maxLoss, breakEvenNums } = setup;
+            const { longPut = 0, shortPut = 0, shortCall = 0, longCall = 0 } = strikesRaw;
+            const pMin = Math.min(longPut || currentPrice * 0.82, currentPrice * 0.82);
+            const pMax = Math.max(longCall || currentPrice * 1.18, currentPrice * 1.18);
+            const xS = (p) => pad.l + ((p - pMin) / (pMax - pMin)) * iW;
+            const yPad = Math.max(creditEst, maxLoss) * 0.18;
+            const yMin = -(maxLoss + yPad), yMax = creditEst + yPad;
+            const yR = yMax - yMin;
+            const yS = (v) => pad.t + ((yMax - v) / yR) * iH;
+            const y0 = yS(0);
+            const payoff = (p) => {
+              if (type === "bull_put") {
+                if (p <= longPut)  return -maxLoss;
+                if (p >= shortPut) return creditEst;
+                return -maxLoss + (p - longPut) * (creditEst + maxLoss) / (shortPut - longPut);
+              }
+              if (type === "bear_call") {
+                if (p <= shortCall) return creditEst;
+                if (p >= longCall)  return -maxLoss;
+                return creditEst - (p - shortCall) * (creditEst + maxLoss) / (longCall - shortCall);
+              }
+              if (type === "iron_condor") {
+                if (p <= longPut)   return -maxLoss;
+                if (p <= shortPut)  return -maxLoss + (p - longPut)  * (creditEst + maxLoss) / (shortPut - longPut);
+                if (p <= shortCall) return creditEst;
+                if (p <= longCall)  return creditEst - (p - shortCall) * (creditEst + maxLoss) / (longCall - shortCall);
+                return -maxLoss;
+              }
+              return 0;
+            };
+            const N = 80;
+            const pts = Array.from({ length: N + 1 }, (_, i) => {
+              const p = pMin + (pMax - pMin) * i / N;
+              return { x: xS(p), y: yS(payoff(p)) };
+            });
+            const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+            const closePoly = (toY) => `${poly} ${(pad.l + iW).toFixed(1)},${toY.toFixed(1)} ${pad.l.toFixed(1)},${toY.toFixed(1)}`;
+            const uid = (ticker || "").replace(/[^a-z0-9]/gi, "");
+            const fmtY = (v) => Math.abs(v) >= 10 ? `$${Math.round(v)}` : `$${v.toFixed(1)}`;
+            const fmtX = (v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${Math.round(v)}`;
+            const keyStrikes = [longPut, shortPut, shortCall, longCall].filter(Boolean);
+            return (
+              <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block", overflow:"visible" }}>
+                <defs>
+                  <clipPath id={`gain-${uid}`}>
+                    <rect x={pad.l} y={pad.t} width={iW} height={Math.max(0, y0 - pad.t)} />
+                  </clipPath>
+                  <clipPath id={`loss-${uid}`}>
+                    <rect x={pad.l} y={y0} width={iW} height={Math.max(0, H - pad.b - y0)} />
+                  </clipPath>
+                </defs>
+                {/* Background */}
+                <rect x={pad.l} y={pad.t} width={iW} height={iH} fill="rgba(0,0,0,0.25)" rx={3} />
+                {/* Profit fill (clipped to above y=0) */}
+                <polygon points={closePoly(y0)} fill="rgba(34,197,94,0.22)" clipPath={`url(#gain-${uid})`} />
+                {/* Loss fill (clipped to below y=0) */}
+                <polygon points={closePoly(H - pad.b)} fill="rgba(239,68,68,0.22)" clipPath={`url(#loss-${uid})`} />
+                {/* Zero line */}
+                <line x1={pad.l} y1={y0} x2={pad.l + iW} y2={y0} stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+                {/* Payoff curve */}
+                <polyline points={poly} fill="none" stroke="#f1f5f9" strokeWidth={1.8} />
+                {/* Current price dashed line */}
+                <line x1={xS(currentPrice)} y1={pad.t} x2={xS(currentPrice)} y2={H - pad.b}
+                  stroke="#fbbf24" strokeWidth={1} strokeDasharray="3,2.5" />
+                {/* Break-even dots */}
+                {(breakEvenNums || []).map((be, i) => (
+                  <circle key={i} cx={xS(be)} cy={y0} r={3.5} fill="#fbbf24" stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
+                ))}
+                {/* Y axis labels */}
+                <text x={pad.l - 4} y={yS(creditEst) + 3.5} textAnchor="end" fontSize={8} fill="#22c55e" fontFamily="monospace">
+                  +{fmtY(creditEst)}
+                </text>
+                <text x={pad.l - 4} y={yS(-maxLoss) + 3.5} textAnchor="end" fontSize={8} fill="#ef4444" fontFamily="monospace">
+                  -{fmtY(maxLoss)}
+                </text>
+                <text x={pad.l - 4} y={y0 + 3.5} textAnchor="end" fontSize={7} fill="rgba(255,255,255,0.25)" fontFamily="monospace">0</text>
+                {/* X axis: key strikes */}
+                {keyStrikes.map((k, i) => {
+                  const x = xS(k);
+                  if (x < pad.l + 4 || x > pad.l + iW - 4) return null;
+                  return (
+                    <g key={i}>
+                      <line x1={x} y1={pad.t} x2={x} y2={H - pad.b} stroke="rgba(255,255,255,0.07)" strokeWidth={1} />
+                      <text x={x} y={H - pad.b + 11} textAnchor="middle" fontSize={7.5}
+                        fill="rgba(255,255,255,0.35)" fontFamily="monospace">
+                        ${fmtX(k)}
+                      </text>
+                    </g>
+                  );
+                })}
+                {/* "Now" label */}
+                <text x={xS(currentPrice)} y={pad.t + 9} textAnchor="middle" fontSize={7.5} fill="#fbbf24" fontFamily="monospace">
+                  now
+                </text>
+                {/* Corner labels */}
+                <text x={pad.l + iW - 2} y={pad.t + 9} textAnchor="end" fontSize={7} fill="rgba(34,197,94,0.6)">MAX GAIN</text>
+                <text x={pad.l + iW - 2} y={H - pad.b - 3} textAnchor="end" fontSize={7} fill="rgba(239,68,68,0.6)">MAX LOSS</text>
+              </svg>
+            );
+          };
+
           const isScanning = !!spreadScanProgress;
           const scanDisabled = isScanning || spreadSignalsLoading;
 
@@ -9104,8 +9236,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             })()}
 
                             {/* Metrics row */}
-                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"6px 8px",
-                              padding:"8px 10px", borderRadius:6,
+                            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"5px 8px",
+                              padding:"8px 10px", borderRadius:6, marginBottom:10,
                               background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.06)" }}>
                               <div>
                                 <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>WIDTH</p>
@@ -9113,20 +9245,58 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   color:"rgba(255,255,255,0.6)" }}>{tradeSetup.width}</span>
                               </div>
                               <div>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>EST. CREDIT</p>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>CREDIT / CONTRACT</p>
                                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                  fontWeight:700, color:"#22c55e" }}>~${tradeSetup.creditEst}</span>
+                                  fontWeight:700, color:"#22c55e" }}>
+                                  ~${tradeSetup.creditEst}/sh
+                                </span>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
+                                  color:"rgba(34,197,94,0.6)", marginLeft:4 }}>
+                                  (~${tradeSetup.creditPerContract})
+                                </span>
                               </div>
                               <div>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS</p>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS / CONTRACT</p>
                                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                  color:"#ef4444" }}>${tradeSetup.maxLoss}</span>
+                                  color:"#ef4444" }}>
+                                  ${tradeSetup.maxLoss}/sh
+                                </span>
+                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
+                                  color:"rgba(239,68,68,0.6)", marginLeft:4 }}>
+                                  (${tradeSetup.maxLossPerContract})
+                                </span>
                               </div>
-                              <div style={{ gridColumn:"1/-1" }}>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BREAK-EVEN</p>
-                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                  color:"#fbbf24" }}>{tradeSetup.breakEven}</span>
+                              <div style={{ gridColumn:"1/-1", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+                                <div>
+                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BREAK-EVEN</p>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                    color:"#fbbf24" }}>{tradeSetup.breakEven}</span>
+                                </div>
+                                <div style={{ textAlign:"right" }}>
+                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>CREDIT-TO-WIDTH</p>
+                                  {(() => {
+                                    const widthNum = tradeSetup.maxLoss + tradeSetup.creditEst;
+                                    const ratio = widthNum > 0 ? tradeSetup.creditEst / widthNum : 0;
+                                    return (
+                                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                        color: ratio >= 0.25 ? "#22c55e" : "#fbbf24" }}>
+                                        {(ratio * 100).toFixed(0)}%
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                               </div>
+                            </div>
+
+                            {/* Payoff diagram */}
+                            <div style={{ marginBottom:10, borderRadius:6, overflow:"hidden",
+                              border:"1px solid rgba(255,255,255,0.06)" }}>
+                              <p style={{ fontSize:7, fontWeight:700, letterSpacing:"0.08em",
+                                color:"rgba(255,255,255,0.25)", margin:0, padding:"4px 8px",
+                                background:"rgba(0,0,0,0.2)" }}>
+                                P&L AT EXPIRY (per share) · ●=break-even · ⋯=current price
+                              </p>
+                              <PayoffDiagram setup={tradeSetup} currentPrice={s.price} ticker={s.ticker} />
                             </div>
 
                             {/* Expiry + rationale */}
