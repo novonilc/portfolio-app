@@ -3,7 +3,7 @@
 // Protected by Authorization: Bearer CRON_SECRET (Vercel injects this automatically).
 // Can also be triggered manually: POST /api/refresh-pulse with the same header.
 
-import { put } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 const BLOB_PATH = "market-pulse/latest.json";
 
@@ -74,7 +74,20 @@ async function fetchLiveSignals() {
   return live;
 }
 
-function buildPrompt(live) {
+// Fetch latest BNN Market Call picks from Vercel Blob (best-effort — null on failure)
+async function fetchBnnPicks() {
+  try {
+    const { blobs } = await list({ prefix: "bnn-calls/latest" });
+    if (!blobs.length) return null;
+    const res = await fetch(blobs[0].url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data?.experts?.length) return null;
+    return data;
+  } catch { return null; }
+}
+
+function buildPrompt(live, bnn) {
   const today      = new Date().toISOString().split("T")[0];
   const monthLabel = new Date().toLocaleString("default", { month: "long", year: "numeric" });
   const t3 = new Date(); t3.setMonth(t3.getMonth() + 3);
@@ -112,6 +125,29 @@ function buildPrompt(live) {
   if (live.treasury5y && live.treasury30y)
     spreadLines.push(`- 5Y–30Y: ${Math.round((live.treasury30y - live.treasury5y) * 100)} bps`);
 
+  // BNN Bloomberg picks block (best-effort)
+  const TYPICAL_HOLDINGS = new Set(["NVDA","AMZN","VFV.TO","XIU","VTI","MSFT","CNQ","PLTR","LLY","AAPL","META","TSM","AVGO","QQQM","VTI"]);
+  let bnnBlock = "";
+  if (bnn?.experts?.length) {
+    const rows = [];
+    bnn.experts.forEach(expert => {
+      (expert.picks || []).forEach(pick => {
+        const held = TYPICAL_HOLDINGS.has(pick.ticker);
+        if (held || pick.action === "buy") {
+          rows.push(
+            `  ${pick.ticker} — ${pick.rawAction || pick.action.toUpperCase()} ` +
+            `[${expert.guest}${expert.firm ? ", " + expert.firm : ""}]: ` +
+            `"${pick.rationale}"` +
+            (held ? " ← IN TYPICAL PORTFOLIO" : "")
+          );
+        }
+      });
+    });
+    if (rows.length) {
+      bnnBlock = `\nBNN Bloomberg Market Call picks (${bnn.date || "latest"}):\n` + rows.join("\n");
+    }
+  }
+
   return `You are a senior macro analyst writing a monthly market pulse briefing for Canadian investors managing TFSA and RRSP portfolios.
 
 Today's date: ${today}
@@ -121,6 +157,7 @@ Today's date: ${today}
 Live market data fetched right now:
 ${lines.length ? lines.join("\n") : "(fetch failed — use your best current knowledge)"}
 ${spreadLines.length ? "\nComputed yield curve spreads:\n" + spreadLines.join("\n") : ""}
+${bnnBlock}
 
 Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured: Fed/BoC policy stance, full yield curve shape, CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, credit spreads, DXY, copper, global macro, valuation metrics. Weight the live numbers heavily.
 
@@ -133,6 +170,7 @@ For valuation macroSignals: provide Shiller CAPE (10-year cyclically adjusted P/
 For newsSignals: exactly 4 recent, specific headlines from Bloomberg, CNBC, Reuters, FT, or WSJ. Each must name the source. Keep portfolioImpact to one sentence relevant to a Canadian TFSA/RRSP investor.
 
 For portfolioImplication.actions: exactly 5 actionable items for a Canadian TFSA/RRSP investor (assume typical holdings: NVDA, AMZN, VFV.TO, XIU, VTI, MSFT, CNQ, PLTR, LLY). At least 2 must be "High" priority. One concise sentence each.
+Where BNN Bloomberg experts picked a typical holding (marked "← IN TYPICAL PORTFOLIO"): a TOP PICK or BUY from a guest strengthens a Hold/Buy action; a SELL on a held position should trigger a Reduce. Name the BNN guest and their call in the action sentence where relevant.
 
 Be concise — every "note", "trajectory", "canadianAngle", and "positioning" field: one sentence max.
 
@@ -292,8 +330,8 @@ export default async function handler(req, res) {
   if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(500).json({ error: "BLOB_READ_WRITE_TOKEN not configured" });
 
   try {
-    const live   = await fetchLiveSignals();
-    const prompt = buildPrompt(live);
+    const [live, bnn] = await Promise.all([fetchLiveSignals(), fetchBnnPicks()]);
+    const prompt = buildPrompt(live, bnn);
 
     const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

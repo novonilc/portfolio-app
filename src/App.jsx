@@ -2754,6 +2754,32 @@ Return ONLY a valid JSON object, no markdown:
     const rrspSummary = buildHoldingSummary("RRSP", holdings.RRSP || []);
     const holdingsBlock = [tfsaSummary, rrspSummary].filter(Boolean).join("\n");
 
+    // BNN Bloomberg Market Call picks — cross-reference with held tickers
+    const allHeld = new Set(
+      [...(holdings.TFSA || []), ...(holdings.RRSP || [])].map(h => h.ticker)
+    );
+    let bnnBlock = "";
+    if (bnnCalls?.experts?.length) {
+      const rows = [];
+      bnnCalls.experts.forEach(expert => {
+        (expert.picks || []).forEach(pick => {
+          const held = allHeld.has(pick.ticker);
+          // Include: picks on held tickers OR strong buy signals on unwatched tickers
+          if (held || pick.action === "buy") {
+            rows.push(
+              `  ${pick.ticker} — ${pick.rawAction || pick.action.toUpperCase()} ` +
+              `[${expert.guest}${expert.firm ? ", " + expert.firm : ""}]: ` +
+              `"${pick.rationale}"` +
+              (held ? " ← YOU HOLD THIS" : "")
+            );
+          }
+        });
+      });
+      if (rows.length) {
+        bnnBlock = `\nBNN Bloomberg Market Call picks (${bnnCalls.date || bnnCalls.fetchedAt?.slice(0, 10) || "latest"}):\n` + rows.join("\n");
+      }
+    }
+
     return `You are a senior macro analyst writing a monthly market pulse briefing for a Canadian investor managing a TFSA and RRSP portfolio.
 
 Today's date: ${today}
@@ -2766,6 +2792,7 @@ ${spreadLines.length ? "\nComputed yield curve spreads:\n" + spreadLines.join("\
 
 Current portfolio holdings (use these to generate specific, personalised actions):
 ${holdingsBlock || "(no holdings data available)"}
+${bnnBlock || ""}
 
 Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators, credit spreads, DXY, copper, global macro. Weight the live numbers heavily; they override your training data.
 
@@ -2774,6 +2801,7 @@ For the yieldCurve section: classify the curve shape, report all five benchmark 
 For newsSignals: provide exactly 4 recent, specific news headlines from Bloomberg, CNBC, Reuters, Financial Times, or WSJ that are most relevant to this portfolio. Each headline must name the source and include a direct implication for the specific tickers held above. Keep portfolioImpact to one sentence.
 
 For portfolioImplication.actions: generate exactly 5 specific, actionable items referencing actual tickers from the holdings above. Classify each as "Buy", "Hold", "Reduce", "Watch", or "Rebalance". Include a rationale tied to the current macro regime. At least 2 actions must be "High" priority. Keep each action field to one concise sentence.
+Where BNN Bloomberg experts have picked a stock you hold (marked "← YOU HOLD THIS" above): a TOP PICK or BUY from a guest strengthens a Hold or Buy action; a SELL or DON'T BUY from a guest on a held position should trigger a Reduce or Watch action. Name the BNN guest and their call in the action sentence where relevant.
 
 Be concise throughout — keep every "note", "trajectory", "canadianAngle", and "positioning" field to a single sentence. Do not pad with adjectives.
 
@@ -5953,6 +5981,42 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               </span>
                             ))}
                           </div>
+
+                          {/* BNN Bloomberg signal badge (if available for this ticker) */}
+                          {ticker && bnnCalls?.experts?.length > 0 && (() => {
+                            const allPicks = bnnCalls.experts.flatMap(exp =>
+                              (exp.picks || [])
+                                .filter(p => p.ticker === ticker)
+                                .map(p => ({ guest: exp.guest, firm: exp.firm, action: p.action, rawAction: p.rawAction, rationale: p.rationale }))
+                            );
+                            if (!allPicks.length) return null;
+                            const isBuy = allPicks.some(p => p.action === "buy");
+                            const isSell = allPicks.some(p => p.action === "sell");
+                            const badgeColor = isBuy ? "#22c55e" : isSell ? "#ef4444" : "#fbbf24";
+                            const badgeBg   = isBuy ? "rgba(34,197,94,0.12)" : isSell ? "rgba(239,68,68,0.12)" : "rgba(251,191,36,0.10)";
+                            const actionLabel = isBuy ? "BUY" : isSell ? "SELL" : "HOLD";
+                            return (
+                              <div style={{ display:"flex", flexDirection:"column", gap:3, padding:"6px 8px",
+                                borderRadius:5, background:"rgba(0,0,0,0.25)",
+                                border:`1px solid ${badgeColor}30`, marginTop:2 }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                                  <span style={{ fontSize:8, fontWeight:800, padding:"1px 6px", borderRadius:3,
+                                    background:badgeBg, color:badgeColor, border:`1px solid ${badgeColor}50`,
+                                    letterSpacing:"0.06em" }}>
+                                    📺 BNN · {actionLabel}
+                                  </span>
+                                  {allPicks.slice(0, 2).map((p, pi) => (
+                                    <span key={pi} style={{ fontSize:8, color:"rgba(255,255,255,0.35)" }}>
+                                      {p.rawAction || p.action.toUpperCase()} — {p.guest}{p.firm ? `, ${p.firm}` : ""}
+                                    </span>
+                                  ))}
+                                </div>
+                                <p style={{ fontSize:9, color:"rgba(255,255,255,0.35)", margin:0, lineHeight:1.4, fontStyle:"italic" }}>
+                                  "{allPicks[0].rationale}"
+                                </p>
+                              </div>
+                            );
+                          })()}
 
                           {/* Rationale */}
                           <p style={{ fontSize:11, color:"rgba(255,255,255,0.68)", lineHeight:1.55, margin:0 }}>
