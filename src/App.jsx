@@ -1423,7 +1423,7 @@ export default function App() {
       return;
     }
     if (Object.values(holdings).flat().length >= 30) {
-      alert("Portfolio limit reached (30 holdings). Remove a position before adding a new one.");
+      alert("Portfolio limit reached (30 holdings — optimal range is 15–25). Remove a position before adding a new one.");
       return;
     }
     const next = { ...holdings };
@@ -1458,7 +1458,7 @@ export default function App() {
       return;
     }
     if (Object.values(holdings).flat().length >= 30) {
-      alert("Portfolio limit reached (30 holdings). Remove a position before adding a new one.");
+      alert("Portfolio limit reached (30 holdings — optimal range is 15–25). Remove a position before adding a new one.");
       return;
     }
     const next = { ...holdings };
@@ -1541,7 +1541,7 @@ Dividend yield: ${h.divYield || 0}%${pnlLine}`;
       next[acct][idx] = { ...next[acct][idx], current: next[acct][idx].current + amt };
     } else {
       if (Object.values(next).flat().length >= 30) {
-        setPulseTradeFlash({ msg:"Portfolio limit reached (30 holdings) — remove a position first.", ok:false });
+        setPulseTradeFlash({ msg:"Portfolio limit reached (30 holdings — optimal is 15–25) — remove a position first.", ok:false });
         return;
       }
       next[acct] = [...next[acct], {
@@ -2750,14 +2750,23 @@ Return ONLY a valid JSON object, no markdown:
   const perPeriodCAD   = totalBuysCAD / dcaPeriods;  // native CAD
   const maxAlloc       = Math.max(...current.map(h => Math.max(h.target, (toCAD(h.current, h.ticker, h.currencyOverride) / Math.max(currentTotal, 1)) * 100)), 1);
 
-  // Concentration warnings (>20% of current portfolio) — compare in CAD
-  const concentrationWarnings = current.filter(h =>
-    currentTotal > 0 && (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100 > 20
-  );
+  // Broad-market ETFs are more diversified by nature, so they get a higher concentration ceiling.
+  const BROAD_ETFS = new Set(["SPY","QQQ","IWM","VTI","VOO","IVV","QQQM","QUU",
+    "XEQT","XGRO","XBAL","VFV","ZSP","HXS","XIC","ZAG","XLK","XLF","XLE","GLD","XBI"]);
 
-  // Total holdings across ALL accounts — hard cap is 30
+  // Concentration warnings: >15% for individual stocks, >25% for broad ETFs
+  const concentrationWarnings = current.filter(h => {
+    if (currentTotal <= 0) return false;
+    const pct = (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100;
+    return BROAD_ETFS.has(h.ticker) ? pct > 25 : pct > 15;
+  });
+
+  // Total holdings across ALL accounts — hard cap 30, sweet spot 15-25
   const totalHoldingsCount = Object.values(holdings).flat().length;
-  const atHoldingsCap = totalHoldingsCount >= 30;
+  const atHoldingsCap      = totalHoldingsCount >= 30;
+  const nearHoldingsCap    = totalHoldingsCount >= 25 && !atHoldingsCap;
+  const underDiversified   = totalHoldingsCount < 10 && totalHoldingsCount > 0;
+  const inSweetSpot        = totalHoldingsCount >= 15 && totalHoldingsCount <= 25;
 
   // 4× take-profit alerts — any holding where current ≥ 4× cost basis
   const fourXAlerts = Object.entries(holdings).flatMap(([acct, list]) =>
@@ -3589,11 +3598,52 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           <div className="warn" style={{ marginBottom:0, display:"flex", alignItems:"center", gap:10 }}>
             <span style={{ fontSize:16 }}>⚠</span>
             <span>
-              Concentration risk in {account}: {concentrationWarnings.map(h =>
-                <strong key={h.ticker} style={{ color:"#f97316" }}>
-                  {h.ticker} ({((toCAD(h.current, h.ticker, h.currencyOverride)/currentTotal)*100).toFixed(1)}%)
-                </strong>
-              ).reduce((a, b) => [a, ", ", b])} {concentrationWarnings.length > 1 ? "exceed" : "exceeds"} 20% — consider spreading risk.
+              Concentration risk in {account}:{" "}
+              {concentrationWarnings.map(h => {
+                const pct = ((toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100).toFixed(1);
+                const limit = BROAD_ETFS.has(h.ticker) ? 25 : 15;
+                return (
+                  <strong key={h.ticker} style={{ color:"#f97316" }}>
+                    {h.ticker} ({pct}% &gt; {limit}% limit)
+                  </strong>
+                );
+              }).reduce((a, b) => [a, ", ", b])}{" "}
+              — individual stocks should stay under 15%, broad ETFs under 25%.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Under-diversification warning ── */}
+      {underDiversified && (
+        <div style={{ padding:"12px 28px 0" }}>
+          <div style={{
+            display:"flex", alignItems:"flex-start", gap:10, padding:"10px 14px",
+            background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)",
+            borderRadius:8, fontSize:12, color:"rgba(255,255,255,0.8)",
+          }}>
+            <span style={{ fontSize:16, flexShrink:0 }}>📊</span>
+            <span>
+              <strong style={{ color:"#fbbf24" }}>Under-diversified</strong> — {totalHoldingsCount} position{totalHoldingsCount !== 1 ? "s" : ""} across all accounts.
+              Research shows 15–25 stocks across sectors captures &gt;95% of diversification benefits
+              with a manageable watchlist. Consider adding positions to reach the sweet spot.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Near holdings cap soft warning ── */}
+      {nearHoldingsCap && (
+        <div style={{ padding:"12px 28px 0" }}>
+          <div style={{
+            display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+            background:"rgba(249,115,22,0.06)", border:"1px solid rgba(249,115,22,0.25)",
+            borderRadius:8, fontSize:12, color:"rgba(255,255,255,0.8)",
+          }}>
+            <span style={{ fontSize:16 }}>📋</span>
+            <span>
+              <strong style={{ color:"#f97316" }}>Approaching maximum</strong> — {totalHoldingsCount}/30 holdings.
+              The optimal range is <strong style={{ color:"#f97316" }}>15–25</strong> positions; beyond 25 you risk "diworsification" — more complexity with minimal added diversification.
             </span>
           </div>
         </div>
@@ -3634,8 +3684,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           }}>
             <span style={{ fontSize:16 }}>🚫</span>
             <span>
-              <strong style={{ color:"#ef4444" }}>Portfolio full ({totalHoldingsCount}/30 holdings)</strong>{" "}
-              — remove a position before adding new ones.
+              <strong style={{ color:"#ef4444" }}>Portfolio at maximum ({totalHoldingsCount}/30 holdings)</strong>{" "}
+              — the optimal range is 15–25 positions. Consider consolidating before adding new ones.
             </span>
           </div>
         </div>
@@ -4662,11 +4712,28 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </button>
             <span style={{
               fontSize:11, padding:"3px 9px", borderRadius:12, fontWeight:600,
-              background: atHoldingsCap ? "rgba(239,68,68,0.12)" : "rgba(255,255,255,0.06)",
-              border: atHoldingsCap ? "1px solid rgba(239,68,68,0.35)" : "1px solid rgba(255,255,255,0.1)",
-              color: atHoldingsCap ? "#ef4444" : "rgba(255,255,255,0.4)",
-            }}>
-              {totalHoldingsCount} / 30 holdings
+              background: atHoldingsCap    ? "rgba(239,68,68,0.12)"
+                        : nearHoldingsCap  ? "rgba(249,115,22,0.1)"
+                        : inSweetSpot      ? "rgba(34,197,94,0.08)"
+                        : underDiversified ? "rgba(251,191,36,0.1)"
+                        :                   "rgba(255,255,255,0.06)",
+              border:     atHoldingsCap    ? "1px solid rgba(239,68,68,0.35)"
+                        : nearHoldingsCap  ? "1px solid rgba(249,115,22,0.3)"
+                        : inSweetSpot      ? "1px solid rgba(34,197,94,0.25)"
+                        : underDiversified ? "1px solid rgba(251,191,36,0.25)"
+                        :                   "1px solid rgba(255,255,255,0.1)",
+              color:      atHoldingsCap    ? "#ef4444"
+                        : nearHoldingsCap  ? "#f97316"
+                        : inSweetSpot      ? "#22c55e"
+                        : underDiversified ? "#fbbf24"
+                        :                   "rgba(255,255,255,0.4)",
+            }} title="Optimal diversification: 15–25 positions">
+              {totalHoldingsCount} / 30
+              {inSweetSpot      ? " ✓ Diversified"
+             : underDiversified ? " — Add more"
+             : nearHoldingsCap  ? " — Near limit"
+             : atHoldingsCap    ? " — At max"
+             :                    " holdings"}
             </span>
           </div>
 
@@ -7908,7 +7975,190 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             )}
 
-            {/* ── Row 5: Portfolio health summary ── */}
+            {/* ── Row 5: Portfolio Diversification ── */}
+            {combTotalCAD > 0 && (() => {
+              const SECTOR_COLOR = {
+                "Technology":  "#22d3ee",
+                "Financials":  "#60a5fa",
+                "Healthcare":  "#34d399",
+                "Energy":      "#f97316",
+                "Consumer":    "#fbbf24",
+                "Industrials": "#a78bfa",
+                "Real Estate": "#f472b6",
+                "ETF / Fund":  "#4ade80",
+                "Cash":        "#94a3b8",
+                "Other":       "rgba(255,255,255,0.25)",
+              };
+              const GEO_COLOR  = { "United States":"#60a5fa", "Canada":"#34d399", "International":"#fbbf24" };
+              const ROLE_COLOR = { "Core / ETF":"#22d3ee", "Growth":"#a78bfa", "Income":"#34d399", "Tactical":"#f97316", "Other":"rgba(255,255,255,0.3)" };
+
+              function canonSector(raw) {
+                if (!raw) return "Other";
+                const r = raw.toLowerCase();
+                if (r.includes("tech") || r.includes("semi") || r.includes("cloud") || r.includes("saas") || r.includes("software") || r.includes("ai") || r.includes("data")) return "Technology";
+                if (r.includes("financ") || r.includes("bank") || r.includes("payment") || r.includes("fintech") || r.includes("insurance")) return "Financials";
+                if (r.includes("health") || r.includes("pharma") || r.includes("biotech") || r.includes("medic")) return "Healthcare";
+                if (r.includes("energy") || r.includes("oil") || r.includes("gas") || r.includes("pipeline") || r.includes("utilit")) return "Energy";
+                if (r.includes("consumer") || r.includes("retail") || r.includes("staple") || r.includes("discret")) return "Consumer";
+                if (r.includes("industri") || r.includes("defense") || r.includes("aerospace") || r.includes("transport") || r.includes("manufactur")) return "Industrials";
+                if (r.includes("real estate") || r.includes("reit")) return "Real Estate";
+                if (r.includes("etf") || r.includes("fund") || r.includes("index")) return "ETF / Fund";
+                return "Other";
+              }
+
+              const CA_EXTRA    = new Set(["SHOP","BN","BAM","ENB","SU","CNR","RY","TD","BNS","CP","MFC"]);
+              const INTL_MAP    = { NVO:"International", ASML:"International", TSM:"International", SAP:"International", ARM:"International" };
+              function getGeo(ticker, currencyOverride) {
+                if (INTL_MAP[ticker]) return INTL_MAP[ticker];
+                if (CA_EXTRA.has(ticker) || CAD_EXEMPT.has(ticker) || currencyOverride === "CAD") return "Canada";
+                return "United States";
+              }
+
+              const DIV_ETFS = new Set(["SPY","QQQ","IWM","VTI","VOO","IVV","QQQM","QUU","XEQT","XGRO","XBAL","VFV","ZSP","HXS","XIC","ZAG","XLK","XLF","XLE","GLD","XBI"]);
+              function getRole(ticker) {
+                const rec = TICKER_DB[ticker];
+                if (!rec) return DIV_ETFS.has(ticker) ? "Core / ETF" : "Other";
+                if (rec.type === "etf") return "Core / ETF";
+                const r = (rec.role || "").toLowerCase();
+                if (r === "anchor") return "Core / ETF";
+                if (r === "growth") return "Growth";
+                if (r === "income") return "Income";
+                if (r === "tactical") return "Tactical";
+                return "Other";
+              }
+
+              const allH = [
+                ...tfsaH.map(h => ({ ...h, valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
+                ...rrspH.map(h => ({ ...h, valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
+              ].filter(h => h.valueCAD > 0);
+
+              const total = combTotalCAD + (combCashTotal > 0 ? combCashTotal : 0);
+
+              const agg = (keyFn) => {
+                const m = {};
+                allH.forEach(h => { const k = keyFn(h); m[k] = (m[k] || 0) + h.valueCAD; });
+                return Object.entries(m).map(([name, val]) => ({ name, val, pct: val / total * 100 })).sort((a, b) => b.val - a.val);
+              };
+
+              const sectorArr = (() => {
+                const m = {};
+                allH.forEach(h => {
+                  const rawSec = TICKER_DB[h.ticker]?.sector;
+                  const sec = (DIV_ETFS.has(h.ticker) && !rawSec) ? "ETF / Fund" : canonSector(rawSec);
+                  m[sec] = (m[sec] || 0) + h.valueCAD;
+                });
+                const arr = Object.entries(m).map(([name, val]) => ({ name, val, pct: val / total * 100 })).sort((a, b) => b.val - a.val);
+                if (combCashTotal > total * 0.005) arr.push({ name:"Cash", val:combCashTotal, pct:combCashTotal / total * 100 });
+                return arr;
+              })();
+
+              const geoArr  = agg(h => getGeo(h.ticker, h.currencyOverride));
+              const roleArr = agg(h => getRole(h.ticker));
+
+              const LegendDot = ({ name, colorMap }) => (
+                <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                  <div style={{ width:8, height:8, borderRadius:2, background: colorMap[name] || "#94a3b8", flexShrink:0 }} />
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.5)" }}>{name}</span>
+                </div>
+              );
+
+              const BarRow = ({ name, pct, color }) => (
+                <div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:3 }}>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.65)" }}>{name}</span>
+                    <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color }}>{pct.toFixed(1)}%</span>
+                  </div>
+                  <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                    <div style={{ height:"100%", borderRadius:2, width:`${Math.min(pct, 100)}%`, background: color }} />
+                  </div>
+                </div>
+              );
+
+              return (
+                <div style={{ padding:"0 28px 20px" }}>
+                  <p style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.4)",
+                    textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>
+                    Portfolio Diversification
+                  </p>
+
+                  {/* Stacked sector bar */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ display:"flex", height:10, borderRadius:6, overflow:"hidden", gap:1 }}>
+                      {sectorArr.filter(s => s.pct > 0.5).map(s => (
+                        <div key={s.name} style={{ flex: s.pct, minWidth:2,
+                          background: SECTOR_COLOR[s.name] || "#94a3b8" }}
+                          title={`${s.name}: ${s.pct.toFixed(1)}%`} />
+                      ))}
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"5px 14px", marginTop:8 }}>
+                      {sectorArr.map(s => (
+                        <div key={s.name} style={{ display:"flex", alignItems:"center", gap:4 }}>
+                          <div style={{ width:8, height:8, borderRadius:2, background: SECTOR_COLOR[s.name] || "#94a3b8" }} />
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.45)" }}>{s.name}</span>
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.28)", fontFamily:"'JetBrains Mono',monospace" }}>{s.pct.toFixed(0)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Three cards */}
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:12 }}>
+
+                    {/* Sector detail */}
+                    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"14px 16px" }}>
+                      <p style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.4)", textTransform:"uppercase",
+                        letterSpacing:"0.08em", marginBottom:12 }}>Sector Breakdown</p>
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                        {sectorArr.map(s => (
+                          <BarRow key={s.name} name={s.name} pct={s.pct} color={SECTOR_COLOR[s.name] || "#94a3b8"} />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Geography */}
+                    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"14px 16px" }}>
+                      <p style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.4)", textTransform:"uppercase",
+                        letterSpacing:"0.08em", marginBottom:12 }}>Geography</p>
+                      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                        <DonutChart
+                          segments={geoArr.map(g => ({ pct: g.pct, color: GEO_COLOR[g.name] || "#94a3b8", label: g.name }))}
+                          size={92} thickness={14}
+                          centerLabel={`${geoArr[0]?.pct.toFixed(0) ?? 0}%`}
+                          centerSub={geoArr[0]?.name?.split(" ")[0]}
+                        />
+                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+                          {geoArr.map(g => (
+                            <BarRow key={g.name} name={g.name} pct={g.pct} color={GEO_COLOR[g.name] || "#94a3b8"} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Style & Role */}
+                    <div style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.07)", borderRadius:10, padding:"14px 16px" }}>
+                      <p style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.4)", textTransform:"uppercase",
+                        letterSpacing:"0.08em", marginBottom:12 }}>Style &amp; Role</p>
+                      <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+                        <DonutChart
+                          segments={roleArr.map(r => ({ pct: r.pct, color: ROLE_COLOR[r.name] || "#94a3b8", label: r.name }))}
+                          size={92} thickness={14}
+                          centerLabel={`${roleArr[0]?.pct.toFixed(0) ?? 0}%`}
+                          centerSub={roleArr[0]?.name}
+                        />
+                        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
+                          {roleArr.map(r => (
+                            <BarRow key={r.name} name={r.name} pct={r.pct} color={ROLE_COLOR[r.name] || "#94a3b8"} />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Row 6: Portfolio health summary ── */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:10, marginBottom:14 }}>
 
               {/* WHT recovery opportunity */}
