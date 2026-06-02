@@ -10,7 +10,14 @@
       "Bash(git stash *)",
       "Bash(git rm *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node --version)",
+      "Bash(export PLAYWRIGHT_BROWSERS_PATH=/home/nchoudhu/.cache/ms-playwright-go/1.50.1)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(b['name'], b.get\\('dir','?'\\)\\) for b in d.get\\('browsers',[]\\)]\")",
+      "Read(//tmp/**)",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(node --input-type=module)",
+      "Bash(npx acorn *)"
     ]
   }
 }
