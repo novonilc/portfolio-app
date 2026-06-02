@@ -17,7 +17,9 @@
       "Read(//tmp/**)",
       "Bash(awk -F: '{print $1}')",
       "Bash(node --input-type=module)",
-      "Bash(npx acorn *)"
+      "Bash(npx acorn *)",
+      "Bash(grep -n \"JSX\\\\|2657\\\\|1005\" /dev/null; grep -c \"runManualCspCcScan\\\\|cspCcScanProgress\\\\|Scan Now\" src/App.jsx)",
+      "Read(//dev/**)"
     ]
   }
 }

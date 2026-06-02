@@ -284,6 +284,93 @@ function _ssBBPos(closes, period = 20) {
   const pos = (closes[closes.length - 1] - (mean - 2 * std)) / (4 * std);
   return parseFloat(Math.max(0, Math.min(1, pos)).toFixed(2));
 }
+// HV Rank (IV Rank proxy) — mirrors computeHVRank in refresh-csp-cc-picks.js
+function _ssHVRank(closes, period = 20) {
+  if (closes.length < period + 2 + 60) return null;
+  const lr = [];
+  for (let i = 1; i < closes.length; i++) if (closes[i-1] > 0) lr.push(Math.log(closes[i] / closes[i-1]));
+  const hvHistory = [];
+  for (let i = period; i <= lr.length; i++) {
+    const rec = lr.slice(i - period, i);
+    const mean = rec.reduce((a, b) => a + b, 0) / rec.length;
+    const variance = rec.reduce((s, r) => s + (r - mean) ** 2, 0) / (rec.length - 1);
+    hvHistory.push(Math.sqrt(variance * 252) * 100);
+  }
+  if (hvHistory.length < 2) return null;
+  const history = hvHistory.slice(-252);
+  const hvLow = Math.min(...history), hvHigh = Math.max(...history);
+  if (hvHigh === hvLow) return 50;
+  const rank = (history[history.length - 1] - hvLow) / (hvHigh - hvLow) * 100;
+  return parseFloat(Math.max(0, Math.min(100, rank)).toFixed(1));
+}
+function _ssCspScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, hvRank, bbPos }) {
+  let score = 35; const signals = [];
+  if (rsi != null) {
+    if      (rsi >= 40 && rsi <= 62)  { score += 15; signals.push(`RSI ${rsi}`); }
+    else if (rsi >  62 && rsi <= 72)  { score += 8;  signals.push(`RSI ${rsi} (stretched)`); }
+    else if (rsi >= 35 && rsi <  40)  { score += 4;  signals.push(`RSI ${rsi} (pullback)`); }
+    else if (rsi < 35)                { score -= 15; }
+    else if (rsi > 75)                { score -= 8; }
+  }
+  if (sma50 != null) { if (price > sma50) { score += 12; signals.push("Above SMA50"); } else score -= 5; }
+  if (sma50 != null && sma200 != null && sma50 > sma200) { score += 8; signals.push("Golden cross"); }
+  if (bbPos != null) {
+    if      (bbPos < 0.30) { score += 10; signals.push("Near support"); }
+    else if (bbPos < 0.50)   score += 5;
+    else if (bbPos > 0.85)   score -= 8;
+  }
+  if (hvRank != null) {
+    if      (hvRank >= 60 && hvRank <= 82) { score += 16; signals.push(`IVR ${Math.round(hvRank)}%`); }
+    else if (hvRank >= 45 && hvRank <  60) { score += 10; signals.push(`IVR ${Math.round(hvRank)}%`); }
+    else if (hvRank >  82)                 { score += 4;  signals.push(`IVR ${Math.round(hvRank)}% (high)`); }
+    else if (hvRank >= 30 && hvRank <  45)   score += 4;
+    else                                     score -= 10;
+  }
+  if (hvPct != null) { if (hvPct >= 18 && hvPct <= 50) score += 5; else if (hvPct > 55) score -= 6; else if (hvPct < 14) score -= 4; }
+  if      (volumeRatio >= 1.5) { score += 8; signals.push("High volume"); }
+  else if (volumeRatio >= 1.0)   score += 4;
+  else if (volumeRatio < 0.6)    score -= 6;
+  if (atrPct != null) { if (atrPct < 2.0) { score += 6; signals.push("Stable range"); } else if (atrPct < 3.0) score += 3; else if (atrPct > 4.5) score -= 8; }
+  if (macd?.histogram != null && macd.histogram > 0) { score += 6; signals.push("Momentum up"); }
+  if (vwap != null && Math.abs((price - vwap) / vwap) < 0.015) { score += 4; signals.push("Near VWAP"); }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const rating = score >= 72 ? "Strong" : score >= 58 ? "Good" : score >= 44 ? "Fair" : "Skip";
+  return { cspScore: score, cspSignals: signals.slice(0, 4), cspRating: rating };
+}
+function _ssCcScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, hvRank, bbPos }) {
+  let score = 35; const signals = [];
+  if (rsi != null) {
+    if      (rsi >= 58 && rsi <= 75)  { score += 18; signals.push(`RSI ${rsi} (extended)`); }
+    else if (rsi >= 50 && rsi <  58)  { score += 10; signals.push(`RSI ${rsi} (neutral)`); }
+    else if (rsi >  75 && rsi <= 85)  { score += 5;  signals.push(`RSI ${rsi} (overbought)`); }
+    else if (rsi < 44)                  score -= 10;
+  }
+  if (sma50 != null && price > sma50) { score += 10; signals.push("Above SMA50"); }
+  if (sma50 != null && sma200 != null && sma50 > sma200) { score += 8; signals.push("Uptrend intact"); }
+  if (bbPos != null) {
+    if      (bbPos > 0.80) { score += 17; signals.push("Near upper BB"); }
+    else if (bbPos > 0.65) { score += 12; signals.push("Upper BB zone"); }
+    else if (bbPos > 0.50)   score += 5;
+    else if (bbPos < 0.30)   score -= 8;
+  }
+  if (hvRank != null) {
+    if      (hvRank >= 70) { score += 18; signals.push(`IVR ${Math.round(hvRank)}%`); }
+    else if (hvRank >= 50) { score += 12; signals.push(`IVR ${Math.round(hvRank)}%`); }
+    else if (hvRank >= 35) { score += 6;  signals.push(`IVR ${Math.round(hvRank)}%`); }
+    else if (hvRank >= 20)   score += 2;
+    else                     score -= 8;
+  }
+  if (hvPct != null) { if (hvPct >= 18 && hvPct <= 55) score += 5; else if (hvPct < 14) score -= 4; else if (hvPct > 60) score -= 3; }
+  if      (volumeRatio >= 1.5) { score += 8; signals.push("High volume"); }
+  else if (volumeRatio >= 1.0)   score += 4;
+  else if (volumeRatio < 0.6)    score -= 6;
+  if (atrPct != null) { if (atrPct >= 1.5 && atrPct <= 3.5) { score += 5; signals.push("Good range"); } else if (atrPct > 5.0) score -= 5; }
+  if (macd?.histogram != null && macd.histogram > 0) { score += 5; signals.push("MACD positive"); }
+  if (vwap != null && price > vwap) { const pct = (price - vwap) / vwap; if (pct > 0.02) { score += 5; signals.push("Above VWAP"); } else if (pct > 0) score += 3; }
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  const rating = score >= 72 ? "Strong" : score >= 58 ? "Good" : score >= 44 ? "Fair" : "Skip";
+  return { ccScore: score, ccSignals: signals.slice(0, 4), ccRating: rating };
+}
 function _ssScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, bbPos }) {
   let score = 40, bull = 0, bear = 0;
   if      (volumeRatio >= 2.0) { score += 20; bull++; bear++; }
@@ -832,6 +919,7 @@ export default function App() {
   const [spreadScanProgress,   setSpreadScanProgress]   = useState(null); // { done, total, ticker } | null
   const [cspCcPicks,           setCspCcPicks]           = useState(null);
   const [cspCcPicksLoading,    setCspCcPicksLoading]    = useState(false);
+  const [cspCcScanProgress,    setCspCcScanProgress]    = useState(null); // { done, total, ticker } | null
   const spreadScanAbortRef = useRef(null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
@@ -2423,6 +2511,55 @@ Return ONLY a valid JSON object, no markdown:
       if (data.cspPicks?.length || data.ccPicks?.length) setCspCcPicks(data);
     } catch { /* keep current data on error */ }
     finally { setCspCcPicksLoading(false); }
+  }
+
+  async function runManualCspCcScan() {
+    const tickers = SPREAD_SCAN_TICKERS;
+    setCspCcScanProgress({ done: 0, total: tickers.length, ticker: tickers[0] });
+    const results = [];
+    const BATCH = 5;
+    for (let i = 0; i < tickers.length; i += BATCH) {
+      const batch = tickers.slice(i, i + BATCH);
+      const settled = await Promise.allSettled(batch.map(async ticker => {
+        const res = await fetch(`/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&range=1y&interval=1d`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const result = data.chart?.result?.[0];
+        if (!result) throw new Error("No chart data");
+        const q = result.indicators?.quote?.[0] || {};
+        const bars = (q.close || []).map((c, j) => ({ c, h: (q.high||[])[j], l: (q.low||[])[j], v: (q.volume||[])[j] }))
+          .filter(b => b.c != null && b.h != null && b.l != null && b.v != null);
+        if (bars.length < 50) throw new Error("Insufficient data");
+        const closes = bars.map(b => b.c), highs = bars.map(b => b.h),
+              lows   = bars.map(b => b.l), volumes = bars.map(b => b.v);
+        const price = closes[closes.length - 1], prevClose = closes[closes.length - 2];
+        const sma50 = _ssSMA(closes, 50), sma200 = _ssSMA(closes, 200);
+        const rsi = _ssRSI(closes), macd = _ssMACD(closes);
+        const vwap = _ssVWAP(highs, lows, closes, volumes, 20);
+        const atrR = _ssATR(highs, lows, closes), atrPct = atrR?.atrPct ?? null;
+        const hvPct = _ssHV(closes), hvRank = _ssHVRank(closes), bbPos = _ssBBPos(closes);
+        const lastVol = volumes[volumes.length - 1];
+        const avg20Vol = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+        const volumeRatio = avg20Vol > 0 ? parseFloat((lastVol / avg20Vol).toFixed(2)) : 1;
+        const ind = { rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, hvRank, bbPos };
+        return {
+          ticker, price: parseFloat(price.toFixed(2)),
+          priceChangePct: prevClose ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2)) : 0,
+          rsi, hvPct, hvRank, bbPos, sma50, sma200, atrPct, volumeRatio, vwap,
+          high52w: parseFloat(Math.max(...highs).toFixed(2)),
+          low52w:  parseFloat(Math.min(...lows).toFixed(2)),
+          ..._ssCspScore(ind), ..._ssCcScore(ind),
+        };
+      }));
+      settled.forEach(r => { if (r.status === "fulfilled") results.push(r.value); });
+      const done = Math.min(i + BATCH, tickers.length);
+      setCspCcScanProgress({ done, total: tickers.length, ticker: tickers[done] || "" });
+      if (i + BATCH < tickers.length) await new Promise(r => setTimeout(r, 300));
+    }
+    const cspPicks = results.filter(p => p.cspScore >= 50).sort((a, b) => b.cspScore - a.cspScore);
+    const ccPicks  = results.filter(p => p.ccScore  >= 50).sort((a, b) => b.ccScore  - a.ccScore);
+    setCspCcPicks({ cspPicks, ccPicks, lastUpdated: new Date().toISOString(), manualScan: true });
+    setCspCcScanProgress(null);
   }
 
   async function runManualSpreadScan() {
@@ -8172,70 +8309,109 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             {renderWatchlistInput("#22d3ee")}
 
             {/* ── CC Technical Signal Picks ────────────────────────────────── */}
-            {(cspCcPicks?.ccPicks?.length > 0 || cspCcPicksLoading) && (
-              <div style={{ marginBottom:14, padding:"12px 14px", borderRadius:8,
-                background:"rgba(34,211,238,0.03)", border:"1px solid rgba(34,211,238,0.1)" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.5)",
-                    textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                    Technical Signal Picks — Covered Calls
-                  </span>
-                  {cspCcPicks?.lastUpdated && (
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
-                      · {new Date(cspCcPicks.lastUpdated).toLocaleDateString(undefined, { month:"short", day:"numeric" })}
+            {(() => {
+              const isScanning = !!cspCcScanProgress;
+              const scanPct = isScanning ? Math.round(cspCcScanProgress.done / cspCcScanProgress.total * 100) : 0;
+              return (
+                <div style={{ marginBottom:14, padding:"12px 14px", borderRadius:8,
+                  background:"rgba(34,211,238,0.03)", border:"1px solid rgba(34,211,238,0.1)" }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: cspCcPicks || isScanning ? 10 : 0, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.5)",
+                      textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                      Technical Signal Picks — Covered Calls
                     </span>
-                  )}
-                  <button className="btn" onClick={refreshCspCcPicks} disabled={cspCcPicksLoading}
-                    style={{ fontSize:9, padding:"3px 10px", marginLeft:"auto",
-                      color:"#22d3ee", borderColor:"rgba(34,211,238,0.25)",
-                      opacity: cspCcPicksLoading ? 0.6 : 1 }}>
-                    {cspCcPicksLoading ? "⏳" : "⟳ Refresh"}
-                  </button>
-                </div>
-                <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
-                  {(cspCcPicks?.ccPicks || []).slice(0, 12).map(p => {
-                    const rc = p.ccRating === "Strong" ? "#22c55e" : p.ccRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
-                    return (
-                      <div key={p.ticker} title="Click to add to watchlist"
-                        onClick={() => addWatchlistTicker(p.ticker)}
-                        style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
-                          background:"rgba(34,211,238,0.05)", border:"1px solid rgba(34,211,238,0.15)",
-                          borderRadius:8, padding:"10px 12px",
-                          transition:"border-color 0.15s" }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-                          <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
-                            {p.ticker}
-                          </span>
-                          <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.ccScore}</span>
-                        </div>
-                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:6,
-                          fontFamily:"'JetBrains Mono',monospace" }}>
-                          ${p.price?.toFixed(2)} · RSI {p.rsi}
-                          {p.hvRank != null && (
-                            <span style={{ color: p.hvRank >= 60 ? "#22c55e" : p.hvRank >= 35 ? "#fbbf24" : "rgba(255,255,255,0.3)" }}>
-                              {" "}· IVR {Math.round(p.hvRank)}%
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
-                          {(p.ccSignals || []).slice(0, 3).map(sig => (
-                            <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
-                              background:"rgba(34,211,238,0.08)", color:"rgba(34,211,238,0.65)",
-                              border:"1px solid rgba(34,211,238,0.12)", whiteSpace:"nowrap" }}>{sig}</span>
-                          ))}
-                        </div>
-                        <div style={{ fontSize:8, fontWeight:700, color: rc, letterSpacing:"0.04em" }}>
-                          {p.ccRating}
-                        </div>
+                    {cspCcPicks?.lastUpdated && (
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
+                        · {new Date(cspCcPicks.lastUpdated).toLocaleDateString(undefined, { month:"short", day:"numeric" })}
+                        {cspCcPicks.manualScan ? " (manual)" : " (auto)"}
+                      </span>
+                    )}
+                    <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+                      {cspCcPicks && (
+                        <button className="btn" onClick={refreshCspCcPicks}
+                          disabled={isScanning || cspCcPicksLoading}
+                          style={{ fontSize:9, padding:"3px 10px", color:"#22d3ee",
+                            borderColor:"rgba(34,211,238,0.2)", opacity: isScanning ? 0.4 : 1 }}>
+                          {cspCcPicksLoading ? "⏳" : "⟳ Load cache"}
+                        </button>
+                      )}
+                      <button className="btn" onClick={runManualCspCcScan}
+                        disabled={isScanning || cspCcPicksLoading}
+                        style={{ fontSize:9, padding:"3px 12px", fontWeight:600,
+                          color:"#22d3ee", borderColor:"rgba(34,211,238,0.35)",
+                          background:"rgba(34,211,238,0.08)", opacity: isScanning ? 0.5 : 1 }}>
+                        {isScanning ? `Scanning… ${cspCcScanProgress.done}/${cspCcScanProgress.total}` : "Scan Now"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  {isScanning && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)", overflow:"hidden", marginBottom:4 }}>
+                        <div style={{ height:"100%", width:`${scanPct}%`, background:"#22d3ee",
+                          borderRadius:2, transition:"width 0.3s" }} />
                       </div>
-                    );
-                  })}
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                        {cspCcScanProgress.ticker && `Fetching ${cspCcScanProgress.ticker}…`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {!cspCcPicks && !isScanning && (
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic", paddingTop:4 }}>
+                      No picks loaded — click <strong style={{ color:"#22d3ee" }}>Scan Now</strong> to analyse {SPREAD_SCAN_TICKERS.length} tickers live, or wait for the 6 AM auto-refresh.
+                    </p>
+                  )}
+
+                  {/* Picks row */}
+                  {(cspCcPicks?.ccPicks?.length > 0) && (
+                    <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
+                      {cspCcPicks.ccPicks.slice(0, 12).map(p => {
+                        const rc = p.ccRating === "Strong" ? "#22c55e" : p.ccRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
+                        return (
+                          <div key={p.ticker} title="Click to add to watchlist"
+                            onClick={() => addWatchlistTicker(p.ticker)}
+                            style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
+                              background:"rgba(34,211,238,0.05)", border:"1px solid rgba(34,211,238,0.15)",
+                              borderRadius:8, padding:"10px 12px" }}>
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                              <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
+                                {p.ticker}
+                              </span>
+                              <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.ccScore}</span>
+                            </div>
+                            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:6, fontFamily:"'JetBrains Mono',monospace" }}>
+                              ${p.price?.toFixed(2)} · RSI {p.rsi}
+                              {p.hvRank != null && (
+                                <span style={{ color: p.hvRank >= 60 ? "#22c55e" : p.hvRank >= 35 ? "#fbbf24" : "rgba(255,255,255,0.3)" }}>
+                                  {" "}· IVR {Math.round(p.hvRank)}%
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
+                              {(p.ccSignals || []).slice(0, 3).map(sig => (
+                                <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
+                                  background:"rgba(34,211,238,0.08)", color:"rgba(34,211,238,0.65)",
+                                  border:"1px solid rgba(34,211,238,0.12)", whiteSpace:"nowrap" }}>{sig}</span>
+                              ))}
+                            </div>
+                            <div style={{ fontSize:8, fontWeight:700, color: rc, letterSpacing:"0.04em" }}>{p.ccRating}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {cspCcPicks && (
+                    <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", fontStyle:"italic", marginTop:6 }}>
+                      Score 0–100 · Click a ticker to add to watchlist · Auto-refreshed weekdays at 6 AM
+                    </p>
+                  )}
                 </div>
-                <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", fontStyle:"italic", marginTop:6 }}>
-                  Score 0–100 · Click a ticker to add to watchlist · Refreshed weekdays at 6 AM
-                </p>
-              </div>
-            )}
+              );
+            })()}
 
             {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
 
@@ -8377,69 +8553,109 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             {renderWatchlistInput("#a78bfa")}
 
             {/* ── CSP Technical Signal Picks ───────────────────────────────── */}
-            {(cspCcPicks?.cspPicks?.length > 0 || cspCcPicksLoading) && (
-              <div style={{ marginBottom:14, padding:"12px 14px", borderRadius:8,
-                background:"rgba(167,139,250,0.03)", border:"1px solid rgba(167,139,250,0.12)" }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-                  <span style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.5)",
-                    textTransform:"uppercase", letterSpacing:"0.08em" }}>
-                    Technical Signal Picks — Cash-Secured Puts
-                  </span>
-                  {cspCcPicks?.lastUpdated && (
-                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
-                      · {new Date(cspCcPicks.lastUpdated).toLocaleDateString(undefined, { month:"short", day:"numeric" })}
+            {(() => {
+              const isScanning = !!cspCcScanProgress;
+              const scanPct = isScanning ? Math.round(cspCcScanProgress.done / cspCcScanProgress.total * 100) : 0;
+              return (
+                <div style={{ marginBottom:14, padding:"12px 14px", borderRadius:8,
+                  background:"rgba(167,139,250,0.03)", border:"1px solid rgba(167,139,250,0.12)" }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom: cspCcPicks || isScanning ? 10 : 0, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.5)",
+                      textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                      Technical Signal Picks — Cash-Secured Puts
                     </span>
-                  )}
-                  <button className="btn" onClick={refreshCspCcPicks} disabled={cspCcPicksLoading}
-                    style={{ fontSize:9, padding:"3px 10px", marginLeft:"auto",
-                      color:"#a78bfa", borderColor:"rgba(167,139,250,0.25)",
-                      opacity: cspCcPicksLoading ? 0.6 : 1 }}>
-                    {cspCcPicksLoading ? "⏳" : "⟳ Refresh"}
-                  </button>
-                </div>
-                <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
-                  {(cspCcPicks?.cspPicks || []).slice(0, 12).map(p => {
-                    const rc = p.cspRating === "Strong" ? "#22c55e" : p.cspRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
-                    return (
-                      <div key={p.ticker} title="Click to add to watchlist"
-                        onClick={() => addWatchlistTicker(p.ticker)}
-                        style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
-                          background:"rgba(167,139,250,0.05)", border:"1px solid rgba(167,139,250,0.15)",
-                          borderRadius:8, padding:"10px 12px" }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
-                          <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa" }}>
-                            {p.ticker}
-                          </span>
-                          <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.cspScore}</span>
-                        </div>
-                        <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:6,
-                          fontFamily:"'JetBrains Mono',monospace" }}>
-                          ${p.price?.toFixed(2)} · RSI {p.rsi}
-                          {p.hvRank != null && (
-                            <span style={{ color: p.hvRank >= 45 && p.hvRank <= 82 ? "#22c55e" : p.hvRank >= 30 ? "#fbbf24" : "rgba(255,255,255,0.3)" }}>
-                              {" "}· IVR {Math.round(p.hvRank)}%
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
-                          {(p.cspSignals || []).slice(0, 3).map(sig => (
-                            <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
-                              background:"rgba(167,139,250,0.08)", color:"rgba(167,139,250,0.65)",
-                              border:"1px solid rgba(167,139,250,0.12)", whiteSpace:"nowrap" }}>{sig}</span>
-                          ))}
-                        </div>
-                        <div style={{ fontSize:8, fontWeight:700, color: rc, letterSpacing:"0.04em" }}>
-                          {p.cspRating}
-                        </div>
+                    {cspCcPicks?.lastUpdated && (
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
+                        · {new Date(cspCcPicks.lastUpdated).toLocaleDateString(undefined, { month:"short", day:"numeric" })}
+                        {cspCcPicks.manualScan ? " (manual)" : " (auto)"}
+                      </span>
+                    )}
+                    <div style={{ display:"flex", gap:6, marginLeft:"auto" }}>
+                      {cspCcPicks && (
+                        <button className="btn" onClick={refreshCspCcPicks}
+                          disabled={isScanning || cspCcPicksLoading}
+                          style={{ fontSize:9, padding:"3px 10px", color:"#a78bfa",
+                            borderColor:"rgba(167,139,250,0.2)", opacity: isScanning ? 0.4 : 1 }}>
+                          {cspCcPicksLoading ? "⏳" : "⟳ Load cache"}
+                        </button>
+                      )}
+                      <button className="btn" onClick={runManualCspCcScan}
+                        disabled={isScanning || cspCcPicksLoading}
+                        style={{ fontSize:9, padding:"3px 12px", fontWeight:600,
+                          color:"#a78bfa", borderColor:"rgba(167,139,250,0.35)",
+                          background:"rgba(167,139,250,0.08)", opacity: isScanning ? 0.5 : 1 }}>
+                        {isScanning ? `Scanning… ${cspCcScanProgress.done}/${cspCcScanProgress.total}` : "Scan Now"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  {isScanning && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)", overflow:"hidden", marginBottom:4 }}>
+                        <div style={{ height:"100%", width:`${scanPct}%`, background:"#a78bfa",
+                          borderRadius:2, transition:"width 0.3s" }} />
                       </div>
-                    );
-                  })}
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                        {cspCcScanProgress.ticker && `Fetching ${cspCcScanProgress.ticker}…`}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {!cspCcPicks && !isScanning && (
+                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic", paddingTop:4 }}>
+                      No picks loaded — click <strong style={{ color:"#a78bfa" }}>Scan Now</strong> to analyse {SPREAD_SCAN_TICKERS.length} tickers live, or wait for the 6 AM auto-refresh.
+                    </p>
+                  )}
+
+                  {/* Picks row */}
+                  {(cspCcPicks?.cspPicks?.length > 0) && (
+                    <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
+                      {cspCcPicks.cspPicks.slice(0, 12).map(p => {
+                        const rc = p.cspRating === "Strong" ? "#22c55e" : p.cspRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
+                        return (
+                          <div key={p.ticker} title="Click to add to watchlist"
+                            onClick={() => addWatchlistTicker(p.ticker)}
+                            style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
+                              background:"rgba(167,139,250,0.05)", border:"1px solid rgba(167,139,250,0.15)",
+                              borderRadius:8, padding:"10px 12px" }}>
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
+                              <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa" }}>
+                                {p.ticker}
+                              </span>
+                              <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.cspScore}</span>
+                            </div>
+                            <div style={{ fontSize:9, color:"rgba(255,255,255,0.4)", marginBottom:6, fontFamily:"'JetBrains Mono',monospace" }}>
+                              ${p.price?.toFixed(2)} · RSI {p.rsi}
+                              {p.hvRank != null && (
+                                <span style={{ color: p.hvRank >= 45 && p.hvRank <= 82 ? "#22c55e" : p.hvRank >= 30 ? "#fbbf24" : "rgba(255,255,255,0.3)" }}>
+                                  {" "}· IVR {Math.round(p.hvRank)}%
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
+                              {(p.cspSignals || []).slice(0, 3).map(sig => (
+                                <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
+                                  background:"rgba(167,139,250,0.08)", color:"rgba(167,139,250,0.65)",
+                                  border:"1px solid rgba(167,139,250,0.12)", whiteSpace:"nowrap" }}>{sig}</span>
+                              ))}
+                            </div>
+                            <div style={{ fontSize:8, fontWeight:700, color: rc, letterSpacing:"0.04em" }}>{p.cspRating}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {cspCcPicks && (
+                    <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", fontStyle:"italic", marginTop:6 }}>
+                      Score 0–100 · Click a ticker to add to watchlist · Auto-refreshed weekdays at 6 AM
+                    </p>
+                  )}
                 </div>
-                <p style={{ fontSize:8, color:"rgba(255,255,255,0.2)", fontStyle:"italic", marginTop:6 }}>
-                  Score 0–100 · Click a ticker to add to watchlist · Refreshed weekdays at 6 AM
-                </p>
-              </div>
-            )}
+              );
+            })()}
 
             {optionPriceError && <p style={{ fontSize:10, color:"#ef4444", marginBottom:10 }}>⚠ {optionPriceError}</p>}
 
