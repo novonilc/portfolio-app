@@ -13,7 +13,8 @@
       "Bash(python3 -c ' *)",
       "Bash(git checkout *)",
       "Bash(node -e ' *)",
-      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node -e ' *)"
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node -e ' *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('src/data/stockUniverse.json'\\)\\); print\\('JSON valid, stocks:', len\\(d['stocks']\\)\\)\")"
     ]
   }
 }
