@@ -903,11 +903,12 @@ function computeScanFairPrice(s) {
   const eps = s.price / s.pe;
   const g   = Math.max(1, Math.min(s.epsGrowth || 0, 50));  // floor 1, cap 50
 
-  // Income / yield-based: low-growth stocks where yield is the primary value driver
-  // (pipelines, banks, Dividend Aristocrat-type stocks, utilities)
-  if (g < 8 && (s.divYield || 0) > 2.0) {
+  // Income / yield-based: low-growth stocks where dividend yield is the primary
+  // value anchor (pipelines, banks, utilities, Dividend Aristocrats, oil majors).
+  // Threshold is g ≤ 8 so that SU.TO/LMT/HON/XOM at exactly 8% growth are caught.
+  if (g <= 8 && (s.divYield || 0) > 2.0) {
     // Target yield rises with risk: high-yield names are usually riskier,
-    // so the market demands more yield → lower fair price
+    // so the market demands more yield → lower fair price ceiling.
     const targetYield = (s.isBank || (s.divYield || 0) >= 5) ? 5.5
       : (s.roe || 0) >= 25 ? 3.0   // high-quality Dividend Aristocrat (JNJ, KO)
       : (s.roe || 0) >= 15 ? 3.5   // quality dividend payer
@@ -917,12 +918,13 @@ function computeScanFairPrice(s) {
 
   // Growth stocks — Peter Lynch PEG method
   // A stock is fairly valued when P/E = EPS growth rate (PEG = 1.0).
-  // Premium-quality businesses with wide moats (high ROE + high margins) justify
-  // a target PEG of 1.5 because their reinvestment economics are superior.
+  // Premium-quality businesses with wide moats justify a target PEG of 1.5.
+  // Cap fair PE at 2× current PE: prevents cyclical stocks (e.g. memory chips
+  // at peak-cycle earnings) from showing extreme 150%+ upside that misleads.
   const highQ  = (s.roe || 0) >= 25 && (s.grossMargin || 0) >= 55;
   const midQ   = (s.roe || 0) >= 15 && (s.grossMargin || 0) >= 40;
   const tPEG   = highQ ? 1.5 : midQ ? 1.2 : 1.0;
-  const fairPE = Math.min(g * tPEG, 65);
+  const fairPE = Math.min(g * tPEG, 65, s.pe * 2);
   return Math.round(eps * fairPE * 100) / 100;
 }
 function computeScanUpside(s) {
@@ -10811,7 +10813,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
                 <div style={{ borderLeft:"2px solid #22d3ee44", paddingLeft:12 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
-                    Income Stocks <span style={{ fontSize:10, color:"#64748b" }}>(div yield &gt; 2%, EPS growth &lt; 5%)</span>
+                    Income Stocks <span style={{ fontSize:10, color:"#64748b" }}>(div yield &gt; 2% AND EPS growth ≤ 8%)</span>
                   </div>
                   <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
                     background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
