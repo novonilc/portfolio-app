@@ -892,13 +892,22 @@ function computeScanFairPrice(s) {
   const eps = s.price / s.pe;
   const g   = Math.max(1, Math.min(s.epsGrowth || 0, 50));  // floor 1, cap 50
 
-  // Income / pipeline / bank → dividend-yield normalisation
-  if (g < 5 && (s.divYield || 0) > 2) {
-    const targetYield = s.isBank ? 5.5 : g < 3 ? 4.5 : 4.0;
+  // Income / yield-based: low-growth stocks where yield is the primary value driver
+  // (pipelines, banks, Dividend Aristocrat-type stocks, utilities)
+  if (g < 8 && (s.divYield || 0) > 2.0) {
+    // Target yield rises with risk: high-yield names are usually riskier,
+    // so the market demands more yield → lower fair price
+    const targetYield = (s.isBank || (s.divYield || 0) >= 5) ? 5.5
+      : (s.roe || 0) >= 25 ? 3.0   // high-quality Dividend Aristocrat (JNJ, KO)
+      : (s.roe || 0) >= 15 ? 3.5   // quality dividend payer
+      : 4.5;                        // standard / leveraged income stock
     return Math.round(s.price * ((s.divYield || 0) / targetYield) * 100) / 100;
   }
 
-  // Growth stocks — Lynch PEG method
+  // Growth stocks — Peter Lynch PEG method
+  // A stock is fairly valued when P/E = EPS growth rate (PEG = 1.0).
+  // Premium-quality businesses with wide moats (high ROE + high margins) justify
+  // a target PEG of 1.5 because their reinvestment economics are superior.
   const highQ  = (s.roe || 0) >= 25 && (s.grossMargin || 0) >= 55;
   const midQ   = (s.roe || 0) >= 15 && (s.grossMargin || 0) >= 40;
   const tPEG   = highQ ? 1.5 : midQ ? 1.2 : 1.0;
