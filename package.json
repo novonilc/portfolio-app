@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && cp -r marketing dist/",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "refresh-scanner": "node scripts/refresh-scanner.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^0.27.0",

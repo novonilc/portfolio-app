@@ -1,0 +1,36 @@
+name: Refresh Stock Scanner Data
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 6:00 AM Vancouver PDT (UTC-7) / 5:00 AM PST (UTC-8) in winter
+  workflow_dispatch:         # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # Required to commit and push updated JSON
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch live fundamental data from Yahoo Finance
+        run: node scripts/refresh-scanner.mjs
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add src/data/stockUniverse.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit — data unchanged."
+          else
+            git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
+            git push
+          fi
