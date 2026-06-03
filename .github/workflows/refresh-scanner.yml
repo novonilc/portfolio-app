@@ -8,6 +8,7 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 15      # S&P 500 scan takes ~3 min; 15 min is a safe cap
     permissions:
       contents: write        # Required to commit and push updated JSON
 
@@ -20,8 +21,10 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Fetch live fundamental data from Yahoo Finance
+      - name: Fetch S&P 500 list + live fundamentals from Yahoo Finance
         run: node scripts/refresh-scanner.mjs
+        # Fetches ~521 stocks (S&P 500 + top Canadian) via Yahoo Finance.
+        # Auto-discovers new S&P 500 additions. Preserves curated moat data.
 
       - name: Commit and push if data changed
         run: |

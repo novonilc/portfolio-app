@@ -858,16 +858,17 @@ const SCAN_PRESETS = [
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
 ];
 function computeScanScore(s) {
+  // Null-safe: missing metrics score 0 rather than false-positives from JS null coercion
   let pts = 0;
   const p = s.peg;
-  pts += p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0;
-  const r = Math.min(s.roe, 100);
-  pts += r>=40?20:r>=25?16:r>=18?12:r>=12?7:2;
-  if (s.isBank) { pts += 8; } else { const d=s.de; pts += d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?5:d<2.5?2:0; }
+  pts += (p != null && p > 0) ? (p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0) : 0;
+  const r = s.roe != null ? Math.min(s.roe, 100) : null;
+  pts += r != null ? (r>=40?20:r>=25?16:r>=18?12:r>=12?7:2) : 0;
+  if (s.isBank) { pts += 8; } else { const d=s.de; pts += d != null ? (d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?5:d<2.5?2:0) : 0; }
   const f = s.fcfYield;
-  pts += f>=8?20:f>=6?16:f>=4?11:f>=2?6:1;
+  pts += f != null ? (f>=8?20:f>=6?16:f>=4?11:f>=2?6:1) : 0;
   const g = s.grossMargin;
-  pts += g>=70?10:g>=50?8:g>=35?5:2;
+  pts += g != null ? (g>=70?10:g>=50?8:g>=35?5:2) : 0;
   const e = s.epsGrowth;
   pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
   return Math.min(100, pts);
@@ -10353,12 +10354,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
         const filtered = STOCKS.filter(s => {
           if (f.ideasOnly && !REC_MAP[s.ticker]) return false;
-          if (f.maxPe < 120 && s.pe > f.maxPe) return false;
-          if (f.maxPeg < 5  && s.peg > f.maxPeg) return false;
-          if (f.minRoe > 0  && s.roe < f.minRoe) return false;
-          if (f.maxDe < 5   && !s.isBank && s.de > f.maxDe) return false;
-          if (f.minDivY > 0 && s.divYield < f.minDivY) return false;
-          if (f.minFcfY > 0 && s.fcfYield < f.minFcfY) return false;
+          // Null-safe: treat null as "does not satisfy" any min/max numeric filter
+          if (f.maxPe < 120 && (s.pe == null || s.pe > f.maxPe)) return false;
+          if (f.maxPeg < 5  && (s.peg == null || s.peg > f.maxPeg)) return false;
+          if (f.minRoe > 0  && (s.roe == null || s.roe < f.minRoe)) return false;
+          if (f.maxDe < 5   && !s.isBank && (s.de == null || s.de > f.maxDe)) return false;
+          if (f.minDivY > 0 && ((s.divYield ?? 0) < f.minDivY)) return false;
+          if (f.minFcfY > 0 && (s.fcfYield == null || s.fcfYield < f.minFcfY)) return false;
           if (f.minEpsG > 0 && s.epsGrowth < f.minEpsG) return false;
           if (f.market !== "all" && s.market !== f.market) return false;
           if (f.sector !== "all" && s.sector !== f.sector) return false;
@@ -10640,31 +10642,37 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
-                              <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
+                              {s.pe != null ? <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
-                              <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
+                              {s.peg != null ? <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
-                              <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
+                              {s.roe != null ? <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
                               {s.isBank
                                 ? <span style={{ fontSize:11, color:"#475569", fontStyle:"italic" }}>Bank*</span>
-                                : <ScanPill value={`${s.de}×`} color={deC(s.de)} />}
+                                : s.de != null
+                                  ? <ScanPill value={`${s.de}×`} color={deC(s.de)} />
+                                  : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
-                              <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
+                              {s.fcfYield != null ? <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right",
-                              color: s.divYield>=4?"#22c55e":s.divYield>=2?"#fbbf24":s.divYield>0?"#94a3b8":"#334155",
+                              color: (s.divYield??0)>=4?"#22c55e":(s.divYield??0)>=2?"#fbbf24":(s.divYield??0)>0?"#94a3b8":"#334155",
                               fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
-                              {s.divYield>0?`${s.divYield}%`:"—"}
+                              {(s.divYield??0)>0?`${s.divYield}%`:"—"}
                             </td>
                             <td className="td" style={{ textAlign:"right",
-                              color: s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
+                              color: s.epsGrowth==null?"#334155":s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
                               fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
-                              {s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`}
+                              {s.epsGrowth!=null?(s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`):"—"}
                             </td>
                             <td className="td" style={{ textAlign:"center" }}>
                               <div style={{ width:38, height:38, borderRadius:"50%",
@@ -10730,7 +10738,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             )}
 
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.18)", marginTop:8, fontStyle:"italic" }}>
-              * Banks use leverage as a business model — D/E is not meaningful as a safety metric for banks and is excluded from their filter and score.
+              * Banks: D/E excluded from filter and score (leverage is structural).  — = data pending next 6AM refresh (auto-populated daily by GitHub Actions).
             </p>
 
             {/* How Score is Calculated */}
