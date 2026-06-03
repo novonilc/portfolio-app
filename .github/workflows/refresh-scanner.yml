@@ -11,13 +11,15 @@ env:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15      # S&P 500 scan takes ~3 min; 15 min is a safe cap
+    timeout-minutes: 15
     permissions:
-      contents: write        # Required to commit and push updated JSON
+      contents: write
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Full history — required for git rebase to work
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v4
@@ -31,19 +33,26 @@ jobs:
 
       - name: Pull latest main before scan
         run: git pull origin main
-        # Ensures the runner is on HEAD before the script runs,
-        # so the resulting push is always a clean fast-forward.
+        # Syncs to HEAD before the script runs so the push is a clean fast-forward.
+        # This is the primary fix — eliminates rejections caused by commits that
+        # landed on main between checkout and push.
 
       - name: Fetch S&P 500 list + live fundamentals from Yahoo Finance
         run: node scripts/refresh-scanner.mjs
 
-      - name: Commit and push if data changed
+      - name: Commit and push updated data
         run: |
           git add src/data/stockUniverse.json
           if git diff --staged --quiet; then
             echo "No changes to commit — data unchanged."
-          else
-            git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
-            # Retry once with rebase in the rare case a commit lands mid-run
-            git push || (git pull --rebase origin main && git push)
+            exit 0
           fi
+          git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
+          # Primary push — succeeds in the vast majority of runs
+          # Fallback: if a commit landed in the ~3 min the scan was running,
+          # rebase our single data commit on top and retry once.
+          git push origin main || (
+            echo "Push rejected — rebasing on latest main and retrying..."
+            git pull --rebase origin main &&
+            git push origin main
+          )
