@@ -81,15 +81,16 @@ const INITIAL_RRSP = [
 // ═══════════════════════════════════════════════════════════════════════════
 // Sector gap detection — which categories are missing from the portfolio
 const SECTOR_TICKERS = {
-  financials:       ["JPM","GS","BAC","BRK.B","V","MA","AXP","TD","RY","BNS"],
-  healthcare:       ["LLY","NVO","UNH","ISRG","JNJ","ABBV","MRK","PFE"],
-  defense:          ["RTX","LMT","NOC","GD","AXON","HII"],
-  consumer:         ["COST","WMT","AMZN","TGT","HD","PG","KO"],
-  "fixed income":   ["TLT","BND","ZAG.TO","ZAG","AGG","SHY"],
-  "real estate":    ["O","VNQ","XRE.TO","ZRE.TO","SPG"],
-  international:    ["VGK","EWJ","EFA","VEA","INDA","EWZ"],
-  "energy infra":   ["ENB","TRP","PPL","KMI"],
-  "oil & gas":      ["SU.TO","SU","CNQ","CVX","XOM","COP","EOG","XEG.TO","CVE","MEG"],
+  financials:    ["JPM","GS","BAC","BRK.B","V","MA","AXP","TD","RY","BNS","BMO","CM"],
+  healthcare:    ["LLY","NVO","UNH","ISRG","JNJ","ABBV","MRK","PFE","AMGN","IDXX"],
+  defense:       ["RTX","LMT","NOC","GD","AXON","HII","GE","CAT","DE"],
+  consumer:      ["COST","WMT","AMZN","TGT","HD","PG","KO","MCD","SBUX","NKE"],
+  // International exposure via US-listed stocks of foreign companies (no ETFs)
+  international: ["NVO","TSM","ASML","SHOP","ATD","BAM","TFII","CP.TO","CNR.TO"],
+  // Real estate via individual REITs only (no ETF wrappers)
+  "real estate": ["O","SPG","PLD","AMT","WELL","PSA","EXR"],
+  "energy infra":["ENB","TRP","PPL","KMI"],
+  "oil & gas":   ["SU.TO","SU","CNQ","CVX","XOM","COP","EOG","CVE","MEG","OXY"],
 };
 
 function detectGaps(tfsa, rrsp) {
@@ -103,13 +104,23 @@ function detectGaps(tfsa, rrsp) {
 // DEFAULT CAGR ESTIMATES — used when a holding has no custom cagr set
 // ═══════════════════════════════════════════════════════════════════════════
 const DEFAULT_CAGR = {
-  NVDA:18, AMZN:15, NOW:16, GOOG:12, PLTR:18, MU:15, CNQ:8, XIU:9, BTCC:20,
-  GOLD:6, "VFV.TO":10, MSFT:13, AAPL:11, META:14, TSM:14, ADI:12, THE:8,
-  QQQM:12, SPDR:10, VXUS:7, VTI:10, LLY:14, AVGO:16,
-  "BRK.B":10, V:14, ISRG:15, NVO:13, ARM:18, AXON:20, COST:12, RTX:12,
-  ENB:8, MELI:18, INDA:12, VGK:9, EWJ:8, TLT:5, "ZAG.TO":4, "XRE.TO":9,
-  WMT:10, SHOP:15, ACN:12, VIG:11,
-  LMT:11, NOC:10, "SU.TO":9, "XEG.TO":8, HII:9,
+  // Technology
+  NVDA:18, AMZN:15, NOW:16, GOOG:12, PLTR:18, MU:15, MSFT:13, AAPL:11,
+  META:14, TSM:14, ADI:12, AVGO:16, ARM:18, AMD:15, QCOM:10, CRWD:22,
+  MRVL:18, ANET:20, PANW:18, ORCL:12, ASML:15,
+  // Financials
+  "BRK.B":10, V:14, MA:14, AXP:14, JPM:10, BAC:9, GS:11, SCHW:14,
+  BLK:12, MSCI:16, PYPL:10, KKR:16,
+  // Healthcare
+  LLY:18, ISRG:15, NVO:13, JNJ:8, ABBV:8, UNH:12, MRK:8, AMGN:10, IDXX:14,
+  // Consumer
+  COST:12, WMT:10, KO:7, PG:8, MCD:10, SBUX:10, NKE:11, HD:9, NFLX:18,
+  // Energy & Industrials
+  ENB:8, RTX:12, LMT:11, NOC:10, GE:20, HON:9, AXON:20, CAT:11, DE:10,
+  ITW:10, TDG:13, XOM:7, CVX:7, OXY:10, COP:9, "SU.TO":9,
+  // Canadian
+  SHOP:15, CNQ:8, RY:9, TD:8, BMO:8, CM:8, BNS:7, MFC:10, SLF:10,
+  ATD:14, BAM:15, TFII:14,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2192,10 +2203,10 @@ Example element:
                         : "neutral — balanced";
 
       const acctRules = {
-        TFSA:   "Favour zero/low-dividend growth stocks — IRS withholding tax (15%) on US dividends is unrecoverable in a TFSA. US dividend payers should get lower targets. Canadian-listed ETFs and crypto ETFs are fine.",
-        RRSP:   "Favour US-listed dividend/income stocks — WHT is 0% under the Canada-US treaty in an RRSP. Balance income and growth. Bond ETFs/T-bills (SGOV) are good for capital preservation.",
-        RESP:   "Conservative and balanced. Mirror current market-value proportions. Bond ETFs should anchor at 20-30%.",
-        Crypto: "Split proportionally by current market value between BTC, ETH, and any crypto ETFs.",
+        TFSA:   "Favour zero/low-dividend individual growth stocks — IRS withholding tax (15%) on US dividends is unrecoverable in a TFSA. US dividend payers should get lower targets. Canadian-listed stocks are ideal (no WHT). Suggest individual stocks only.",
+        RRSP:   "Favour US-listed dividend/income individual stocks — WHT is 0% under the Canada-US treaty in an RRSP. Balance income and growth stocks. No ETF suggestions — only individual equities.",
+        RESP:   "Conservative and balanced individual stocks only. Mirror current market-value proportions. Favour dividend-paying defensive stocks (JNJ, KO, ENB) for stability.",
+        Crypto: "Split proportionally by current market value. No fund wrappers — direct crypto holdings only.",
       };
 
       const profCtxTargets = profileContext();
@@ -2214,7 +2225,7 @@ ${lines}
 
 Instructions:
 - Assign a "target" integer % to each ticker — they must sum to EXACTLY 100
-- Maximum 25% for any single equity; broad-market ETFs (XEQT, QQQM, QUU, etc.) may go up to 30%
+- Maximum 25% for any single equity position
 - Set target to 0 only if you have a strong reason to exit the position
 - Also provide updated "cagr" (5-yr estimate, integer 5-25) and "divYield" (%, one decimal) per ticker
 - "rationale": one sharp sentence — what drives the target change
@@ -2349,15 +2360,14 @@ TASK A — Suggest exactly 3–6 NEW positions that would meaningfully diversify
 
 Addition rules:
 - NEVER suggest a ticker already in the held list above
-- Prefer broad ETFs over single stocks for filling sector/geographic gaps
-- Do not duplicate exposure (e.g. if QQQM is held, don't suggest QQQ or ONEQ)
+- Suggest INDIVIDUAL STOCKS ONLY — no ETFs, no index funds, no bond funds
+- For geographic diversification, use US-listed stocks of foreign companies (e.g. ASML, NVO, TSM, SHOP, BAM)
 - Account assignment:
-  - TFSA: only zero/minimal dividend payers (avoid IRS 15% WHT drain)
-  - RRSP: US dividend payers welcome (WHT = 0% under Canada-US treaty)
-  - CAD-listed ETFs can go in either
+  - TFSA: only zero/minimal dividend payers (avoid IRS 15% WHT drain); Canadian stocks ideal
+  - RRSP: US dividend-paying stocks welcome (WHT = 0% under Canada-US treaty)
 - Suggest initial target % of 3–8% of the target account — keep each position modest
-- Focus on filling real gaps: geography, asset class, sector
-- Consider the regime: in risk-off, lean toward defensive ETFs, bonds, gold; in risk-on, lean toward growth sectors
+- Focus on filling real gaps: sector, geography, risk profile
+- Consider the regime: in risk-off, lean toward defensive dividend stocks (JNJ, KO, ENB); in risk-on, lean toward growth stocks
 - Stop at 6 — do not pad with unnecessary positions
 
 TASK B — Identify any existing positions that should be trimmed or removed.
@@ -2365,7 +2375,7 @@ TASK B — Identify any existing positions that should be trimmed or removed.
 Trim rules (flag a position if ANY of these apply):
 - Single-stock position exceeds 20% of its account (concentration risk)
 - Single-stock position exceeds 15% of total portfolio
-- Two or more positions with substantially overlapping exposure (e.g. QQQ + QQQM, multiple semi ETFs)
+- Two or more positions with substantially overlapping exposure (e.g. multiple AI/semi stocks, duplicate energy names)
 - Position is misplaced for tax efficiency (high-dividend US stock in TFSA instead of RRSP)
 - Position is speculative/high-risk and oversized given the current risk score
 - Only flag genuine concerns — do NOT invent trims; return an empty array if holdings are well-balanced
@@ -5450,7 +5460,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </button>
             ))}
             <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", marginLeft:"auto" }}>
-              {filteredRecs.filter(r => r.type !== "etf").length} stocks · {filteredRecs.filter(r => r.type === "etf").length} ETFs · already-owned excluded
+              {filteredRecs.length} stock{filteredRecs.length !== 1 ? "s" : ""} · already-owned excluded
             </span>
           </div>
 
@@ -5582,8 +5592,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const roleOrder = { anchor: 0, growth: 1, cyclical: 2 };
             const sortByRole = arr => [...arr].sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9));
 
-            const recStocks = sortByRole(filteredRecs.filter(r => r.type === "stock" || !r.type));
-            const recETFs   = sortByRole(filteredRecs.filter(r => r.type === "etf"));
+            const recStocks = sortByRole(filteredRecs);
 
             const renderCard = (rec) => {
               const rotation = marketPulse?.outlooks?.[0]?.scenarios
@@ -5599,7 +5608,6 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 else if (isAvoid) alignment = { label:"Regime avoid", color:"#ef4444" };
               }
               const moatColor = rec.moat ? (MOAT_COLOR[rec.moat] || "#94a3b8") : null;
-              const isETF = rec.type === "etf";
 
               return (
                 <div key={rec.ticker} className="rec-card">
@@ -5646,23 +5654,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </div>
                   </div>
 
-                  {/* MOAT badge (stocks) or Concentrated badge (ETFs) */}
+                  {/* MOAT badge */}
                   <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:2 }}>
-                    {!isETF && moatColor && (
+                    {moatColor && (
                       <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
                         background:`${moatColor}12`, color: moatColor,
                         border:`1px solid ${moatColor}30` }}>
                         ◆ {rec.moat}
                       </span>
                     )}
-                    {isETF && (
-                      rec.concentrated
-                        ? <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
-                            background:"rgba(251,146,60,0.1)", color:"#fb923c",
-                            border:"1px solid rgba(251,146,60,0.3)" }}>
-                            ⚠ Concentrated
-                          </span>
-                        : <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
+                    {false && (  // placeholder to preserve surrounding JSX structure
+                      <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
                             background:"rgba(34,197,94,0.08)", color:"#4ade80",
                             border:"1px solid rgba(34,197,94,0.25)" }}>
                             ✓ Diversified
@@ -5746,19 +5748,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
             return (
               <>
-                {/* ── Individual Stocks ── */}
                 {recStocks.length > 0 && (
                   <>
-                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase" }}>
-                        Individual Stocks
-                      </p>
-                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontFamily:"'JetBrains Mono',monospace" }}>
-                        {recStocks.length} idea{recStocks.length !== 1 ? "s" : ""}
-                      </span>
-                      <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
-                      <span style={{ fontSize:10, color:"rgba(248,113,113,0.6)" }}>Higher single-name risk</span>
-                    </div>
                     {(() => {
                       const groups = [
                         { role:"anchor",   items: recStocks.filter(r => r.role === "anchor") },
@@ -5787,46 +5778,6 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </>
                 )}
 
-                {/* ── ETFs & Diversified Funds ── */}
-                {recETFs.length > 0 && (
-                  <>
-                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
-                      <p style={{ margin:0, fontSize:12, fontWeight:700, color:"rgba(255,255,255,0.7)", letterSpacing:"0.06em", textTransform:"uppercase" }}>
-                        ETFs &amp; Funds
-                      </p>
-                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.25)", fontFamily:"'JetBrains Mono',monospace" }}>
-                        {recETFs.length} idea{recETFs.length !== 1 ? "s" : ""}
-                      </span>
-                      <div style={{ flex:1, height:1, background:"rgba(255,255,255,0.07)" }} />
-                      <span style={{ fontSize:10, color:"rgba(74,222,128,0.6)" }}>Built-in diversification</span>
-                    </div>
-                    {(() => {
-                      const groups = [
-                        { role:"anchor",   items: recETFs.filter(r => r.role === "anchor") },
-                        { role:"growth",   items: recETFs.filter(r => r.role === "growth") },
-                        { role:"cyclical", items: recETFs.filter(r => r.role === "cyclical" || !r.role) },
-                      ].filter(g => g.items.length > 0);
-                      return groups.map(({ role, items }) => {
-                        const rm = ROLE_META[role];
-                        return (
-                          <div key={role} style={{ marginBottom: 20 }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                              <span style={{ fontSize:10, fontWeight:600, padding:"2px 8px", borderRadius:4,
-                                background:`${rm.color}10`, color: rm.color,
-                                border:`1px solid ${rm.color}28` }}>
-                                {rm.label}
-                              </span>
-                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.2)" }}>{rm.desc}</span>
-                            </div>
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))", gap:12 }}>
-                              {items.map(rec => renderCard(rec))}
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </>
-                )}
               </>
             );
           })()}
@@ -8090,7 +8041,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 "Other":       "rgba(255,255,255,0.25)",
               };
               const GEO_COLOR  = { "United States":"#60a5fa", "Canada":"#34d399", "International":"#fbbf24" };
-              const ROLE_COLOR = { "Core / ETF":"#22d3ee", "Growth":"#a78bfa", "Income":"#34d399", "Tactical":"#f97316", "Other":"rgba(255,255,255,0.3)" };
+              const ROLE_COLOR = { "Core Holding":"#22d3ee", "Growth":"#a78bfa", "Income":"#34d399", "Tactical":"#f97316", "Other":"rgba(255,255,255,0.3)" };
 
               function canonSector(raw) {
                 if (!raw) return "Other";
@@ -8117,10 +8068,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               const DIV_ETFS = new Set(["SPY","QQQ","IWM","VTI","VOO","IVV","QQQM","QUU","XEQT","XGRO","XBAL","VFV","ZSP","HXS","XIC","ZAG","XLK","XLF","XLE","GLD","XBI"]);
               function getRole(ticker) {
                 const rec = TICKER_DB[ticker];
-                if (!rec) return DIV_ETFS.has(ticker) ? "Core / ETF" : "Other";
-                if (rec.type === "etf") return "Core / ETF";
+                if (!rec) return "Other";
                 const r = (rec.role || "").toLowerCase();
-                if (r === "anchor") return "Core / ETF";
+                if (r === "anchor") return "Core Holding";
                 if (r === "growth") return "Growth";
                 if (r === "income") return "Income";
                 if (r === "tactical") return "Tactical";
