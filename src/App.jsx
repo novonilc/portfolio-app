@@ -836,21 +836,23 @@ function SortTh({ col, label, sort, onSort, style, className }) {
 
 // ─── Stock Scanner ────────────────────────────────────────────────────────────
 const SCAN_PRESET_FILTERS = {
-  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all" },
-  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all" },
-  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all" },
-  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all" },
-  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all" },
-  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all" },
-  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all" },
+  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all" },
+  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all", mktCap:"all" },
+  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all", mktCap:"all" },
+  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all", mktCap:"all" },
+  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all", mktCap:"all" },
+  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all", mktCap:"all" },
+  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"mid-small" },
+  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all", mktCap:"all" },
 };
 const SCAN_PRESETS = [
-  { key:"all",        icon:"🌐", label:"Show All",       desc:"All 60+ stocks, no filter"          },
+  { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
   { key:"buffett",    icon:"🏛️", label:"Buffett Zone",   desc:"Quality at fair price — Berkshire style" },
   { key:"garp",       icon:"📈", label:"GARP",           desc:"Growth at a reasonable price (PEG < 1.5)" },
   { key:"income",     icon:"💰", label:"Income Quality", desc:"High yield from durable businesses"  },
   { key:"deep",       icon:"🔎", label:"Deep Value",     desc:"Very cheap on P/E & free cash flow"  },
   { key:"compounder", icon:"🚀", label:"Compounders",    desc:"High ROE + low debt = decades of gains" },
+  { key:"midsmall",   icon:"🎯", label:"Mid & Small",    desc:"$300M–$10B, often-overlooked gems"   },
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
 ];
 function computeScanScore(s) {
@@ -10353,6 +10355,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (f.minEpsG > 0 && s.epsGrowth < f.minEpsG) return false;
           if (f.market !== "all" && s.market !== f.market) return false;
           if (f.sector !== "all" && s.sector !== f.sector) return false;
+          if (f.mktCap === "mid-small" && !["mid","small"].includes(s.mktCap)) return false;
+          if (f.mktCap === "mid"   && s.mktCap !== "mid")   return false;
+          if (f.mktCap === "small" && s.mktCap !== "small") return false;
+          if (f.mktCap === "large+" && !["large","mega"].includes(s.mktCap)) return false;
           return true;
         }).map(s => ({ ...s, score: computeScanScore(s) }));
 
@@ -10519,6 +10525,19 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     {allSectors.map(s => <option key={s} value={s}>{s==="all"?"All Sectors":s}</option>)}
                   </select>
                 </div>
+                <div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market Cap</div>
+                  <select value={f.mktCap ?? "all"}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,mktCap:e.target.value})); }}
+                    style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
+                      color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
+                    <option value="all">All sizes</option>
+                    <option value="large+">Large + Mega only</option>
+                    <option value="mid-small">Mid + Small only</option>
+                    <option value="mid">Mid cap (~$2–10B)</option>
+                    <option value="small">Small cap (~$300M–2B)</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -10571,6 +10590,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {s.market==="CA" && (
                             <span style={{ fontSize:9, background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.28)",
                               color:"#22d3ee", borderRadius:4, padding:"0 5px", marginLeft:5, verticalAlign:"middle" }}>CA</span>
+                          )}
+                          {s.mktCap==="mid" && (
+                            <span style={{ fontSize:9, background:"rgba(251,146,60,0.1)", border:"1px solid rgba(251,146,60,0.25)",
+                              color:"#fb923c", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Mid</span>
+                          )}
+                          {s.mktCap==="small" && (
+                            <span style={{ fontSize:9, background:"rgba(244,114,182,0.1)", border:"1px solid rgba(244,114,182,0.25)",
+                              color:"#f472b6", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Small</span>
                           )}
                           {s.isBank && (
                             <span style={{ fontSize:9, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)",
