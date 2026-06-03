@@ -10426,7 +10426,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div style={{ flex:1 }}>
                 <h1 style={{ fontSize:22, fontWeight:900, color:"#f1f5f9", margin:"0 0 3px" }}>Stock Scanner</h1>
                 <p style={{ fontSize:13, color:"#64748b", margin:0 }}>
-                  Find quality businesses at the right price — {STOCKS.length} stocks screened across key fundamentals
+                  Find quality businesses at the right price — {STOCKS.length} curated stocks screened across key fundamentals.{" "}
+                  <span style={{ color:"rgba(255,255,255,0.22)", fontSize:12 }}>
+                    Stock not listed? It hasn't been added to the universe yet — edit <code style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>src/data/stockUniverse.json</code> to include it.
+                  </span>
                 </p>
               </div>
               <div style={{ fontSize:10, color:"rgba(255,255,255,0.15)", textAlign:"right", lineHeight:1.6 }}>
