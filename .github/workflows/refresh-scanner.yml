@@ -24,20 +24,26 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Fetch S&P 500 list + live fundamentals from Yahoo Finance
-        run: node scripts/refresh-scanner.mjs
-        # Fetches ~521 stocks (S&P 500 + top Canadian) via Yahoo Finance.
-        # Auto-discovers new S&P 500 additions. Preserves curated moat data.
-
-      - name: Commit and push if data changed
+      - name: Configure git identity
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Pull latest main before scan
+        run: git pull origin main
+        # Ensures the runner is on HEAD before the script runs,
+        # so the resulting push is always a clean fast-forward.
+
+      - name: Fetch S&P 500 list + live fundamentals from Yahoo Finance
+        run: node scripts/refresh-scanner.mjs
+
+      - name: Commit and push if data changed
+        run: |
           git add src/data/stockUniverse.json
           if git diff --staged --quiet; then
             echo "No changes to commit — data unchanged."
           else
             git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
-            git pull --rebase origin main
-            git push
+            # Retry once with rebase in the rare case a commit lands mid-run
+            git push || (git pull --rebase origin main && git push)
           fi
