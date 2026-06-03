@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import portfolioIdeas from "./data/recommendations.json";
 import marketPulseData from "./data/marketPulse.json";
+import stockUniverseData from "./data/stockUniverse.json";
 const RECOMMENDATIONS = portfolioIdeas.recommendations;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -833,6 +834,51 @@ function SortTh({ col, label, sort, onSort, style, className }) {
   );
 }
 
+// ─── Stock Scanner ────────────────────────────────────────────────────────────
+const SCAN_PRESET_FILTERS = {
+  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all" },
+  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all" },
+  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all" },
+  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all" },
+  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all" },
+  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all" },
+  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all" },
+};
+const SCAN_PRESETS = [
+  { key:"all",        icon:"🌐", label:"Show All",       desc:"All 60+ stocks, no filter"          },
+  { key:"buffett",    icon:"🏛️", label:"Buffett Zone",   desc:"Quality at fair price — Berkshire style" },
+  { key:"garp",       icon:"📈", label:"GARP",           desc:"Growth at a reasonable price (PEG < 1.5)" },
+  { key:"income",     icon:"💰", label:"Income Quality", desc:"High yield from durable businesses"  },
+  { key:"deep",       icon:"🔎", label:"Deep Value",     desc:"Very cheap on P/E & free cash flow"  },
+  { key:"compounder", icon:"🚀", label:"Compounders",    desc:"High ROE + low debt = decades of gains" },
+  { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
+];
+function computeScanScore(s) {
+  let pts = 0;
+  const p = s.peg;
+  pts += p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0;
+  const r = Math.min(s.roe, 100);
+  pts += r>=40?20:r>=25?16:r>=18?12:r>=12?7:2;
+  if (s.isBank) { pts += 8; } else { const d=s.de; pts += d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?5:d<2.5?2:0; }
+  const f = s.fcfYield;
+  pts += f>=8?20:f>=6?16:f>=4?11:f>=2?6:1;
+  const g = s.grossMargin;
+  pts += g>=70?10:g>=50?8:g>=35?5:2;
+  const e = s.epsGrowth;
+  pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
+  return Math.min(100, pts);
+}
+function ScanPill({ value, color }) {
+  return (
+    <span style={{ background:`${color}18`, border:`1px solid ${color}44`, borderRadius:5,
+      padding:"2px 8px", fontSize:11, fontWeight:700, color, fontFamily:"'JetBrains Mono',monospace",
+      display:"inline-block", whiteSpace:"nowrap" }}>
+      {value}
+    </span>
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 function AppLogo() {
   return (
     <svg width="38" height="38" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -886,6 +932,9 @@ export default function App() {
     }
     navigateTo(dest);
   }
+  const [scanPreset,  setScanPreset]  = useState("all");
+  const [scanFilters, setScanFilters] = useState({ ...SCAN_PRESET_FILTERS.all });
+  const [scanSort,    setScanSort]    = useState({ col:"valueScore", dir:"desc" });
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
   const [pendingRemove,    setPendingRemove]   = useState(null);
@@ -3826,7 +3875,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => {
+            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => {
             const locked = !helpUnlocked && v !== "help";
             return (
               <button key={v} className={`tab-btn ${tab===v?"on":""}`}
@@ -10281,6 +10330,357 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               ⚠ Not financial advice. Premium estimates are mathematical approximations based on VIX-derived IV and are not live options quotes —
               always verify with your broker before trading. Options trading involves significant risk of loss and may not be suitable for all investors.
               Covered calls and CSPs in registered Canadian accounts (TFSA/RRSP) are generally permitted but rules vary by broker.
+            </p>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: SCANNER
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "scanner" && (() => {
+        const STOCKS = stockUniverseData.stocks;
+        const allSectors = ["all", ...Array.from(new Set(STOCKS.map(s => s.sector))).sort()];
+        const f = scanFilters;
+
+        const filtered = STOCKS.filter(s => {
+          if (f.maxPe < 120 && s.pe > f.maxPe) return false;
+          if (f.maxPeg < 5  && s.peg > f.maxPeg) return false;
+          if (f.minRoe > 0  && s.roe < f.minRoe) return false;
+          if (f.maxDe < 5   && !s.isBank && s.de > f.maxDe) return false;
+          if (f.minDivY > 0 && s.divYield < f.minDivY) return false;
+          if (f.minFcfY > 0 && s.fcfYield < f.minFcfY) return false;
+          if (f.minEpsG > 0 && s.epsGrowth < f.minEpsG) return false;
+          if (f.market !== "all" && s.market !== f.market) return false;
+          if (f.sector !== "all" && s.sector !== f.sector) return false;
+          return true;
+        }).map(s => ({ ...s, score: computeScanScore(s) }));
+
+        const sortedFiltered = [...filtered].sort((a, b) => {
+          const av = a[scanSort.col], bv = b[scanSort.col];
+          const cmp = typeof av === "number" ? av - bv : String(av||"").localeCompare(String(bv||""));
+          return scanSort.dir === "asc" ? cmp : -cmp;
+        });
+
+        function th(col, label) {
+          const active = scanSort.col === col;
+          return (
+            <th className="th" style={{ cursor:"pointer", userSelect:"none", whiteSpace:"nowrap" }}
+              onClick={() => setScanSort(prev => prev.col === col
+                ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+                : { col, dir: ["ticker","name","sector","moat"].includes(col) ? "asc" : "desc" })}>
+              {label}
+              <span style={{ fontSize:8, marginLeft:3, color: active ? accentColor : "rgba(255,255,255,0.15)" }}>
+                {active ? (scanSort.dir === "asc" ? "▲" : "▼") : "▲▼"}
+              </span>
+            </th>
+          );
+        }
+
+        const peC   = v => v<=12?"#22c55e":v<=18?"#86efac":v<=25?"#fbbf24":v<=35?"#fb923c":"#ef4444";
+        const pegC  = v => v<=1.0?"#22c55e":v<=1.5?"#86efac":v<=2.0?"#fbbf24":v<=3.0?"#fb923c":"#ef4444";
+        const roeC  = v => { const r=Math.min(v,100); return r>=40?"#22c55e":r>=25?"#86efac":r>=15?"#fbbf24":r>=10?"#fb923c":"#ef4444"; };
+        const deC   = v => v<0.3?"#22c55e":v<0.7?"#86efac":v<1.2?"#fbbf24":v<2.0?"#fb923c":"#ef4444";
+        const fcfC  = v => v>=7?"#22c55e":v>=4?"#86efac":v>=2?"#fbbf24":v>=0.5?"#fb923c":"#ef4444";
+        const sC    = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
+
+        const METRIC_INFO = [
+          { icon:"💵", label:"P/E Ratio",    good:"< 15",   color:"#22d3ee",
+            why:"How much you pay per $1 of profit. S&P avg ~21×. Under 15 is cheap — but always ask why it's cheap." },
+          { icon:"📐", label:"PEG Ratio",    good:"< 1.5",  color:"#a78bfa",
+            why:"P/E ÷ EPS Growth. The single most useful one-number metric. PEG < 1 means you're not fully paying for the growth you're getting." },
+          { icon:"🏆", label:"ROE",          good:"> 15%",  color:"#34d399",
+            why:"How efficiently the company uses shareholders' money. ROE > 15–20% is the signature of a business with a durable competitive moat." },
+          { icon:"💰", label:"FCF Yield",    good:"> 4%",   color:"#fbbf24",
+            why:"Free cash flow ÷ price. Unlike P/E, FCF is hard to fake. A 5%+ yield means the business generates real cash you can trust." },
+        ];
+
+        const QUALITY_RULES = [
+          { icon:"🏰", title:"Moat First", desc:"High ROE + high gross margins = durable advantage. Without a moat, cheap stocks stay cheap." },
+          { icon:"📊", title:"P/E is Context-Dependent", desc:"P/E 15 on a 20% grower (PEG 0.75) is cheap. P/E 15 on a 0% grower is still expensive." },
+          { icon:"🏦", title:"Debt Amplifies Risk", desc:"D/E > 1.5× for non-banks means the company cuts dividends first and fails worst in recessions." },
+          { icon:"💸", title:"FCF Beats Reported EPS", desc:"EPS can be smoothed via accounting. FCF cannot. FCF yield > 5% = genuinely cheap, regardless of P/E." },
+          { icon:"📉", title:"Beware Value Traps", desc:"Low P/E + declining EPS = the ratio gets more expensive every quarter. Check EPS growth first." },
+          { icon:"🔁", title:"Compounders Compound", desc:"ROE 25% + retained earnings = equity doubles every ~3 years. Time — not timing — is the edge." },
+        ];
+
+        return (
+          <div style={{ padding:"24px 28px 52px", maxWidth:1440, margin:"0 auto" }}>
+
+            {/* Header */}
+            <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:28 }}>
+              <div style={{ fontSize:32, lineHeight:1 }}>🔎</div>
+              <div style={{ flex:1 }}>
+                <h1 style={{ fontSize:22, fontWeight:900, color:"#f1f5f9", margin:"0 0 3px" }}>Stock Scanner</h1>
+                <p style={{ fontSize:13, color:"#64748b", margin:0 }}>
+                  Find quality businesses at the right price — {STOCKS.length} stocks screened across key fundamentals
+                </p>
+              </div>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.15)", textAlign:"right", lineHeight:1.6 }}>
+                Updated {stockUniverseData.lastUpdated}<br/>Not financial advice
+              </div>
+            </div>
+
+            {/* Metric explainer mini-cards */}
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:26 }}>
+              {METRIC_INFO.map(m => (
+                <div key={m.label} className="card" style={{ borderColor:`${m.color}20`, background:`${m.color}05` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                    <span style={{ fontSize:20 }}>{m.icon}</span>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", lineHeight:1.3 }}>{m.label}</div>
+                      <div style={{ fontSize:10, color:m.color, fontWeight:700 }}>Good: {m.good}</div>
+                    </div>
+                  </div>
+                  <p style={{ fontSize:11, color:"#64748b", lineHeight:1.65, margin:0 }}>{m.why}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Preset buttons */}
+            <div style={{ marginBottom:16 }}>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", color:"rgba(255,255,255,0.25)",
+                textTransform:"uppercase", marginBottom:9 }}>Quick Screens</div>
+              <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                {SCAN_PRESETS.map(({ key, icon, label, desc }) => (
+                  <button key={key}
+                    className={`tab-btn ${scanPreset===key?"on":""}`}
+                    onClick={() => { setScanPreset(key); setScanFilters({ ...SCAN_PRESET_FILTERS[key] }); }}
+                    style={{ fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:6 }}>
+                    <span>{icon}</span>
+                    <span style={{ fontWeight:600 }}>{label}</span>
+                    <span style={{ fontSize:10, opacity:0.55 }}>— {desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Custom filters */}
+            <div className="card" style={{ marginBottom:20 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                <span style={{ fontSize:13, fontWeight:700, color:"#f1f5f9" }}>Custom Filters</span>
+                {scanPreset !== "all" && scanPreset !== "custom" && (
+                  <span style={{ fontSize:10, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)",
+                    color:"#fbbf24", borderRadius:5, padding:"1px 8px" }}>
+                    preset: {SCAN_PRESETS.find(p=>p.key===scanPreset)?.label}
+                  </span>
+                )}
+                <button onClick={() => { setScanPreset("all"); setScanFilters({ ...SCAN_PRESET_FILTERS.all }); }}
+                  style={{ marginLeft:"auto", fontSize:11, color:"#64748b", background:"none",
+                    border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"3px 10px", cursor:"pointer" }}>
+                  Reset all
+                </button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:18 }}>
+                {[
+                  { key:"maxPe",   label:"Max P/E",        min:5,   max:120, step:1,   fmt: v => v>=120?"Any":`${v}×` },
+                  { key:"maxPeg",  label:"Max PEG",         min:0.5, max:5,   step:0.1, fmt: v => v>=5?"Any":v.toFixed(1) },
+                  { key:"minRoe",  label:"Min ROE",         min:0,   max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"maxDe",   label:"Max D/E (non-bank)",min:0, max:5,   step:0.1, fmt: v => v>=5?"Any":`${v.toFixed(1)}×` },
+                  { key:"minDivY", label:"Min Div Yield",   min:0,   max:10,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minFcfY", label:"Min FCF Yield",   min:0,   max:12,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minEpsG", label:"Min EPS Growth",  min:0,   max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
+                ].map(({ key, label, min, max, step, fmt }) => {
+                  const val = Math.min(Math.max(f[key], min), max);
+                  return (
+                    <div key={key}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                        <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{label}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color:accentColor,
+                          fontFamily:"'JetBrains Mono',monospace" }}>{fmt(f[key])}</span>
+                      </div>
+                      <input type="range" min={min} max={max} step={step} value={val}
+                        onChange={e => {
+                          const nv = parseFloat(e.target.value);
+                          const stored = key==="maxPe"&&nv>=120?120:key==="maxPeg"&&nv>=5?5:key==="maxDe"&&nv>=5?5:nv;
+                          setScanPreset("custom");
+                          setScanFilters(prev => ({ ...prev, [key]: stored }));
+                        }} />
+                    </div>
+                  );
+                })}
+                <div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market</div>
+                  <select value={f.market}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,market:e.target.value})); }}
+                    style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
+                      color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
+                    <option value="all">🌐 US + Canada</option>
+                    <option value="US">🇺🇸 US only</option>
+                    <option value="CA">🍁 Canada only</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Sector</div>
+                  <select value={f.sector}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,sector:e.target.value})); }}
+                    style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
+                      color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
+                    {allSectors.map(s => <option key={s} value={s}>{s==="all"?"All Sectors":s}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Results header */}
+            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+              <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9" }}>
+                {sortedFiltered.length === 0 ? "No matches" : `${sortedFiltered.length} stock${sortedFiltered.length!==1?"s":""} found`}
+              </span>
+              {sortedFiltered.length > 0 &&
+                <span style={{ fontSize:11, color:"#475569" }}>Click column headers to sort</span>}
+              <div style={{ marginLeft:"auto", display:"flex", gap:10, fontSize:11, color:"#475569" }}>
+                <span>🟢 Score ≥ 75</span><span>🟡 50–74</span><span>🔴 &lt; 50</span>
+              </div>
+            </div>
+
+            {sortedFiltered.length === 0 ? (
+              <div className="card" style={{ textAlign:"center", padding:"48px 24px" }}>
+                <div style={{ fontSize:36, marginBottom:12 }}>🔍</div>
+                <div style={{ fontSize:14, fontWeight:700, color:"#f1f5f9", marginBottom:6 }}>No stocks match these filters</div>
+                <div style={{ fontSize:12, color:"#64748b" }}>Try relaxing one or more filters, or click a preset above</div>
+              </div>
+            ) : (
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1140 }}>
+                  <thead>
+                    <tr>
+                      {th("ticker","Ticker")}
+                      {th("name","Company")}
+                      {th("sector","Sector")}
+                      {th("pe","P/E")}
+                      {th("peg","PEG")}
+                      {th("roe","ROE %")}
+                      {th("de","D/E")}
+                      {th("fcfYield","FCF Yld")}
+                      {th("divYield","Div %")}
+                      {th("epsGrowth","EPS Grw")}
+                      {th("score","Score")}
+                      {th("moat","Moat / Edge")}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedFiltered.map((s, i) => (
+                      <tr key={s.ticker} style={{ background: i%2===0?"transparent":"rgba(255,255,255,0.013)",
+                        transition:"background 0.12s" }}
+                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+                        onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.013)"}>
+                        <td className="td" style={{ whiteSpace:"nowrap" }}>
+                          <span style={{ fontWeight:800, fontSize:13, color:accentColor,
+                            fontFamily:"'JetBrains Mono',monospace" }}>{s.ticker}</span>
+                          {s.market==="CA" && (
+                            <span style={{ fontSize:9, background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.28)",
+                              color:"#22d3ee", borderRadius:4, padding:"0 5px", marginLeft:5, verticalAlign:"middle" }}>CA</span>
+                          )}
+                          {s.isBank && (
+                            <span style={{ fontSize:9, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)",
+                              color:"#a78bfa", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Bank</span>
+                          )}
+                        </td>
+                        <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
+                          whiteSpace:"nowrap", color:"#e2e8f0", fontSize:12 }}>{s.name}</td>
+                        <td className="td">
+                          <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
+                            borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
+                        </td>
+                        <td className="td" style={{ textAlign:"right" }}>
+                          <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
+                        </td>
+                        <td className="td" style={{ textAlign:"right" }}>
+                          <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
+                        </td>
+                        <td className="td" style={{ textAlign:"right" }}>
+                          <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
+                        </td>
+                        <td className="td" style={{ textAlign:"right" }}>
+                          {s.isBank
+                            ? <span style={{ fontSize:11, color:"#475569", fontStyle:"italic" }}>Bank*</span>
+                            : <ScanPill value={`${s.de}×`} color={deC(s.de)} />}
+                        </td>
+                        <td className="td" style={{ textAlign:"right" }}>
+                          <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
+                        </td>
+                        <td className="td" style={{ textAlign:"right",
+                          color: s.divYield>=4?"#22c55e":s.divYield>=2?"#fbbf24":s.divYield>0?"#94a3b8":"#334155",
+                          fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                          {s.divYield>0?`${s.divYield}%`:"—"}
+                        </td>
+                        <td className="td" style={{ textAlign:"right",
+                          color: s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
+                          fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                          {s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`}
+                        </td>
+                        <td className="td" style={{ textAlign:"center" }}>
+                          <div style={{ width:38, height:38, borderRadius:"50%",
+                            border:`2.5px solid ${sC(s.score)}`,
+                            background:`${sC(s.score)}12`, display:"inline-flex",
+                            alignItems:"center", justifyContent:"center",
+                            fontSize:11, fontWeight:800, color:sC(s.score),
+                            fontFamily:"'JetBrains Mono',monospace" }}>
+                            {s.score}
+                          </div>
+                        </td>
+                        <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
+                          maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {s.moat}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p style={{ fontSize:10, color:"rgba(255,255,255,0.18)", marginTop:8, fontStyle:"italic" }}>
+              * Banks use leverage as a business model — D/E is not meaningful as a safety metric for banks and is excluded from their filter and score.
+            </p>
+
+            {/* How Score is Calculated */}
+            <div className="card" style={{ marginTop:28 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:"#f1f5f9", marginBottom:14 }}>
+                How the Value Score (0–100) Works
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
+                {[
+                  { label:"PEG Ratio",      pts:"0–25 pts", weight:"Most weight", desc:"Rewards paying fair price for growth. PEG ≤ 0.8 earns full marks." },
+                  { label:"FCF Yield",       pts:"0–20 pts", weight:"Real earnings", desc:"Hard-to-fake cash generation. ≥ 8% FCF yield earns full marks." },
+                  { label:"Return on Equity",pts:"0–20 pts", weight:"Business quality", desc:"Moat proxy — ROE ≥ 40% earns full marks. Capped at 100% to prevent leverage distortion." },
+                  { label:"D/E Ratio",       pts:"0–15 pts", weight:"Safety margin", desc:"Lower debt = more resilience. Skipped for banks (fixed 8/15 pts)." },
+                  { label:"Gross Margin",    pts:"0–10 pts", weight:"Pricing power", desc:"Wide margins = durable competitive advantage. ≥ 70% earns full marks." },
+                  { label:"EPS Growth",      pts:"0–10 pts", weight:"Momentum", desc:"Confirms earnings quality is compounding. ≥ 25% earns full marks." },
+                ].map(m => (
+                  <div key={m.label} style={{ borderLeft:`2px solid ${accentColor}33`, paddingLeft:12 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:3 }}>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9" }}>{m.label}</span>
+                      <span style={{ fontSize:11, color:accentColor, fontFamily:"'JetBrains Mono',monospace" }}>{m.pts}</span>
+                    </div>
+                    <div style={{ fontSize:10, color:"#64748b", marginBottom:2 }}>{m.weight}</div>
+                    <div style={{ fontSize:10, color:"#475569", lineHeight:1.5 }}>{m.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Six Rules */}
+            <div style={{ marginTop:24 }}>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", color:"rgba(255,255,255,0.25)",
+                textTransform:"uppercase", marginBottom:14 }}>Six Rules for Finding a True Quality Stock</div>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
+                {QUALITY_RULES.map(r => (
+                  <div key={r.title} className="card">
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                      <span style={{ fontSize:18 }}>{r.icon}</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9" }}>{r.title}</span>
+                    </div>
+                    <p style={{ fontSize:11, color:"#64748b", lineHeight:1.65, margin:0 }}>{r.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p style={{ fontSize:10, color:"rgba(255,255,255,0.15)", marginTop:24, lineHeight:1.7 }}>
+              Data is approximate and manually curated as of {stockUniverseData.lastUpdated}. Fundamental metrics change quarterly.
+              Always verify current P/E, EPS, and balance sheet data before making any investment decision. Not financial advice.
             </p>
           </div>
         );

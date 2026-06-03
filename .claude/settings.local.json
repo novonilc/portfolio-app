@@ -19,7 +19,13 @@
       "Bash(node --input-type=module)",
       "Bash(npx acorn *)",
       "Bash(grep -n \"JSX\\\\|2657\\\\|1005\" /dev/null; grep -c \"runManualCspCcScan\\\\|cspCcScanProgress\\\\|Scan Now\" src/App.jsx)",
-      "Read(//dev/**)"
+      "Read(//dev/**)",
+      "Bash(~/.local/bin/pnpm build *)",
+      "Bash(node -e \"require\\('vite'\\)\")",
+      "Bash(PATH=__TRACKED_VAR__:/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533 node --version)",
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite --port 5175)",
+      "Bash(curl -s http://localhost:5175/)",
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)"
     ]
   }
 }
