@@ -3,26 +3,22 @@ name: Refresh Stock Scanner Data
 on:
   schedule:
     - cron: '0 13 * * *'   # 6:00 AM Vancouver PDT (UTC-7) / 5:00 AM PST (UTC-8) in winter
-  workflow_dispatch:         # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Use Node.js 24 runner for all actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # Full history — required for git rebase to work
+      - uses: actions/checkout@v4
 
-      - name: Set up Node.js 24
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '24'
 
@@ -31,28 +27,22 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Pull latest main before scan
-        run: git pull origin main
-        # Syncs to HEAD before the script runs so the push is a clean fast-forward.
-        # This is the primary fix — eliminates rejections caused by commits that
-        # landed on main between checkout and push.
-
-      - name: Fetch S&P 500 list + live fundamentals from Yahoo Finance
+      - name: Fetch fundamentals (~95 tickers, ~35 s)
         run: node scripts/refresh-scanner.mjs
 
       - name: Commit and push updated data
         run: |
           git add src/data/stockUniverse.json
           if git diff --staged --quiet; then
-            echo "No changes to commit — data unchanged."
+            echo "No changes — data unchanged."
             exit 0
           fi
+
+          # Sync HEAD to wherever remote main is RIGHT NOW (handles any commits
+          # that landed while the ~35 s scan was running) then commit our fresh
+          # data on top — guarantees the push is always a clean fast-forward.
+          git fetch origin main
+          git reset --soft origin/main
+          git add src/data/stockUniverse.json
           git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
-          # Primary push — succeeds in the vast majority of runs
-          # Fallback: if a commit landed in the ~3 min the scan was running,
-          # rebase our single data commit on top and retry once.
-          git push origin main || (
-            echo "Push rejected — rebasing on latest main and retrying..."
-            git pull --rebase origin main &&
-            git push origin main
-          )
+          git push origin HEAD:main
