@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import portfolioIdeas from "./data/recommendations.json";
 import marketPulseData from "./data/marketPulse.json";
 import stockUniverseData from "./data/stockUniverse.json";
