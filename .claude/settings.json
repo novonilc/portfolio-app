@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(npx vite *)",
-      "Bash(/home/nchoudhu/portfolio-app/node_modules/.bin/vite build *)"
+      "Bash(/home/nchoudhu/portfolio-app/node_modules/.bin/vite build *)",
+      "Bash(cat /proc/sys/kernel/random/uuid)",
+      "Read(//proc/sys/kernel/random/**)",
+      "Bash(git -C /home/nchoudhu/portfolio-app remote -v)",
+      "Bash(vercel env *)",
+      "Bash(/home/nchoudhu/.local/bin/vercel env *)",
+      "Bash(git pull *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'{len\\(d[\\\\\"stocks\\\\\"]\\)} stocks, lastUpdated={d[\\\\\"lastUpdated\\\\\"]}'\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git checkout *)"
     ]
   }
 }
