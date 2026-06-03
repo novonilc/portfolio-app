@@ -38,5 +38,6 @@ jobs:
             echo "No changes to commit — data unchanged."
           else
             git commit -m "chore: refresh scanner fundamentals $(date -u +%Y-%m-%d)"
+            git pull --rebase origin main
             git push
           fi
