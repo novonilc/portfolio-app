@@ -871,7 +871,11 @@ const SCAN_PRESETS = [
 function computeScanScore(s) {
   // Null-safe: missing metrics score 0 rather than false-positives from JS null coercion
   let pts = 0;
-  const p = s.peg;
+  // Use forward PEG (fwdPe ÷ epsGrowth) when available — the market prices on forward
+  // earnings, so forward PEG is a more accurate valuation signal than trailing PEG.
+  // Falls back to stored trailing peg if fwdPe is zero or missing.
+  const fwdPeg = (s.fwdPe > 0 && s.epsGrowth > 0) ? s.fwdPe / s.epsGrowth : null;
+  const p = fwdPeg ?? s.peg;
   pts += (p != null && p > 0) ? (p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0) : 0;
   const r = s.roe != null ? Math.min(s.roe, 100) : null;
   pts += r != null ? (r>=40?20:r>=25?16:r>=18?12:r>=12?7:2) : 0;
@@ -10405,8 +10409,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const METRIC_INFO = [
           { icon:"💵", label:"P/E Ratio",    good:"< 15",   color:"#22d3ee",
             why:"How much you pay per $1 of profit. S&P avg ~21×. Under 15 is cheap — but always ask why it's cheap." },
-          { icon:"📐", label:"PEG Ratio",    good:"< 1.5",  color:"#a78bfa",
-            why:"P/E ÷ EPS Growth. The single most useful one-number metric. PEG < 1 means you're not fully paying for the growth you're getting." },
+          { icon:"📐", label:"Forward PEG",  good:"< 1.5",  color:"#a78bfa",
+            why:"Forward P/E ÷ EPS Growth. The score uses forward P/E (next 12m estimated earnings) not trailing — so you're pricing in where the business is going, not where it's been. fwd PEG < 1 = you're not paying full price for the growth." },
           { icon:"🏆", label:"ROE",          good:"> 15%",  color:"#34d399",
             why:"How efficiently the company uses shareholders' money. ROE > 15–20% is the signature of a business with a durable competitive moat." },
           { icon:"💰", label:"FCF Yield",    good:"> 4%",   color:"#fbbf24",
@@ -10652,8 +10656,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
-                              {s.peg != null ? <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
-                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
+                              {(() => {
+                                const fwdPeg = (s.fwdPe > 0 && s.epsGrowth > 0)
+                                  ? +(s.fwdPe / s.epsGrowth).toFixed(2) : null;
+                                const display = fwdPeg ?? s.peg;
+                                if (!display) return <span style={{ fontSize:10, color:"#334155" }}>—</span>;
+                                return (
+                                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                                    <ScanPill value={display.toFixed(2)} color={pegC(display)} />
+                                    {fwdPeg && (
+                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)",
+                                        fontFamily:"'JetBrains Mono',monospace" }}>fwd</span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
                               {s.roe != null ? <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
@@ -10847,7 +10864,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12 }}>
                 {[
-                  { label:"PEG Ratio",      pts:"0–25 pts", weight:"Most weight", desc:"Rewards paying fair price for growth. PEG ≤ 0.8 earns full marks." },
+                  { label:"Forward PEG",    pts:"0–25 pts", weight:"Most weight", desc:"fwdPE ÷ EPS growth. Uses forward P/E (not trailing) so the score reflects where earnings are heading. ≤ 0.8 earns full marks." },
                   { label:"FCF Yield",       pts:"0–20 pts", weight:"Real earnings", desc:"Hard-to-fake cash generation. ≥ 8% FCF yield earns full marks." },
                   { label:"Return on Equity",pts:"0–20 pts", weight:"Business quality", desc:"Moat proxy — ROE ≥ 40% earns full marks. Capped at 100% to prevent leverage distortion." },
                   { label:"D/E Ratio",       pts:"0–15 pts", weight:"Safety margin", desc:"Lower debt = more resilience. Skipped for banks (fixed 8/15 pts)." },
