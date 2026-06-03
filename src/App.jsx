@@ -836,14 +836,15 @@ function SortTh({ col, label, sort, onSort, style, className }) {
 
 // ─── Stock Scanner ────────────────────────────────────────────────────────────
 const SCAN_PRESET_FILTERS = {
-  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all" },
-  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all", mktCap:"all" },
-  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all", mktCap:"all" },
-  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all", mktCap:"all" },
-  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all", mktCap:"all" },
-  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all", mktCap:"all" },
-  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"mid-small" },
-  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all", mktCap:"all" },
+  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
+  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
+  ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:true  },
+  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all", mktCap:"all", ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
@@ -853,6 +854,7 @@ const SCAN_PRESETS = [
   { key:"deep",       icon:"🔎", label:"Deep Value",     desc:"Very cheap on P/E & free cash flow"  },
   { key:"compounder", icon:"🚀", label:"Compounders",    desc:"High ROE + low debt = decades of gains" },
   { key:"midsmall",   icon:"🎯", label:"Mid & Small",    desc:"$300M–$10B, often-overlooked gems"   },
+  { key:"ideas",      icon:"💡", label:"Ideas Picks",    desc:"Stocks curated in the Ideas tab"     },
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
 ];
 function computeScanScore(s) {
@@ -934,9 +936,10 @@ export default function App() {
     }
     navigateTo(dest);
   }
-  const [scanPreset,  setScanPreset]  = useState("all");
-  const [scanFilters, setScanFilters] = useState({ ...SCAN_PRESET_FILTERS.all });
-  const [scanSort,    setScanSort]    = useState({ col:"valueScore", dir:"desc" });
+  const [scanPreset,   setScanPreset]  = useState("all");
+  const [scanFilters,  setScanFilters] = useState({ ...SCAN_PRESET_FILTERS.all });
+  const [scanSort,     setScanSort]    = useState({ col:"valueScore", dir:"desc" });
+  const [scanExpanded, setScanExpanded]= useState(null);
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
   const [pendingRemove,    setPendingRemove]   = useState(null);
@@ -10345,7 +10348,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const allSectors = ["all", ...Array.from(new Set(STOCKS.map(s => s.sector))).sort()];
         const f = scanFilters;
 
+        // Build lookup for curated Ideas recommendations
+        const REC_MAP = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
+
         const filtered = STOCKS.filter(s => {
+          if (f.ideasOnly && !REC_MAP[s.ticker]) return false;
           if (f.maxPe < 120 && s.pe > f.maxPe) return false;
           if (f.maxPeg < 5  && s.peg > f.maxPeg) return false;
           if (f.minRoe > 0  && s.roe < f.minRoe) return false;
@@ -10500,7 +10507,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           const nv = parseFloat(e.target.value);
                           const stored = key==="maxPe"&&nv>=120?120:key==="maxPeg"&&nv>=5?5:key==="maxDe"&&nv>=5?5:nv;
                           setScanPreset("custom");
-                          setScanFilters(prev => ({ ...prev, [key]: stored }));
+                          setScanFilters(prev => ({ ...prev, [key]: stored, ideasOnly:false }));
                         }} />
                     </div>
                   );
@@ -10508,7 +10515,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market</div>
                   <select value={f.market}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,market:e.target.value})); }}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,market:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     <option value="all">🌐 US + Canada</option>
@@ -10519,7 +10526,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Sector</div>
                   <select value={f.sector}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,sector:e.target.value})); }}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,sector:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     {allSectors.map(s => <option key={s} value={s}>{s==="all"?"All Sectors":s}</option>)}
@@ -10528,7 +10535,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market Cap</div>
                   <select value={f.mktCap ?? "all"}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,mktCap:e.target.value})); }}
+                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,mktCap:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     <option value="all">All sizes</option>
@@ -10579,80 +10586,141 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedFiltered.map((s, i) => (
-                      <tr key={s.ticker} style={{ background: i%2===0?"transparent":"rgba(255,255,255,0.013)",
-                        transition:"background 0.12s" }}
-                        onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
-                        onMouseLeave={e=>e.currentTarget.style.background=i%2===0?"transparent":"rgba(255,255,255,0.013)"}>
-                        <td className="td" style={{ whiteSpace:"nowrap" }}>
-                          <span style={{ fontWeight:800, fontSize:13, color:accentColor,
-                            fontFamily:"'JetBrains Mono',monospace" }}>{s.ticker}</span>
-                          {s.market==="CA" && (
-                            <span style={{ fontSize:9, background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.28)",
-                              color:"#22d3ee", borderRadius:4, padding:"0 5px", marginLeft:5, verticalAlign:"middle" }}>CA</span>
+                    {sortedFiltered.map((s, i) => {
+                      const rec       = REC_MAP[s.ticker];
+                      const isExpanded= scanExpanded === s.ticker;
+                      const rowBg     = i%2===0 ? "transparent" : "rgba(255,255,255,0.013)";
+                      return (
+                        <React.Fragment key={s.ticker}>
+                          <tr style={{ background: rowBg, cursor: rec ? "pointer" : "default",
+                              transition:"background 0.12s",
+                              borderLeft: rec ? "2px solid rgba(251,191,36,0.4)" : "2px solid transparent" }}
+                            onClick={() => rec && setScanExpanded(isExpanded ? null : s.ticker)}
+                            onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
+                            onMouseLeave={e=>e.currentTarget.style.background=rowBg}>
+                            {/* Ticker cell */}
+                            <td className="td" style={{ whiteSpace:"nowrap" }}>
+                              <span style={{ fontWeight:800, fontSize:13, color:accentColor,
+                                fontFamily:"'JetBrains Mono',monospace" }}>{s.ticker}</span>
+                              {s.market==="CA" && (
+                                <span style={{ fontSize:9, background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.28)",
+                                  color:"#22d3ee", borderRadius:4, padding:"0 5px", marginLeft:5, verticalAlign:"middle" }}>CA</span>
+                              )}
+                              {s.mktCap==="mid" && (
+                                <span style={{ fontSize:9, background:"rgba(251,146,60,0.1)", border:"1px solid rgba(251,146,60,0.25)",
+                                  color:"#fb923c", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Mid</span>
+                              )}
+                              {s.mktCap==="small" && (
+                                <span style={{ fontSize:9, background:"rgba(244,114,182,0.1)", border:"1px solid rgba(244,114,182,0.25)",
+                                  color:"#f472b6", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Small</span>
+                              )}
+                              {s.isBank && (
+                                <span style={{ fontSize:9, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)",
+                                  color:"#a78bfa", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Bank</span>
+                              )}
+                              {rec && (
+                                <span style={{ fontSize:9, background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)",
+                                  color:"#fbbf24", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle",
+                                  fontWeight:700 }}>💡 {rec.conviction}</span>
+                              )}
+                              {rec && (
+                                <span style={{ fontSize:9, background: rec.bestFor==="TFSA"?"rgba(251,191,36,0.08)":"rgba(34,211,238,0.08)",
+                                  border:`1px solid ${rec.bestFor==="TFSA"?"rgba(251,191,36,0.25)":"rgba(34,211,238,0.25)"}`,
+                                  color: rec.bestFor==="TFSA"?"#fbbf24":"#22d3ee",
+                                  borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>{rec.bestFor}</span>
+                              )}
+                            </td>
+                            <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
+                              whiteSpace:"nowrap", color:"#e2e8f0", fontSize:12 }}>{s.name}</td>
+                            <td className="td">
+                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
+                                borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              {s.isBank
+                                ? <span style={{ fontSize:11, color:"#475569", fontStyle:"italic" }}>Bank*</span>
+                                : <ScanPill value={`${s.de}×`} color={deC(s.de)} />}
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
+                            </td>
+                            <td className="td" style={{ textAlign:"right",
+                              color: s.divYield>=4?"#22c55e":s.divYield>=2?"#fbbf24":s.divYield>0?"#94a3b8":"#334155",
+                              fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                              {s.divYield>0?`${s.divYield}%`:"—"}
+                            </td>
+                            <td className="td" style={{ textAlign:"right",
+                              color: s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
+                              fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                              {s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`}
+                            </td>
+                            <td className="td" style={{ textAlign:"center" }}>
+                              <div style={{ width:38, height:38, borderRadius:"50%",
+                                border:`2.5px solid ${sC(s.score)}`,
+                                background:`${sC(s.score)}12`, display:"inline-flex",
+                                alignItems:"center", justifyContent:"center",
+                                fontSize:11, fontWeight:800, color:sC(s.score),
+                                fontFamily:"'JetBrains Mono',monospace" }}>
+                                {s.score}
+                              </div>
+                            </td>
+                            <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
+                              maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              {s.moat}
+                              {rec && <span style={{ color:"rgba(255,255,255,0.2)", marginLeft:6 }}>▾ thesis</span>}
+                            </td>
+                          </tr>
+
+                          {/* Expanded thesis panel */}
+                          {isExpanded && rec && (
+                            <tr style={{ background:"rgba(251,191,36,0.04)", borderLeft:"2px solid rgba(251,191,36,0.4)" }}>
+                              <td colSpan={12} style={{ padding:"14px 20px 16px" }}>
+                                <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:16, alignItems:"start" }}>
+                                  <div>
+                                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                                      <span style={{ fontSize:12, fontWeight:800, color:"#fbbf24" }}>💡 Ideas Thesis</span>
+                                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
+                                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>{rec.role} · {rec.moat}</span>
+                                    </div>
+                                    <p style={{ fontSize:12, color:"#cbd5e1", lineHeight:1.75, margin:"0 0 10px" }}>
+                                      {rec.thesis}
+                                    </p>
+                                    {rec.risks && rec.risks.length > 0 && (
+                                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                                        {rec.risks.slice(0,3).map((r,ri) => (
+                                          <span key={ri} style={{ fontSize:10, background:"rgba(239,68,68,0.08)",
+                                            border:"1px solid rgba(239,68,68,0.2)", color:"#fca5a5",
+                                            borderRadius:5, padding:"2px 8px" }}>⚠ {r}</span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ display:"flex", flexDirection:"column", gap:6, minWidth:120, alignItems:"flex-end" }}>
+                                    {rec.tags && rec.tags.map((t,ti) => (
+                                      <span key={ti} style={{ fontSize:10, background:"rgba(251,191,36,0.08)",
+                                        border:"1px solid rgba(251,191,36,0.2)", color:"#fbbf24",
+                                        borderRadius:4, padding:"2px 8px", whiteSpace:"nowrap" }}>{t}</span>
+                                    ))}
+                                    <span style={{ fontSize:10, color:"#64748b", marginTop:4 }}>
+                                      Est. CAGR {rec.cagr}%/yr
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                          {s.mktCap==="mid" && (
-                            <span style={{ fontSize:9, background:"rgba(251,146,60,0.1)", border:"1px solid rgba(251,146,60,0.25)",
-                              color:"#fb923c", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Mid</span>
-                          )}
-                          {s.mktCap==="small" && (
-                            <span style={{ fontSize:9, background:"rgba(244,114,182,0.1)", border:"1px solid rgba(244,114,182,0.25)",
-                              color:"#f472b6", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Small</span>
-                          )}
-                          {s.isBank && (
-                            <span style={{ fontSize:9, background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)",
-                              color:"#a78bfa", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>Bank</span>
-                          )}
-                        </td>
-                        <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
-                          whiteSpace:"nowrap", color:"#e2e8f0", fontSize:12 }}>{s.name}</td>
-                        <td className="td">
-                          <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
-                            borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
-                        </td>
-                        <td className="td" style={{ textAlign:"right" }}>
-                          <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
-                        </td>
-                        <td className="td" style={{ textAlign:"right" }}>
-                          <ScanPill value={s.peg.toFixed(2)} color={pegC(s.peg)} />
-                        </td>
-                        <td className="td" style={{ textAlign:"right" }}>
-                          <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
-                        </td>
-                        <td className="td" style={{ textAlign:"right" }}>
-                          {s.isBank
-                            ? <span style={{ fontSize:11, color:"#475569", fontStyle:"italic" }}>Bank*</span>
-                            : <ScanPill value={`${s.de}×`} color={deC(s.de)} />}
-                        </td>
-                        <td className="td" style={{ textAlign:"right" }}>
-                          <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
-                        </td>
-                        <td className="td" style={{ textAlign:"right",
-                          color: s.divYield>=4?"#22c55e":s.divYield>=2?"#fbbf24":s.divYield>0?"#94a3b8":"#334155",
-                          fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
-                          {s.divYield>0?`${s.divYield}%`:"—"}
-                        </td>
-                        <td className="td" style={{ textAlign:"right",
-                          color: s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
-                          fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
-                          {s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`}
-                        </td>
-                        <td className="td" style={{ textAlign:"center" }}>
-                          <div style={{ width:38, height:38, borderRadius:"50%",
-                            border:`2.5px solid ${sC(s.score)}`,
-                            background:`${sC(s.score)}12`, display:"inline-flex",
-                            alignItems:"center", justifyContent:"center",
-                            fontSize:11, fontWeight:800, color:sC(s.score),
-                            fontFamily:"'JetBrains Mono',monospace" }}>
-                            {s.score}
-                          </div>
-                        </td>
-                        <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
-                          maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                          {s.moat}
-                        </td>
-                      </tr>
-                    ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

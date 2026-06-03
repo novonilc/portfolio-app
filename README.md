@@ -13,6 +13,7 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | Ideas & curated recommendations | ✓ | ✓ |
 | Options Calculator (CC + CSP) | ✓ | ✓ |
 | 📊 Spread Scanner (daily auto-refresh, 5:30 PM ET (after close)) | ✓ | ✓ |
+| 🔎 Stock Scanner (79 stocks, 9 presets, Ideas integration, daily refresh) | ✓ | ✓ |
 | 📰 BNN Bloomberg Market Call Picks | ✓ | ✓ |
 | Investor Profile | ✓ | ✓ |
 | ☁️ Automatic cloud sync (multi-device) | ✓ | ✓ |
@@ -50,6 +51,7 @@ Then open `http://localhost:5173`.
 - [File Structure](#file-structure)
 - [Customizing for Your Portfolio](#customizing-for-your-portfolio)
 - [Updating Curated Data](#updating-curated-data)
+- [Stock Scanner](#stock-scanner)
 - [Data Backup and Portability](#data-backup-and-portability)
 - [Investor Profile](#investor-profile)
 - [Broker CSV Import](#broker-csv-import)
@@ -70,6 +72,7 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
 > **Recent changes:**
+> - **🔎 Stock Scanner + Ideas Integration** — a new tab covering 79 stocks (US large/mega-cap, US mid/small-cap, and Canadian TSX) with 9 preset screens (Buffett Zone, GARP, Income Quality, Deep Value, Compounders, Mid & Small, Ideas Picks, Canadian Value, Show All), 7 custom filter sliders, a Value Score (0–100), and Market Cap badges. The **Ideas Picks** preset shows only stocks curated in the Ideas tab; clicking any Ideas-linked row expands an inline thesis panel with the full investment thesis, risk factors, tags, and CAGR estimate. Data refreshes daily at 6AM Vancouver via GitHub Actions — no API key or manual update required.
 > - **📊 Vertical Spread Scanner** — a new sub-tab in Options that scores 69 liquid tickers daily for vertical spread suitability. Computes RSI (14), MACD (12/26/9), SMA 50 & 200, 20-day VWAP, and volume ratio from 1 year of daily data. Each ticker gets a 0–100 spread score and a recommendation: Bull Put Spread, Bear Call Spread, Iron Condor, Caution, or Skip. Refreshes automatically every day at 5:30 PM ET (after close) via Vercel Cron. Included in both Basic and Pro.
 > - **📰 BNN Bloomberg Market Call Picks** — expert analyst buy/hold/sell calls from BNN Bloomberg's daily Market Call segment, parsed and structured by Claude AI each weekday morning. Organised into Canadian stocks, US stocks, and ETFs. Included in both plans.
 > - **📖 Help tab & onboarding gate** — a full in-app guide covering every tab, TFSA/RRSP strategy, Basic vs Pro features, and 7 best practices. New users land on the Help tab automatically and cannot access other tabs until they click "Start using the app →". Returning users go straight to Dashboard.
@@ -325,6 +328,64 @@ Each horizon has three scenario cards — Bull, Base, Bear — each showing prob
 
 ---
 
+### Stock Scanner Tab
+
+A fundamental screener covering **79 stocks** (US large/mega-cap, US mid/small-cap, and Canadian TSX names) designed to surface quality businesses at the right price.
+
+**9 one-click preset screens:**
+
+| Preset | Filter logic | Best for finding |
+|---|---|---|
+| 🏛️ Buffett Zone | PE ≤ 22, ROE ≥ 15%, D/E ≤ 1.0, EPS growth ≥ 5% | Quality at fair price — the Berkshire approach |
+| 📈 GARP | PE ≤ 55, PEG ≤ 1.5, ROE ≥ 15%, EPS growth ≥ 15% | Growth at a reasonable price |
+| 💰 Income Quality | PE ≤ 22, div yield ≥ 3%, EPS growth ≥ 3% | Sustainable high-yield dividend payers |
+| 🔎 Deep Value | PE ≤ 13, FCF yield ≥ 5% | Very cheap on free cash flow |
+| 🚀 Compounders | PE ≤ 45, ROE ≥ 25%, D/E ≤ 0.7, EPS growth ≥ 8% | High-return businesses that reinvest well |
+| 🎯 Mid & Small | mktCap = mid/small | $300M–$10B stocks, often under-followed by analysts |
+| 💡 Ideas Picks | ideasOnly = true | Only the 11 stocks that also appear in the Ideas tab |
+| 🍁 Canadian Value | PE ≤ 18, div yield ≥ 3%, market = CA | TSX names for TFSA / RRSP |
+
+**Custom filters:** 7 sliders (Max P/E, Max PEG, Min ROE, Max D/E, Min Div Yield, Min FCF Yield, Min EPS Growth) plus Market, Sector, and Market Cap dropdowns. Sliders update live; any change switches the preset indicator to "custom".
+
+**Value Score (0–100):** Each stock is scored across six dimensions:
+- PEG ratio (0–25 pts) — most weight; rewards paying fair price for growth
+- FCF Yield (0–20 pts) — real, hard-to-fake cash generation
+- Return on Equity (0–20 pts) — business quality and moat signal
+- D/E Ratio (0–15 pts) — balance sheet safety (skipped for banks)
+- Gross Margin (0–10 pts) — pricing power proxy
+- EPS Growth (0–10 pts) — earnings momentum
+
+Score ≥ 75 = green, 50–74 = yellow, < 50 = red. Bank stocks receive a neutral 8/15 pts for D/E since leverage is structural for financial institutions.
+
+**Column badges:**
+- `CA` — Canadian-listed ticker (TSX / no US WHT)
+- `Mid` / `Small` — market cap category
+- `Bank` — financial institution (D/E filter excluded)
+- `💡 High` — stock is in the curated Ideas tab with High conviction
+- `TFSA` / `RRSP` — recommended account from Ideas tab
+
+**Ideas integration:** The 11 stocks that appear in both the scanner and the Ideas tab (ARM, AXON, BRK.B, COST, ENB, ISRG, NVO, RTX, SHOP, SU.TO, V) show a gold left border and `💡 High` / account badges. Clicking any of these rows expands an inline **thesis panel** showing:
+- The full investment thesis from `recommendations.json`
+- Risk factors (up to 3)
+- Relevant tags (e.g. `GLP-1`, `NATO Mandate`, `AI`)
+- Estimated CAGR from the curated recommendation
+
+Click the same row again to collapse the panel.
+
+**Daily data refresh:** A GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) runs every day at 6AM Vancouver time (13:00 UTC). It fetches live P/E, forward P/E, EPS growth, ROE, D/E, dividend yield, FCF yield, and gross margin from Yahoo Finance for all 79 tickers and commits the updated `src/data/stockUniverse.json`. This triggers a Vercel auto-deploy, so the scanner always shows yesterday's closing fundamentals. No API key or manual update required.
+
+**Manual refresh:**
+
+```bash
+npm run refresh-scanner
+```
+
+Runs `scripts/refresh-scanner.mjs` locally against Yahoo Finance. Outputs ✓/✗ per ticker and writes `src/data/stockUniverse.json`.
+
+**Updating the stock universe:** Edit `src/data/stockUniverse.json` directly. See [Updating Curated Data — stockUniverse.json](#updating-stockuniversejson) below for the full field reference.
+
+---
+
 ### Custom Portfolios
 Beyond TFSA and RRSP, create portfolios for any account type.
 
@@ -448,7 +509,7 @@ curl -X POST https://your-app.vercel.app/api/refresh-pulse \
 The app has six tabs that work best in a specific order. Follow this loop each time you sit down to manage your portfolio:
 
 ```
-Market Pulse → Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
+Market Pulse → Scanner (research) → Dashboard → Edit Targets → Rebalance → DCA Plan → Ideas (when adding new positions)
 ```
 
 **Start on Market Pulse.** Check the regime label and Risk-On/Risk-Off score before doing anything else. If the outlook is "Cautious Bull" or "Risk-Off", bias toward a longer DCA window and keep more cash in reserve. If the Action Center has High-priority Buy actions, those are the highest-conviction moves for the current regime.
@@ -757,6 +818,7 @@ From the project root:
 - `npm run dev` — start the local development server
 - `npm run build` — produce a production build in `dist/`
 - `npm run preview` — locally preview the production build
+- `npm run refresh-scanner` — fetch live fundamentals from Yahoo Finance and update `src/data/stockUniverse.json` (runs `scripts/refresh-scanner.mjs`; no API key required)
 
 Typical production verification flow:
 
@@ -894,6 +956,11 @@ portfolio-app/
 ├── vercel.json           # Vercel config — rewrites, cron schedule
 ├── index.html            # Entry point
 ├── vite.config.js        # Vite configuration
+├── .github/
+│   └── workflows/
+│       └── refresh-scanner.yml   # Daily 6AM cron — fetches live fundamentals, commits updated JSON
+├── scripts/
+│   └── refresh-scanner.mjs       # Node 18+ script — Yahoo Finance fetcher for stock scanner data
 ├── api/
 │   ├── claude.js         # AI proxy — validates license, rate-limits, forwards to Anthropic
 │   ├── blob-save.js      # Cloud sync write — per-user portfolio storage
@@ -902,13 +969,14 @@ portfolio-app/
 │   └── pulse-load.js     # Public read endpoint — serves latest scheduled pulse
 └── src/
     ├── main.jsx          # React root mount
-    ├── App.jsx           # Entire application (~8,500 lines)
+    ├── App.jsx           # Entire application (~11,000 lines)
     └── data/
         ├── recommendations.json   # Ideas tab — curated stock/ETF analysis
-        └── marketPulse.json       # Market Pulse tab — baseline/fallback data
+        ├── marketPulse.json       # Market Pulse tab — baseline/fallback data
+        └── stockUniverse.json     # Stock Scanner — 79 stocks with fundamental metrics
 ```
 
-The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in two JSON files under `src/data/` so it can be updated without touching application code. API routes under `api/` are Vercel serverless functions. `App.jsx` is currently ~8,500 lines; the most recently modified sections are the Help tab guide, tab-lock onboarding gate, startup pulse load from Vercel Blob, and the scheduled cron refresh endpoint.
+The app is intentionally monolithic — no component splitting, no API layer. Curated content lives in JSON files under `src/data/` so it can be updated without touching application code. API routes under `api/` are Vercel serverless functions. The stock scanner's data is refreshed daily by a GitHub Actions workflow that commits to the repo, triggering a Vercel auto-deploy.
 
 In-depth feature guides live in `docs/`:
 
@@ -916,6 +984,7 @@ In-depth feature guides live in `docs/`:
 docs/
 ├── broker-import.md              # Wealthsimple CSV import walkthrough
 ├── market-pulse.md               # Market Pulse — scheduled refresh + manual AI + Action Center
+├── spread-scanner.md             # Spread Scanner — signals, scoring, how to read recommendations
 ├── canadian-tax-optimization.md  # TFSA vs RRSP placement guide with worked examples
 ├── investor-profile.md           # Risk tolerance and goal questionnaire
 └── data-customization.md         # Editing recommendations.json and marketPulse.json
@@ -1185,6 +1254,95 @@ Include 4–8 entries covering the most market-moving headlines since the last u
 | After major earnings season | Regime description, sentiment signals, catalysts list, `newsSignals` |
 | Significant geopolitical shift | `regime`, `riskMeter`, bear catalysts, portfolio implication actions |
 | Quarterly | Full review of 6-month outlook scenarios and `portfolioImplication.actions` — ensure tickers still reflect current holdings |
+
+---
+
+## Stock Scanner
+
+### Updating `src/data/stockUniverse.json`
+
+This file powers the **Stock Scanner tab**. It is updated automatically each day by the GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) which fetches live data from Yahoo Finance. You can also edit it manually or run the refresh locally.
+
+#### File structure
+
+```json
+{
+  "lastUpdated": "Jun 2026",
+  "note": "Approximate fundamental data for screening purposes.",
+  "stocks": [ ... ]
+}
+```
+
+#### Stock object fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `ticker` | string | Uppercase. For TSX stocks use the exchange suffix (e.g. `"SU.TO"`). |
+| `name` | string | Full company name |
+| `sector` | string | Used for the Sector dropdown filter (e.g. `"Technology"`, `"Energy"`, `"Financials"`) |
+| `market` | `"US"` \| `"CA"` | Drives the CA badge and Market dropdown filter |
+| `pe` | number | Trailing 12-month P/E ratio |
+| `fwdPe` | number | Forward P/E (next 12 months consensus) |
+| `epsGrowth` | number | Year-over-year EPS growth as a percentage (e.g. `20` = +20%) |
+| `roe` | number | Return on equity as a percentage (e.g. `25` = 25%) |
+| `de` | number | Debt-to-equity ratio (e.g. `0.5`). Banks are flagged via `isBank: true` and excluded from the D/E filter. |
+| `divYield` | number | Annual dividend yield as a percentage (e.g. `3.8` = 3.8%). Use `0` for no dividend. |
+| `fcfYield` | number | Free cash flow yield as a percentage — FCF / market cap × 100 |
+| `grossMargin` | number | Gross margin as a percentage (e.g. `58` = 58%) |
+| `moat` | string | One-line competitive advantage description shown in the table |
+| `peg` | number | Price/Earnings to Growth ratio — `pe ÷ epsGrowth`. Recalculated on each refresh. |
+| `mktCap` | `"mega"` \| `"large"` \| `"mid"` \| `"small"` | Market cap category. Mega > $200B, Large $10–200B, Mid $2–10B, Small $300M–2B. |
+| `isBank` | boolean | `true` for banks and financial institutions. Skips D/E filter and substitutes a neutral score. |
+
+#### Adding a new stock
+
+Append a new object to the `stocks` array:
+
+```json
+{
+  "ticker": "CSWI",
+  "name": "CSW Industrials",
+  "sector": "Industrials",
+  "market": "US",
+  "pe": 34,
+  "fwdPe": 28,
+  "epsGrowth": 18,
+  "roe": 22,
+  "de": 0.3,
+  "divYield": 0.3,
+  "fcfYield": 2.8,
+  "grossMargin": 46,
+  "moat": "Niche Industrial Products",
+  "peg": 1.89,
+  "mktCap": "mid",
+  "isBank": false
+}
+```
+
+> **PEG check:** always verify `peg = pe / epsGrowth`. A PEG ≤ 1.5 is the key signal for the GARP preset.
+
+#### Running the refresh manually
+
+```bash
+# Fetches live data from Yahoo Finance for all tickers and overwrites stockUniverse.json
+npm run refresh-scanner
+```
+
+Requires Node.js 18+ (uses built-in `fetch`). The script:
+1. Reads the current `stocks` array to get the ticker list
+2. Calls Yahoo Finance `quoteSummary` for each ticker (350ms delay between requests)
+3. Maps `trailingPE`, `forwardPE`, `earningsGrowth`, `returnOnEquity`, `debtToEquity`, `dividendYield`, `grossMargins`, and `freeCashflow/marketCap` to the JSON fields
+4. Preserves `ticker`, `name`, `sector`, `market`, `moat`, `mktCap`, `isBank` — these are never overwritten by the script
+5. Recalculates `peg = pe / epsGrowth`
+6. Updates `lastUpdated` to the current month/year
+
+If Yahoo Finance returns `null` for a field (e.g. a new IPO with no earnings), the existing value in the JSON is kept.
+
+#### Why the daily GitHub Actions refresh matters
+
+The scanner's value comes from current data. A P/E of 15 means something different when earnings were reported yesterday vs. three months ago. The workflow runs at 13:00 UTC (6AM Vancouver PDT) before North American markets open, so by the time you check the scanner each morning the data reflects yesterday's closing prices and the most recently reported fundamentals.
+
+The workflow uses `GITHUB_TOKEN` (automatically provided by Actions — no PAT or app connection required) to commit the updated JSON and push to `main`. Vercel detects the push and auto-deploys within ~2 minutes.
 
 ---
 
