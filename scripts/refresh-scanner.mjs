@@ -216,6 +216,7 @@ async function fetchFundamentals(ticker) {
   const rawGm    = fd.grossMargins?.raw;
   const rawFcf   = fd.freeCashflow?.raw;
   const rawMcap  = sd.marketCap?.raw;
+  const rawPrice = fd.currentPrice?.raw ?? sd.regularMarketPrice?.raw ?? sd.previousClose?.raw;
 
   const pe          = rawPe    != null ? r1(rawPe)               : null;
   const fwdPe       = rawFwdPe != null ? r1(rawFwdPe)            : null;
@@ -228,8 +229,9 @@ async function fetchFundamentals(ticker) {
                       ? r1((rawFcf / rawMcap) * 100) : null;
   const peg         = (pe != null && epsGrowth != null && epsGrowth > 0)
                       ? r2(pe / epsGrowth) : null;
+  const price       = rawPrice != null ? r2(rawPrice)            : null;
 
-  return { pe, fwdPe, epsGrowth, roe, de, divYield, grossMargin, fcfYield, peg };
+  return { pe, fwdPe, epsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
 }
 
 async function main() {
@@ -255,6 +257,7 @@ async function main() {
         isBank:      BANK_TICKERS.has(base.ticker),
         moat:        CURATED_MOATS[base.ticker] || '',
         // Live fundamentals (fall back to 0 when Yahoo returns nothing)
+        price:       live.price       ?? 0,
         pe:          live.pe          ?? 0,
         fwdPe:       live.fwdPe       ?? 0,
         epsGrowth:   live.epsGrowth   ?? 0,

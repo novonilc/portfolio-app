@@ -882,6 +882,42 @@ function ScanPill({ value, color }) {
     </span>
   );
 }
+// Fair-price engine ─────────────────────────────────────────────────────────────
+// Returns estimated intrinsic value using two methods:
+//   Growth stocks  (epsGrowth ≥ 5) : Lynch PEG — Fair PE = growth × targetPEG
+//   Income stocks  (divYield > 2%)  : Div-yield normalisation — Fair = div$ / targetYield
+// targetPEG rises with quality (ROE + gross margin) to reward durable moats.
+function computeScanFairPrice(s) {
+  if (!s.price || s.price <= 0 || !s.pe || s.pe <= 0) return null;
+  const eps = s.price / s.pe;
+  const g   = Math.max(1, Math.min(s.epsGrowth || 0, 50));  // floor 1, cap 50
+
+  // Income / pipeline / bank → dividend-yield normalisation
+  if (g < 5 && (s.divYield || 0) > 2) {
+    const targetYield = s.isBank ? 5.5 : g < 3 ? 4.5 : 4.0;
+    return Math.round(s.price * ((s.divYield || 0) / targetYield) * 100) / 100;
+  }
+
+  // Growth stocks — Lynch PEG method
+  const highQ  = (s.roe || 0) >= 25 && (s.grossMargin || 0) >= 55;
+  const midQ   = (s.roe || 0) >= 15 && (s.grossMargin || 0) >= 40;
+  const tPEG   = highQ ? 1.5 : midQ ? 1.2 : 1.0;
+  const fairPE = Math.min(g * tPEG, 65);
+  return Math.round(eps * fairPE * 100) / 100;
+}
+function computeScanUpside(s) {
+  const fair = computeScanFairPrice(s);
+  if (!fair || !s.price || s.price <= 0) return null;
+  return Math.round((fair - s.price) / s.price * 100);
+}
+function scanSignal(upside, score) {
+  if (upside === null) return null;
+  if (upside >= 25 && score >= 60) return { label:"Strong Buy", color:"#22c55e", icon:"⬆" };
+  if (upside >= 12 && score >= 48) return { label:"Buy",        color:"#86efac", icon:"↑"  };
+  if (upside >= 0  && score >= 38) return { label:"Watch",      color:"#fbbf24", icon:"→"  };
+  if (upside < -20)                return { label:"Expensive",  color:"#ef4444", icon:"↓"  };
+  return                                  { label:"Hold",       color:"#64748b", icon:"–"  };
+}
 // ──────────────────────────────────────────────────────────────────────────────
 
 function AppLogo() {
@@ -10369,7 +10405,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (f.mktCap === "small" && s.mktCap !== "small") return false;
           if (f.mktCap === "large+" && !["large","mega"].includes(s.mktCap)) return false;
           return true;
-        }).map(s => ({ ...s, score: computeScanScore(s) }));
+        }).map(s => {
+          const score     = computeScanScore(s);
+          const fairPrice = computeScanFairPrice(s);
+          const upside    = computeScanUpside(s);
+          const signal    = scanSignal(upside, score);
+          return { ...s, score, fairPrice, upside, signal };
+        });
 
         const sortedFiltered = [...filtered].sort((a, b) => {
           const av = a[scanSort.col], bv = b[scanSort.col];
@@ -10587,6 +10629,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("divYield","Div %")}
                       {th("epsGrowth","EPS Grw")}
                       {th("score","Score")}
+                      {th("price","Price")}
+                      {th("fairPrice","Fair Buy")}
+                      {th("upside","Upside")}
                       {th("moat","Moat / Edge")}
                     </tr>
                   </thead>
@@ -10684,8 +10729,42 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 {s.score}
                               </div>
                             </td>
+                            {/* Price */}
+                            <td className="td" style={{ textAlign:"right", whiteSpace:"nowrap",
+                              color:"#cbd5e1", fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                              {s.price > 0
+                                ? `$${s.price < 10 ? s.price.toFixed(2) : s.price < 100 ? s.price.toFixed(1) : Math.round(s.price)}`
+                                : <span style={{ color:"#334155" }}>—</span>}
+                            </td>
+                            {/* Fair Buy */}
+                            <td className="td" style={{ textAlign:"right", whiteSpace:"nowrap" }}>
+                              {s.fairPrice
+                                ? <span style={{ fontWeight:700, color:
+                                    (s.upside??0) >= 12 ? "#22c55e" : (s.upside??0) >= 0 ? "#fbbf24" : "#ef4444",
+                                    fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
+                                    ${s.fairPrice < 10 ? s.fairPrice.toFixed(2) : s.fairPrice < 100 ? s.fairPrice.toFixed(1) : Math.round(s.fairPrice)}
+                                  </span>
+                                : <span style={{ color:"#334155", fontSize:10 }}>—</span>}
+                            </td>
+                            {/* Upside + Signal */}
+                            <td className="td" style={{ textAlign:"center", whiteSpace:"nowrap" }}>
+                              {s.signal
+                                ? <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                    <span style={{ fontSize:10, fontWeight:800,
+                                      color: s.signal.color,
+                                      fontFamily:"'JetBrains Mono',monospace" }}>
+                                      {(s.upside??0) >= 0 ? `+${s.upside}%` : `${s.upside}%`}
+                                    </span>
+                                    <span style={{ fontSize:9, background:`${s.signal.color}18`,
+                                      border:`1px solid ${s.signal.color}44`, borderRadius:4,
+                                      padding:"0 5px", color:s.signal.color, fontWeight:700 }}>
+                                      {s.signal.icon} {s.signal.label}
+                                    </span>
+                                  </div>
+                                : <span style={{ color:"#334155", fontSize:10 }}>—</span>}
+                            </td>
                             <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
-                              maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                              maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {s.moat}
                               {rec && <span style={{ color:"rgba(255,255,255,0.2)", marginLeft:6 }}>▾ thesis</span>}
                             </td>
@@ -10694,7 +10773,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {/* Expanded thesis panel */}
                           {isExpanded && rec && (
                             <tr style={{ background:"rgba(251,191,36,0.04)", borderLeft:"2px solid rgba(251,191,36,0.4)" }}>
-                              <td colSpan={12} style={{ padding:"14px 20px 16px" }}>
+                              <td colSpan={15} style={{ padding:"14px 20px 16px" }}>
                                 <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:16, alignItems:"start" }}>
                                   <div>
                                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
@@ -10740,6 +10819,65 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <p style={{ fontSize:10, color:"rgba(255,255,255,0.18)", marginTop:8, fontStyle:"italic" }}>
               * Banks: D/E excluded from filter and score (leverage is structural).  — = data pending next 6AM refresh (auto-populated daily by GitHub Actions).
             </p>
+
+            {/* Fair Price Method Explainer */}
+            <div className="card" style={{ marginTop:28, borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.03)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
+                <span style={{ fontSize:18 }}>🎯</span>
+                <div style={{ fontSize:13, fontWeight:700, color:"#f1f5f9" }}>How "Fair Buy" Price Is Calculated</div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
+                <div style={{ borderLeft:"2px solid #22c55e44", paddingLeft:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
+                    Growth Stocks <span style={{ fontSize:10, color:"#64748b" }}>(EPS growth ≥ 5%)</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
+                    background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
+                    Fair PE = EPS Growth% × Target PEG<br/>
+                    Fair Price = (Current Price ÷ P/E) × Fair PE
+                  </div>
+                  <div style={{ fontSize:11, color:"#64748b", lineHeight:1.6 }}>
+                    Based on Peter Lynch's rule that a stock is fairly valued when P/E ≈ EPS growth rate (PEG = 1.0).
+                    High-quality businesses (ROE ≥ 25% + gross margin ≥ 55%) get a target PEG of 1.5 because
+                    their moats justify paying a premium.
+                  </div>
+                  <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {[["Premium quality","1.5×","ROE ≥ 25% + margin ≥ 55%","#22c55e"],["Quality","1.2×","ROE ≥ 15% + margin ≥ 40%","#fbbf24"],["Standard","1.0×","everything else","#94a3b8"]].map(([tier,peg,cond,col])=>(
+                      <span key={tier} style={{ fontSize:10, background:`${col}12`, border:`1px solid ${col}33`,
+                        color:col, borderRadius:5, padding:"2px 8px" }}>
+                        {tier}: PEG {peg} <span style={{ opacity:0.6 }}>({cond})</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderLeft:"2px solid #22d3ee44", paddingLeft:12 }}>
+                  <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
+                    Income Stocks <span style={{ fontSize:10, color:"#64748b" }}>(div yield &gt; 2%, EPS growth &lt; 5%)</span>
+                  </div>
+                  <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
+                    background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
+                    Fair Price = Current Price × (Div Yield% ÷ Target Yield%)
+                  </div>
+                  <div style={{ fontSize:11, color:"#64748b", lineHeight:1.6 }}>
+                    For pipelines, banks, utilities, and other yield-focused businesses that grow slowly,
+                    intrinsic value is better anchored to dividend yield than earnings growth.
+                    The target yield accounts for credit quality and sector risk.
+                  </div>
+                  <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
+                    {[["Banks","5.5%","#a78bfa"],["Pipelines / slow growth","4.5%","#22d3ee"],["Quality dividend","4.0%","#fbbf24"]].map(([tier,y,col])=>(
+                      <span key={tier} style={{ fontSize:10, background:`${col}12`, border:`1px solid ${col}33`,
+                        color:col, borderRadius:5, padding:"2px 8px" }}>
+                        {tier}: target {y}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div style={{ marginTop:12, fontSize:10, color:"rgba(255,255,255,0.18)", borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:10 }}>
+                ⚠ Fair Price is a model estimate using reported trailing earnings and analyst growth rates — not a price target, not financial advice.
+                Prices update daily via the GitHub Actions cron. Signal thresholds: Strong Buy = Upside ≥ 25% + Score ≥ 60 · Buy = ≥ 12% + ≥ 48 · Watch = ≥ 0% + ≥ 38 · Expensive = &lt; −20%.
+              </div>
+            </div>
 
             {/* How Score is Calculated */}
             <div className="card" style={{ marginTop:28 }}>
