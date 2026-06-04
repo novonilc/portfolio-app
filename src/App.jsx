@@ -1339,7 +1339,7 @@ export default function App() {
     if (socialTrending.length > 0) return;
     setSocialTrendLoad(true);
     setSocialTrendErr(null);
-    fetch("https://api.stocktwits.com/api/2/trending/symbols.json")
+    fetch("/api/stocktwits?path=trending/symbols")
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setSocialTrending(d.symbols || []))
       .catch(e => setSocialTrendErr(e.message))
@@ -3000,7 +3000,7 @@ Return ONLY a valid JSON object, no markdown:
     setSocialError(null);
     setSocialData(null);
     try {
-      const r = await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${sym}.json`);
+      const r = await fetch(`/api/stocktwits?path=streams/symbol/${sym}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const d = await r.json();
       setSocialData(d);
