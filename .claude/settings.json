@@ -22,7 +22,10 @@
       "Bash(curl -s --max-time 8 https://finance.yahoo.com/ -H 'User-Agent: Mozilla/5.0' -c /tmp/yf_cookies.txt -o /dev/null -w 'cookie_status:%{http_code}\\\\n')",
       "Bash(curl -s --max-time 8 https://query1.finance.yahoo.com/v1/test/getcrumb -H 'User-Agent: Mozilla/5.0' -b /tmp/yf_cookies.txt)",
       "Bash(curl -s \"https://raw.githubusercontent.com/datasets/s-and-p-500-companies/main/data/constituents.csv\" > /tmp/sp500.csv *)",
-      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node scripts/seed-prices.mjs)"
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node scripts/seed-prices.mjs)",
+      "Bash(git rebase *)",
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node scripts/rebuild-universe.mjs)",
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node -)"
     ],
     "additionalDirectories": [
       "/tmp"
