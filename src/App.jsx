@@ -847,15 +847,15 @@ function SortTh({ col, label, sort, onSort, style, className }) {
 
 // ─── Stock Scanner ────────────────────────────────────────────────────────────
 const SCAN_PRESET_FILTERS = {
-  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, market:"all", sector:"all", mktCap:"all", ideasOnly:false },
-  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
-  ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, market:"all", sector:"all", mktCap:"all", ideasOnly:true  },
-  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, market:"CA",  sector:"all", mktCap:"all", ideasOnly:false },
+  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,minGrossMargin:40, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, minGrossMargin:40, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
+  ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
+  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
@@ -1010,10 +1010,20 @@ export default function App() {
     }
     navigateTo(dest);
   }
-  const [scanPreset,   setScanPreset]  = useState("all");
-  const [scanFilters,  setScanFilters] = useState({ ...SCAN_PRESET_FILTERS.all });
-  const [scanSort,     setScanSort]    = useState({ col:"valueScore", dir:"desc" });
-  const [scanExpanded, setScanExpanded]= useState(null);
+  const [scanPreset,    setScanPreset]    = useState("all");
+  const [scanFilters,   setScanFilters]   = useState({ ...SCAN_PRESET_FILTERS.all });
+  const [scanCommitted, setScanCommitted] = useState({ ...SCAN_PRESET_FILTERS.all });
+  const [scanDirty,     setScanDirty]     = useState(false);
+  const [scanSort,      setScanSort]      = useState({ col:"score", dir:"desc" });
+  const [scanExpanded,  setScanExpanded]  = useState(null);
+  const [scanSearch,    setScanSearch]    = useState("");
+  const [scanMinUpside, setScanMinUpside] = useState(-100);
+  const [scanMinScore,  setScanMinScore]  = useState(0);
+  const [scanSigFilter, setScanSigFilter] = useState("all");
+  const [stockScanResults,  setStockScanResults]  = useState(null);
+  const [stockScanProgress, setStockScanProgress] = useState(null);
+  const [stockScanError,    setStockScanError]    = useState(null);
+  const stockScanAbortRef = useRef(null);
   const [addForm,          setAddForm]         = useState(null);
   const [recFilter,        setRecFilter]       = useState("all");
   const [pendingRemove,    setPendingRemove]   = useState(null);
@@ -2800,6 +2810,65 @@ Return ONLY a valid JSON object, no markdown:
       });
       setSpreadScanProgress(null);
     }
+  }
+
+  // ── Stock universe live scan ───────────────────────────────────────────
+  async function runStockScan() {
+    if (stockScanAbortRef.current) stockScanAbortRef.current.abort();
+    const ac = new AbortController();
+    stockScanAbortRef.current = ac;
+
+    const tickers = stockUniverseData.stocks.map(s => s.ticker);
+    setStockScanError(null);
+    setStockScanProgress({ done: 0, total: tickers.length, ticker: tickers[0] });
+
+    const results = [];
+    const BATCH = 5;
+
+    for (let i = 0; i < tickers.length; i += BATCH) {
+      if (ac.signal.aborted) break;
+      const batch = tickers.slice(i, i + BATCH);
+
+      const batchResults = await Promise.allSettled(
+        batch.map(async ticker => {
+          const url = `/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&interval=1d&range=5d`;
+          const res = await fetch(url, { signal: ac.signal });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const result = data.chart?.result?.[0];
+          if (!result) throw new Error("no data");
+          const closes = result.indicators?.quote?.[0]?.close || [];
+          const price = closes.filter(c => c != null).pop();
+          if (!price || price <= 0) throw new Error("no price");
+          return { ticker, price: parseFloat(price.toFixed(2)) };
+        })
+      );
+
+      batchResults.forEach(r => {
+        if (r.status === "fulfilled") results.push(r.value);
+        // silently skip tickers that failed (data not available on Yahoo)
+      });
+
+      if (!ac.signal.aborted) {
+        const done = Math.min(i + BATCH, tickers.length);
+        setStockScanProgress({ done, total: tickers.length, ticker: tickers[Math.min(i + BATCH, tickers.length - 1)] });
+      }
+
+      if (i + BATCH < tickers.length && !ac.signal.aborted) {
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    if (!ac.signal.aborted) {
+      if (!results.length) {
+        setStockScanError("Scan returned no prices — check network or try again.");
+      } else {
+        setStockScanResults({ stocks: results, lastUpdated: new Date().toISOString(), source: "live", count: results.length });
+        setScanCommitted({ ...scanFilters });
+        setScanDirty(false);
+      }
+    }
+    setStockScanProgress(null);
   }
 
   // ── FX helpers (close over usdCadRate state) ───────────────────────────
@@ -10357,14 +10426,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           TAB: SCANNER
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "scanner" && (() => {
-        const STOCKS = stockUniverseData.stocks;
+        // Merge live prices (from Scan Now) over the static JSON fundamentals
+        const liveMap = stockScanResults
+          ? Object.fromEntries(stockScanResults.stocks.map(r => [r.ticker, r.price]))
+          : {};
+        const STOCKS = stockUniverseData.stocks.map(s =>
+          liveMap[s.ticker] != null ? { ...s, price: liveMap[s.ticker] } : s
+        );
         const allSectors = ["all", ...Array.from(new Set(STOCKS.map(s => s.sector))).sort()];
-        const f = scanFilters;
+        // f = committed scan criteria (only updated when "Run Scan" is clicked)
+        const f = scanCommitted;
 
         // Build lookup for curated Ideas recommendations
         const REC_MAP = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 
-        const filtered = STOCKS.filter(s => {
+        // ── Main scan pass (uses committed filters) ──────────────────────────
+        const scanned = STOCKS.filter(s => {
           if (f.ideasOnly && !REC_MAP[s.ticker]) return false;
           // Null-safe: treat null as "does not satisfy" any min/max numeric filter
           if (f.maxPe < 120 && (s.pe == null || s.pe > f.maxPe)) return false;
@@ -10374,6 +10451,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (f.minDivY > 0 && ((s.divYield ?? 0) < f.minDivY)) return false;
           if (f.minFcfY > 0 && (s.fcfYield == null || s.fcfYield < f.minFcfY)) return false;
           if (f.minEpsG > 0 && s.epsGrowth < f.minEpsG) return false;
+          if ((f.minGrossMargin || 0) > 0 && (s.grossMargin == null || s.grossMargin < f.minGrossMargin)) return false;
           if (f.market !== "all" && s.market !== f.market) return false;
           if (f.sector !== "all" && s.sector !== f.sector) return false;
           if (f.mktCap === "mid-small" && !["mid","small"].includes(s.mktCap)) return false;
@@ -10387,6 +10465,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const upside    = computeScanUpside(s);
           const signal    = scanSignal(upside, score);
           return { ...s, score, fairPrice, upside, signal };
+        });
+
+        // ── Live result filters (instant, no re-scan needed) ─────────────────
+        const filtered = scanned.filter(s => {
+          if (scanSearch.trim()) {
+            const q = scanSearch.trim().toLowerCase();
+            if (!s.ticker.toLowerCase().includes(q) && !(s.name||"").toLowerCase().includes(q)) return false;
+          }
+          if (scanMinUpside > -100 && (s.upside == null || s.upside < scanMinUpside)) return false;
+          if (scanMinScore  > 0    && (s.score  == null || s.score  < scanMinScore))  return false;
+          if (scanSigFilter !== "all" && (!s.signal || s.signal.label !== scanSigFilter)) return false;
+          return true;
         });
 
         const sortedFiltered = [...filtered].sort((a, b) => {
@@ -10473,6 +10563,97 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               ))}
             </div>
 
+            {/* ── Scan Now card ────────────────────────────────────────────── */}
+            {(() => {
+              const isScanning = !!stockScanProgress;
+              const ss = stockScanResults;
+              return (
+                <div className="card" style={{ marginBottom:20, borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.03)" }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
+                    <div style={{ flex:1, minWidth:220 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
+                        Live Price Scan
+                      </div>
+                      <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
+                        Fetches the latest close price from Yahoo Finance for all {stockUniverseData.stocks.length} stocks,
+                        then recomputes Fair Buy and Upside with live data.
+                        Fundamental metrics (P/E, ROE, etc.) stay from the curated dataset — only price updates.
+                      </p>
+                      {/* Source + timestamp */}
+                      {ss && (
+                        <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:6 }}>
+                          <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)" }}>
+                            {ss.count} prices · {new Date(ss.lastUpdated).toLocaleString()}
+                          </span>
+                          <span style={{ fontSize:8, padding:"1px 6px", borderRadius:10,
+                            background:"rgba(34,197,94,0.12)", color:"#22c55e",
+                            border:"1px solid rgba(34,197,94,0.28)" }}>● Live</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Buttons */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                      <button
+                        onClick={isScanning
+                          ? () => { stockScanAbortRef.current?.abort(); setStockScanProgress(null); }
+                          : runStockScan}
+                        style={{
+                          fontSize:11, padding:"7px 18px", whiteSpace:"nowrap", cursor:"pointer",
+                          fontFamily:"inherit", fontWeight:700, borderRadius:8,
+                          background: isScanning ? "rgba(239,68,68,0.12)" : "rgba(34,197,94,0.12)",
+                          border: `1px solid ${isScanning ? "rgba(239,68,68,0.35)" : "rgba(34,197,94,0.35)"}`,
+                          color: isScanning ? "#ef4444" : "#22c55e",
+                        }}>
+                        {isScanning
+                          ? `⏹ Cancel (${stockScanProgress.done}/${stockScanProgress.total})`
+                          : "🔍 Scan Now"}
+                      </button>
+                      {ss && (
+                        <button
+                          onClick={() => setStockScanResults(null)}
+                          style={{ fontSize:10, padding:"4px 12px", whiteSpace:"nowrap", cursor:"pointer",
+                            fontFamily:"inherit", borderRadius:6,
+                            background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.1)",
+                            color:"rgba(255,255,255,0.35)" }}>
+                          ✕ Clear live data
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  {isScanning && (
+                    <div style={{ marginTop:14 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>
+                          Fetching{stockScanProgress.ticker ? ` ${stockScanProgress.ticker}` : ""}…
+                        </span>
+                        <span style={{ fontSize:10, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>
+                          {stockScanProgress.done} / {stockScanProgress.total}
+                        </span>
+                      </div>
+                      <div style={{ height:4, borderRadius:2, background:"rgba(255,255,255,0.07)" }}>
+                        <div style={{
+                          height:"100%", borderRadius:2, background:"#22c55e",
+                          width:`${(stockScanProgress.done / stockScanProgress.total) * 100}%`,
+                          transition:"width 0.4s ease",
+                        }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {stockScanError && !isScanning && (
+                    <div style={{ marginTop:10, padding:"8px 12px", background:"rgba(239,68,68,0.08)",
+                      border:"1px solid rgba(239,68,68,0.25)", borderRadius:8,
+                      fontSize:11, color:"#ef4444" }}>
+                      ⚠ {stockScanError}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Preset buttons */}
             <div style={{ marginBottom:16 }}>
               <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", color:"rgba(255,255,255,0.25)",
@@ -10481,7 +10662,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 {SCAN_PRESETS.map(({ key, icon, label, desc }) => (
                   <button key={key}
                     className={`tab-btn ${scanPreset===key?"on":""}`}
-                    onClick={() => { setScanPreset(key); setScanFilters({ ...SCAN_PRESET_FILTERS[key] }); }}
+                    onClick={() => {
+                      const pf = { ...SCAN_PRESET_FILTERS[key] };
+                      setScanPreset(key);
+                      setScanFilters(pf);
+                      setScanCommitted(pf);
+                      setScanDirty(false);
+                    }}
                     style={{ fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:6 }}>
                     <span>{icon}</span>
                     <span style={{ fontWeight:600 }}>{label}</span>
@@ -10501,7 +10688,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     preset: {SCAN_PRESETS.find(p=>p.key===scanPreset)?.label}
                   </span>
                 )}
-                <button onClick={() => { setScanPreset("all"); setScanFilters({ ...SCAN_PRESET_FILTERS.all }); }}
+                <button onClick={() => {
+                    const def = { ...SCAN_PRESET_FILTERS.all };
+                    setScanPreset("all");
+                    setScanFilters(def);
+                    setScanCommitted(def);
+                    setScanDirty(false);
+                  }}
                   style={{ marginLeft:"auto", fontSize:11, color:"#64748b", background:"none",
                     border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"3px 10px", cursor:"pointer" }}>
                   Reset all
@@ -10509,27 +10702,29 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:18 }}>
                 {[
-                  { key:"maxPe",   label:"Max P/E",        min:5,   max:120, step:1,   fmt: v => v>=120?"Any":`${v}×` },
-                  { key:"maxPeg",  label:"Max PEG",         min:0.5, max:5,   step:0.1, fmt: v => v>=5?"Any":v.toFixed(1) },
-                  { key:"minRoe",  label:"Min ROE",         min:0,   max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
-                  { key:"maxDe",   label:"Max D/E (non-bank)",min:0, max:5,   step:0.1, fmt: v => v>=5?"Any":`${v.toFixed(1)}×` },
-                  { key:"minDivY", label:"Min Div Yield",   min:0,   max:10,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
-                  { key:"minFcfY", label:"Min FCF Yield",   min:0,   max:12,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
-                  { key:"minEpsG", label:"Min EPS Growth",  min:0,   max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"maxPe",          label:"Max P/E",           min:5,  max:120, step:1,   fmt: v => v>=120?"Any":`${v}×` },
+                  { key:"maxPeg",         label:"Max Fwd PEG",        min:0.5,max:5,   step:0.1, fmt: v => v>=5?"Any":v.toFixed(1) },
+                  { key:"minRoe",         label:"Min ROE",            min:0,  max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"maxDe",          label:"Max D/E (non-bank)", min:0,  max:5,   step:0.1, fmt: v => v>=5?"Any":`${v.toFixed(1)}×` },
+                  { key:"minDivY",        label:"Min Div Yield",      min:0,  max:10,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minFcfY",        label:"Min FCF Yield",      min:0,  max:12,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minEpsG",        label:"Min EPS Growth",     min:0,  max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minGrossMargin", label:"Min Gross Margin",   min:0,  max:90,  step:5,   fmt: v => v<=0?"Any":`${v}%` },
                 ].map(({ key, label, min, max, step, fmt }) => {
-                  const val = Math.min(Math.max(f[key], min), max);
+                  const val = Math.min(Math.max(scanFilters[key] ?? 0, min), max);
                   return (
                     <div key={key}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
                         <span style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{label}</span>
-                        <span style={{ fontSize:11, fontWeight:700, color:accentColor,
-                          fontFamily:"'JetBrains Mono',monospace" }}>{fmt(f[key])}</span>
+                        <span style={{ fontSize:11, fontWeight:700, color: scanDirty ? "#fbbf24" : accentColor,
+                          fontFamily:"'JetBrains Mono',monospace" }}>{fmt(scanFilters[key] ?? 0)}</span>
                       </div>
                       <input type="range" min={min} max={max} step={step} value={val}
                         onChange={e => {
                           const nv = parseFloat(e.target.value);
                           const stored = key==="maxPe"&&nv>=120?120:key==="maxPeg"&&nv>=5?5:key==="maxDe"&&nv>=5?5:nv;
                           setScanPreset("custom");
+                          setScanDirty(true);
                           setScanFilters(prev => ({ ...prev, [key]: stored, ideasOnly:false }));
                         }} />
                     </div>
@@ -10537,8 +10732,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 })}
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market</div>
-                  <select value={f.market}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,market:e.target.value,ideasOnly:false})); }}
+                  <select value={scanFilters.market}
+                    onChange={e => { setScanPreset("custom"); setScanDirty(true); setScanFilters(prev=>({...prev,market:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     <option value="all">🌐 US + Canada</option>
@@ -10548,8 +10743,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Sector</div>
-                  <select value={f.sector}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,sector:e.target.value,ideasOnly:false})); }}
+                  <select value={scanFilters.sector}
+                    onChange={e => { setScanPreset("custom"); setScanDirty(true); setScanFilters(prev=>({...prev,sector:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     {allSectors.map(s => <option key={s} value={s}>{s==="all"?"All Sectors":s}</option>)}
@@ -10557,8 +10752,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
                 <div>
                   <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:5 }}>Market Cap</div>
-                  <select value={f.mktCap ?? "all"}
-                    onChange={e => { setScanPreset("custom"); setScanFilters(prev=>({...prev,mktCap:e.target.value,ideasOnly:false})); }}
+                  <select value={scanFilters.mktCap ?? "all"}
+                    onChange={e => { setScanPreset("custom"); setScanDirty(true); setScanFilters(prev=>({...prev,mktCap:e.target.value,ideasOnly:false})); }}
                     style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)",
                       color:"#f1f5f9", borderRadius:8, padding:"6px 10px", fontSize:12, width:"100%", cursor:"pointer" }}>
                     <option value="all">All sizes</option>
@@ -10569,12 +10764,89 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </select>
                 </div>
               </div>
+
+              {/* Run Scan button */}
+              <div style={{ marginTop:18, display:"flex", alignItems:"center", gap:12 }}>
+                <button
+                  onClick={() => { setScanCommitted({ ...scanFilters }); setScanDirty(false); }}
+                  style={{
+                    padding:"10px 28px", borderRadius:10, border:"none", cursor:"pointer",
+                    fontFamily:"inherit", fontWeight:800, fontSize:14,
+                    background: scanDirty ? "linear-gradient(135deg,#fbbf24,#f59e0b)" : "rgba(255,255,255,0.07)",
+                    color: scanDirty ? "#0d1117" : "#64748b",
+                    boxShadow: scanDirty ? "0 4px 16px rgba(251,191,36,0.35)" : "none",
+                    transition:"all 0.2s",
+                  }}>
+                  {scanDirty ? "▶ Run Scan" : "✓ Results current"}
+                </button>
+                {scanDirty && (
+                  <span style={{ fontSize:12, color:"#fbbf24", opacity:0.8 }}>
+                    Filters changed — click to update results
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Results header */}
+            {/* ── Live result filters ─────────────────────────────────────── */}
+            <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:14, alignItems:"center" }}>
+              {/* Ticker / name search */}
+              <input
+                value={scanSearch}
+                onChange={e => setScanSearch(e.target.value)}
+                placeholder="🔍 Search ticker or name…"
+                style={{ padding:"7px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.1)",
+                  background:"rgba(255,255,255,0.05)", color:"#f1f5f9", fontFamily:"inherit",
+                  fontSize:12, outline:"none", width:200 }}
+              />
+              {/* Min upside */}
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Min upside</span>
+                {[-100, 0, 12, 25].map(v => (
+                  <button key={v}
+                    onClick={() => setScanMinUpside(v)}
+                    style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${scanMinUpside===v?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+                      background: scanMinUpside===v?"rgba(251,191,36,0.12)":"rgba(255,255,255,0.04)",
+                      color: scanMinUpside===v?"#fbbf24":"#94a3b8", cursor:"pointer",
+                      fontFamily:"inherit", fontSize:11, fontWeight:700 }}>
+                    {v===-100?"Any":v===0?"≥ 0%":v===12?"≥ 12%":"≥ 25%"}
+                  </button>
+                ))}
+              </div>
+              {/* Min score */}
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Min score</span>
+                {[0, 40, 55, 70].map(v => (
+                  <button key={v}
+                    onClick={() => setScanMinScore(v)}
+                    style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${scanMinScore===v?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+                      background: scanMinScore===v?"rgba(251,191,36,0.12)":"rgba(255,255,255,0.04)",
+                      color: scanMinScore===v?"#fbbf24":"#94a3b8", cursor:"pointer",
+                      fontFamily:"inherit", fontSize:11, fontWeight:700 }}>
+                    {v===0?"Any":`≥ ${v}`}
+                  </button>
+                ))}
+              </div>
+              {/* Signal filter */}
+              <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Signal</span>
+                {[["all","All"],["Strong Buy","⬆ Strong Buy"],["Buy","↑ Buy"],["Watch","→ Watch"],["Expensive","↓ Expensive"]].map(([v,l]) => (
+                  <button key={v}
+                    onClick={() => setScanSigFilter(v)}
+                    style={{ padding:"4px 10px", borderRadius:6, border:`1px solid ${scanSigFilter===v?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+                      background: scanSigFilter===v?"rgba(251,191,36,0.12)":"rgba(255,255,255,0.04)",
+                      color: scanSigFilter===v?"#fbbf24":"#94a3b8", cursor:"pointer",
+                      fontFamily:"inherit", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Results count */}
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
               <span style={{ fontSize:14, fontWeight:700, color:"#f1f5f9" }}>
-                {sortedFiltered.length === 0 ? "No matches" : `${sortedFiltered.length} stock${sortedFiltered.length!==1?"s":""} found`}
+                {sortedFiltered.length === 0 ? "No matches" :
+                  `${sortedFiltered.length}${sortedFiltered.length !== scanned.length ? ` of ${scanned.length}` : ""} stock${sortedFiltered.length!==1?"s":""} found`}
               </span>
               {sortedFiltered.length > 0 &&
                 <span style={{ fontSize:11, color:"#475569" }}>Click column headers to sort</span>}
@@ -10818,53 +11090,59 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16 }}>
                 <div style={{ borderLeft:"2px solid #22c55e44", paddingLeft:12 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
-                    Growth Stocks <span style={{ fontSize:10, color:"#64748b" }}>(EPS growth ≥ 5%)</span>
+                    Growth Path <span style={{ fontSize:10, color:"#64748b" }}>(div yield ≤ 2.5% OR EPS growth &gt; 8%)</span>
                   </div>
                   <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
                     background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
-                    Fair PE = EPS Growth% × Target PEG<br/>
-                    Fair Price = (Current Price ÷ P/E) × Fair PE
+                    fwdEPS = Price ÷ Forward P/E<br/>
+                    Fair PE = max(EPS Growth × tPEG, minPE), capped at 65 and 2× fwd P/E<br/>
+                    Fair Price = fwdEPS × Fair PE
                   </div>
                   <div style={{ fontSize:11, color:"#64748b", lineHeight:1.6 }}>
-                    Based on Peter Lynch's rule that a stock is fairly valued when P/E ≈ EPS growth rate (PEG = 1.0).
-                    High-quality businesses (ROE ≥ 25% + gross margin ≥ 55%) get a target PEG of 1.5 because
-                    their moats justify paying a premium.
+                    Uses <strong style={{color:"#94a3b8"}}>forward P/E</strong> (next-12m estimates) for EPS — more accurate than trailing.
+                    Quality tiers raise the target PEG and set a minimum P/E floor so great businesses
+                    don't get absurdly low fair values just because growth is temporarily slow.
+                    Exceptional ROE (≥ 60%) qualifies as premium regardless of gross margin.
                   </div>
                   <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {[["Premium quality","1.5×","ROE ≥ 25% + margin ≥ 55%","#22c55e"],["Quality","1.2×","ROE ≥ 15% + margin ≥ 40%","#fbbf24"],["Standard","1.0×","everything else","#94a3b8"]].map(([tier,peg,cond,col])=>(
+                    {[["Premium (ROE≥25%+GM≥50% or ROE≥60%)","tPEG 2.0 · minPE 18","#22c55e"],
+                      ["Quality (ROE≥15%+GM≥30% or ROE≥40%)","tPEG 1.5 · minPE 14","#fbbf24"],
+                      ["Standard","tPEG 1.1 · minPE 10","#94a3b8"]].map(([tier,peg,col])=>(
                       <span key={tier} style={{ fontSize:10, background:`${col}12`, border:`1px solid ${col}33`,
                         color:col, borderRadius:5, padding:"2px 8px" }}>
-                        {tier}: PEG {peg} <span style={{ opacity:0.6 }}>({cond})</span>
+                        {tier}: {peg}
                       </span>
                     ))}
                   </div>
                 </div>
                 <div style={{ borderLeft:"2px solid #22d3ee44", paddingLeft:12 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:"#f1f5f9", marginBottom:4 }}>
-                    Income Stocks <span style={{ fontSize:10, color:"#64748b" }}>(div yield &gt; 2% AND EPS growth ≤ 8%)</span>
+                    Income Path <span style={{ fontSize:10, color:"#64748b" }}>(div yield &gt; 2.5% AND EPS growth ≤ 8%)</span>
                   </div>
                   <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
                     background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
                     Fair Price = Current Price × (Div Yield% ÷ Target Yield%)
                   </div>
                   <div style={{ fontSize:11, color:"#64748b", lineHeight:1.6 }}>
-                    For pipelines, banks, utilities, and other yield-focused businesses that grow slowly,
-                    intrinsic value is better anchored to dividend yield than earnings growth.
-                    The target yield accounts for credit quality and sector risk.
+                    For banks, pipelines, and other slow-growth income businesses where yield is the
+                    primary value anchor. Low-yield payers (AAPL 0.5%, MSFT 0.8%) stay on the growth path.
+                    Target yields are calibrated to realistic sector trading ranges.
                   </div>
                   <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {[["Banks","5.5%","#a78bfa"],["Pipelines / slow growth","4.5%","#22d3ee"],["Quality dividend","4.0%","#fbbf24"]].map(([tier,y,col])=>(
+                    {[["High-yield (div ≥ 5%)","target 5.0%","#a78bfa"],["Banks","target 3.5%","#22d3ee"],
+                      ["Quality Aristocrat (ROE ≥ 25%)","target 3.0%","#22c55e"],
+                      ["Standard / leveraged","target 4.5%","#fbbf24"]].map(([tier,y,col])=>(
                       <span key={tier} style={{ fontSize:10, background:`${col}12`, border:`1px solid ${col}33`,
                         color:col, borderRadius:5, padding:"2px 8px" }}>
-                        {tier}: target {y}
+                        {tier}: {y}
                       </span>
                     ))}
                   </div>
                 </div>
               </div>
               <div style={{ marginTop:12, fontSize:10, color:"rgba(255,255,255,0.18)", borderTop:"1px solid rgba(255,255,255,0.05)", paddingTop:10 }}>
-                ⚠ Fair Price is a model estimate using reported trailing earnings and analyst growth rates — not a price target, not financial advice.
-                Prices update daily via the GitHub Actions cron. Signal thresholds: Strong Buy = Upside ≥ 25% + Score ≥ 60 · Buy = ≥ 12% + ≥ 48 · Watch = ≥ 0% + ≥ 38 · Expensive = &lt; −20%.
+                ⚠ Fair Price is a model estimate using forward earnings and analyst growth rates — not a price target, not financial advice.
+                Signal thresholds: Strong Buy = Upside ≥ 25% + Score ≥ 60 · Buy = ≥ 12% + ≥ 48 · Watch = ≥ 0% + ≥ 38 · Expensive = &lt; −20%.
               </div>
             </div>
 
