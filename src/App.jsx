@@ -903,33 +903,44 @@ function ScanPill({ value, color }) {
 //   Income stocks  (divYield > 2%)  : Div-yield normalisation — Fair = div$ / targetYield
 // targetPEG rises with quality (ROE + gross margin) to reward durable moats.
 function computeScanFairPrice(s) {
-  if (!s.price || s.price <= 0 || !s.pe || s.pe <= 0) return null;
-  const eps = s.price / s.pe;
-  const g   = Math.max(1, Math.min(s.epsGrowth || 0, 50));  // floor 1, cap 50
+  // Prefer forward P/E (next-12m estimates) for a more accurate EPS base.
+  const fwdPe = s.fwdPe || s.pe;
+  if (!s.price || s.price <= 0 || !fwdPe || fwdPe <= 0) return null;
+  const fwdEps = s.price / fwdPe;
+  const g      = Math.max(1, Math.min(s.epsGrowth || 0, 50));
+  const div    = s.divYield     || 0;
+  const roe    = s.roe          || 0;
+  const gross  = s.grossMargin  || 0;
+  const isBank = s.isBank       || false;
 
-  // Income / yield-based: low-growth stocks where dividend yield is the primary
-  // value anchor (pipelines, banks, utilities, Dividend Aristocrats, oil majors).
-  // Threshold is g ≤ 8 so that SU.TO/LMT/HON/XOM at exactly 8% growth are caught.
-  if (g <= 8 && (s.divYield || 0) > 2.0) {
-    // Target yield rises with risk: high-yield names are usually riskier,
-    // so the market demands more yield → lower fair price ceiling.
-    const targetYield = (s.isBank || (s.divYield || 0) >= 5) ? 5.5
-      : (s.roe || 0) >= 25 ? 3.0   // high-quality Dividend Aristocrat (JNJ, KO)
-      : (s.roe || 0) >= 15 ? 3.5   // quality dividend payer
-      : 4.5;                        // standard / leveraged income stock
-    return Math.round(s.price * ((s.divYield || 0) / targetYield) * 100) / 100;
+  // Income / yield-based path — only when growth is low AND yield is meaningfully
+  // above 2.5%, so that low-yield payers (AAPL 0.5%, MSFT 0.8%) stay on the
+  // growth path instead of getting an artificially low yield-anchored fair price.
+  if (g <= 8 && div > 2.5) {
+    const targetYield = div >= 5    ? 5.0   // high-yield (pipelines, BNS-type)
+      : isBank                      ? 3.5   // large-cap banks historically 3–4%
+      : roe >= 25                   ? 3.0   // quality Dividend Aristocrat
+      : roe >= 15                   ? 3.5   // decent dividend payer
+      : 4.5;
+    return Math.round(s.price * (div / targetYield) * 100) / 100;
   }
 
-  // Growth stocks — Peter Lynch PEG method
-  // A stock is fairly valued when P/E = EPS growth rate (PEG = 1.0).
-  // Premium-quality businesses with wide moats justify a target PEG of 1.5.
-  // Cap fair PE at 2× current PE: prevents cyclical stocks (e.g. memory chips
-  // at peak-cycle earnings) from showing extreme 150%+ upside that misleads.
-  const highQ  = (s.roe || 0) >= 25 && (s.grossMargin || 0) >= 55;
-  const midQ   = (s.roe || 0) >= 15 && (s.grossMargin || 0) >= 40;
-  const tPEG   = highQ ? 1.5 : midQ ? 1.2 : 1.0;
-  const fairPE = Math.min(g * tPEG, 65, s.pe * 2);
-  return Math.round(eps * fairPE * 100) / 100;
+  // Growth / quality path — forward PEG method.
+  // Exceptional ROE (≥ 60) flags a capital-light moat regardless of reported gross
+  // margin — captures AAPL (roe 145%), LMT, SBUX, HD whose blended margins look
+  // low but whose business economics are elite.
+  const highQ = (roe >= 25 && gross >= 50) || roe >= 60;
+  const midQ  = !highQ && ((roe >= 15 && gross >= 30) || roe >= 40);
+
+  // Higher tPEG targets reflect what the market actually pays for quality compounders.
+  // minPE floors prevent absurdly low fair values for quality slow-growers.
+  const tPEG  = highQ ? 2.0 : midQ ? 1.5 : 1.1;
+  const minPE = highQ ? 18  : midQ ? 14  : 10;
+
+  // Cap at 2× current fwd P/E: prevents cyclical peak-earnings stocks from
+  // showing implausible upside; consistent with using fwdPe for EPS.
+  const fairPE = Math.min(Math.max(g * tPEG, minPE), 65, fwdPe * 2);
+  return Math.round(fwdEps * fairPE * 100) / 100;
 }
 function computeScanUpside(s) {
   const fair = computeScanFairPrice(s);
@@ -1117,16 +1128,6 @@ export default function App() {
   // ── CSV import account mapping ─────────────────────────────────────────────
   // { [csvAcctName]: { target: appPortfolioName, mode: "replace"|"merge" } }
   const [brokerImportMapping, setBrokerImportMapping] = useState({});
-
-  // ── Social Buzz / StockTwits ───────────────────────────────────────────────
-  const [socialTicker,    setSocialTicker]    = useState("AAPL");
-  const [socialInput,     setSocialInput]     = useState("");
-  const [socialData,      setSocialData]      = useState(null);
-  const [socialLoading,   setSocialLoading]   = useState(false);
-  const [socialError,     setSocialError]     = useState(null);
-  const [socialTrending,  setSocialTrending]  = useState([]);
-  const [socialTrendLoad, setSocialTrendLoad] = useState(false);
-  const [socialTrendErr,  setSocialTrendErr]  = useState(null);
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -1333,20 +1334,7 @@ export default function App() {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load StockTwits trending when Social tab first opens
-  useEffect(() => {
-    if (tab !== "social") return;
-    if (socialTrending.length > 0) return;
-    setSocialTrendLoad(true);
-    setSocialTrendErr(null);
-    fetch("/api/stocktwits?path=trending/symbols")
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(d => setSocialTrending(d.symbols || []))
-      .catch(e => setSocialTrendErr(e.message))
-      .finally(() => setSocialTrendLoad(false));
-  }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Persist helpers ────────────────────────────────────────────────────
+// ── Persist helpers ────────────────────────────────────────────────────
   function persist(acct, data) {
     try {
       setSaveStatus("Saving...");
@@ -2990,28 +2978,7 @@ Return ONLY a valid JSON object, no markdown:
     : current
   ).map((h, idx) => ({ h, idx: current.indexOf(h) }));
 
-  // ── Social Buzz — StockTwits fetch ────────────────────────────────────
-  async function fetchSocialSymbol(raw) {
-    const sym = (raw || "").trim().toUpperCase();
-    if (!sym) return;
-    setSocialTicker(sym);
-    setSocialInput(sym);
-    setSocialLoading(true);
-    setSocialError(null);
-    setSocialData(null);
-    try {
-      const r = await fetch(`/api/stocktwits?path=streams/symbol/${sym}`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      setSocialData(d);
-    } catch (e) {
-      setSocialError(e.message);
-    } finally {
-      setSocialLoading(false);
-    }
-  }
-
-  // ── Market Pulse — live data fetch ────────────────────────────────────
+// ── Market Pulse — live data fetch ────────────────────────────────────
   async function fetchLiveSignals() {
     const live = {};
     const tryFetch = async (url, timeout = 5000) => {
@@ -3986,7 +3953,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["social","💬 Social"],["help","📖 Help"]].map(([v,l]) => {
+            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => {
             const locked = !helpUnlocked && v !== "help";
             return (
               <button key={v} className={`tab-btn ${tab===v?"on":""}`}
@@ -10948,214 +10915,6 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               Data is approximate and manually curated as of {stockUniverseData.lastUpdated}. Fundamental metrics change quarterly.
               Always verify current P/E, EPS, and balance sheet data before making any investment decision. Not financial advice.
             </p>
-          </div>
-        );
-      })()}
-
-      {/* ════════════════════════════════════════════════════════════════════
-          TAB: SOCIAL BUZZ
-      ════════════════════════════════════════════════════════════════════ */}
-      {tab === "social" && (() => {
-        const msgs      = socialData?.messages ?? [];
-        const bullCount = msgs.filter(m => m.entities?.sentiment?.basic === "Bullish").length;
-        const bearCount = msgs.filter(m => m.entities?.sentiment?.basic === "Bearish").length;
-        const sentTotal = bullCount + bearCount;
-        const bullPct   = sentTotal > 0 ? Math.round(bullCount / sentTotal * 100) : null;
-        const bearPct   = bullPct !== null ? 100 - bullPct : null;
-        const symInfo   = socialData?.symbol;
-
-        function fmtAge(iso) {
-          const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-          if (m < 1)  return "just now";
-          if (m < 60) return `${m}m ago`;
-          const h = Math.floor(m / 60);
-          if (h < 24) return `${h}h ago`;
-          return `${Math.floor(h / 24)}d ago`;
-        }
-
-        return (
-          <div style={{ padding:"24px 28px 52px", maxWidth:960, margin:"0 auto" }}>
-
-            {/* Header */}
-            <div style={{ display:"flex", alignItems:"flex-start", gap:14, marginBottom:28 }}>
-              <div style={{ fontSize:32, lineHeight:1 }}>💬</div>
-              <div style={{ flex:1 }}>
-                <h1 style={{ fontSize:22, fontWeight:900, color:"#f1f5f9", margin:"0 0 3px" }}>Social Buzz</h1>
-                <p style={{ fontSize:13, color:"#64748b", margin:0 }}>
-                  StockTwits sentiment screener — real-time bullish/bearish signal from retail traders.{" "}
-                  <span style={{ color:"rgba(255,255,255,0.18)", fontSize:11 }}>Not financial advice. Powered by StockTwits public API.</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Trending tickers */}
-            <div className="card" style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", color:"rgba(255,255,255,0.3)",
-                textTransform:"uppercase", marginBottom:12 }}>
-                🔥 Trending Right Now
-              </div>
-              {socialTrendLoad && (
-                <div style={{ color:"#64748b", fontSize:13 }}>Loading trending tickers…</div>
-              )}
-              {socialTrendErr && (
-                <div style={{ color:"#ef4444", fontSize:12 }}>Could not load trending: {socialTrendErr}</div>
-              )}
-              {!socialTrendLoad && !socialTrendErr && socialTrending.length === 0 && (
-                <div style={{ color:"#64748b", fontSize:13 }}>No trending data — navigate away and back to retry.</div>
-              )}
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {socialTrending.map(s => (
-                  <button key={s.symbol}
-                    onClick={() => fetchSocialSymbol(s.symbol)}
-                    style={{
-                      background: socialTicker === s.symbol && socialData
-                        ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.05)",
-                      border: socialTicker === s.symbol && socialData
-                        ? "1px solid rgba(251,191,36,0.4)" : "1px solid rgba(255,255,255,0.1)",
-                      borderRadius:8, padding:"5px 12px", cursor:"pointer", fontFamily:"inherit",
-                      fontSize:13, fontWeight:700,
-                      color: socialTicker === s.symbol && socialData ? "#fbbf24" : "#cbd5e1",
-                      transition:"all 0.15s"
-                    }}>
-                    ${s.symbol}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ticker search */}
-            <div style={{ display:"flex", gap:10, marginBottom:24 }}>
-              <input
-                value={socialInput}
-                onChange={e => setSocialInput(e.target.value.toUpperCase())}
-                onKeyDown={e => { if (e.key === "Enter") fetchSocialSymbol(socialInput); }}
-                placeholder="Enter ticker… e.g. NVDA"
-                style={{ flex:1, padding:"10px 14px", borderRadius:10,
-                  border:"1px solid rgba(255,255,255,0.1)",
-                  background:"rgba(255,255,255,0.05)", color:"#f1f5f9",
-                  fontFamily:"inherit", fontSize:14, outline:"none" }}
-              />
-              <button
-                onClick={() => fetchSocialSymbol(socialInput)}
-                disabled={!socialInput.trim() || socialLoading}
-                style={{ padding:"10px 20px", borderRadius:10, border:"none", cursor:"pointer",
-                  fontFamily:"inherit", fontWeight:700, fontSize:14,
-                  background:"#fbbf24", color:"#0d1117",
-                  opacity: (!socialInput.trim() || socialLoading) ? 0.5 : 1 }}>
-                {socialLoading ? "…" : "Search"}
-              </button>
-            </div>
-
-            {/* Loading */}
-            {socialLoading && (
-              <div style={{ textAlign:"center", padding:"48px", color:"#64748b", fontSize:14 }}>
-                Fetching ${socialTicker} from StockTwits…
-              </div>
-            )}
-
-            {/* Error */}
-            {socialError && !socialLoading && (
-              <div className="card" style={{ borderColor:"rgba(239,68,68,0.3)",
-                background:"rgba(239,68,68,0.05)", color:"#fca5a5", fontSize:13 }}>
-                <strong>Error:</strong> {socialError}. StockTwits limits unauthenticated requests to 200/hr.
-              </div>
-            )}
-
-            {/* Results */}
-            {!socialLoading && socialData && (
-              <>
-                {/* Symbol header + sentiment bar */}
-                <div className="card" style={{ marginBottom:16 }}>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
-                    <div>
-                      <div style={{ fontSize:20, fontWeight:900, color:"#f1f5f9" }}>${symInfo?.symbol}</div>
-                      <div style={{ fontSize:13, color:"#64748b" }}>{symInfo?.title}</div>
-                    </div>
-                    <div style={{ textAlign:"right", fontSize:12, color:"rgba(255,255,255,0.3)" }}>
-                      {msgs.length} recent messages
-                    </div>
-                  </div>
-
-                  {sentTotal > 0 ? (
-                    <>
-                      <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-                        <span style={{ color:"#22c55e", fontWeight:700 }}>🐂 Bullish {bullPct}% ({bullCount})</span>
-                        <span style={{ color:"#ef4444", fontWeight:700 }}>{bearPct}% Bearish 🐻 ({bearCount})</span>
-                      </div>
-                      <div style={{ height:10, borderRadius:6, background:"rgba(239,68,68,0.35)", overflow:"hidden" }}>
-                        <div style={{ height:"100%", width:`${bullPct}%`,
-                          background:"linear-gradient(90deg,#22c55e,#16a34a)",
-                          borderRadius:6, transition:"width 0.5s ease" }} />
-                      </div>
-                      <div style={{ fontSize:11, color:"rgba(255,255,255,0.22)", marginTop:8 }}>
-                        Sentiment counts only explicitly tagged messages ({msgs.length - sentTotal} untagged in this batch)
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ fontSize:12, color:"#64748b" }}>
-                      No bullish/bearish tags in the current message batch.
-                    </div>
-                  )}
-                </div>
-
-                {/* Message feed */}
-                <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em",
-                  color:"rgba(255,255,255,0.3)", textTransform:"uppercase", marginBottom:12 }}>
-                  Recent Messages
-                </div>
-                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  {msgs.slice(0, 25).map(msg => {
-                    const sent      = msg.entities?.sentiment?.basic;
-                    const sentColor = sent === "Bullish" ? "#22c55e" : sent === "Bearish" ? "#ef4444" : null;
-                    return (
-                      <div key={msg.id} className="card" style={{
-                        padding:"12px 16px",
-                        borderColor: sentColor ? `${sentColor}28` : undefined,
-                        background:  sentColor ? `${sentColor}08` : undefined,
-                      }}>
-                        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:7 }}>
-                          <span style={{ fontSize:13, fontWeight:700, color:"#94a3b8" }}>
-                            @{msg.user?.username}
-                          </span>
-                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.2)" }}>
-                            {fmtAge(msg.created_at)}
-                          </span>
-                          {sent && (
-                            <span style={{ marginLeft:"auto", fontSize:11, fontWeight:700, color:sentColor,
-                              background:`${sentColor}18`, border:`1px solid ${sentColor}40`,
-                              borderRadius:5, padding:"2px 8px" }}>
-                              {sent === "Bullish" ? "🐂" : "🐻"} {sent}
-                            </span>
-                          )}
-                        </div>
-                        <p style={{ fontSize:13, color:"#cbd5e1", lineHeight:1.65, margin:0 }}>
-                          {msg.body}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-                {msgs.length === 0 && (
-                  <div style={{ textAlign:"center", padding:"32px", color:"#64748b", fontSize:14 }}>
-                    No recent messages found for ${socialTicker}.
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Empty state */}
-            {!socialLoading && !socialData && !socialError && (
-              <div style={{ textAlign:"center", padding:"60px 40px", color:"#64748b" }}>
-                <div style={{ fontSize:48, marginBottom:14 }}>💬</div>
-                <div style={{ fontSize:16, fontWeight:700, color:"#94a3b8", marginBottom:8 }}>
-                  Pick a trending ticker or search above
-                </div>
-                <div style={{ fontSize:13 }}>
-                  Real-time StockTwits sentiment — see what retail traders are saying right now.
-                </div>
-              </div>
-            )}
-
           </div>
         );
       })()}
