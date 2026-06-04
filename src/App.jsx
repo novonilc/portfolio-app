@@ -2818,20 +2818,34 @@ Return ONLY a valid JSON object, no markdown:
     const ac = new AbortController();
     stockScanAbortRef.current = ac;
 
-    const tickers = stockUniverseData.stocks.map(s => s.ticker);
+    if (!stockUniverseData.stocks.length) {
+      setStockScanError("Stock universe is empty — run scripts/rebuild-universe.mjs to restore data.");
+      setStockScanProgress(null);
+      return;
+    }
+
+    // Map TSX-only tickers with no NYSE listing to their .TO equivalent for Yahoo Finance.
+    // Tickers already containing "." (SU.TO, CP.TO, etc.) are left as-is.
+    const CA_FIX = { ATD:"ATD.TO", TRP:"TRP.TO", BAM:"BAM.TO", MFC:"MFC.TO",
+                     SLF:"SLF.TO", ENB:"ENB.TO", CNQ:"CNQ.TO", TFII:"TFII.TO" };
+    const pairs = stockUniverseData.stocks.map(s => ({
+      orig:  s.ticker,
+      fetch: (!s.ticker.includes(".") && CA_FIX[s.ticker]) ? CA_FIX[s.ticker] : s.ticker,
+    }));
+
     setStockScanError(null);
-    setStockScanProgress({ done: 0, total: tickers.length, ticker: tickers[0] });
+    setStockScanProgress({ done: 0, total: pairs.length, ticker: pairs[0].orig });
 
     const results = [];
     const BATCH = 5;
 
-    for (let i = 0; i < tickers.length; i += BATCH) {
+    for (let i = 0; i < pairs.length; i += BATCH) {
       if (ac.signal.aborted) break;
-      const batch = tickers.slice(i, i + BATCH);
+      const batch = pairs.slice(i, i + BATCH);
 
       const batchResults = await Promise.allSettled(
-        batch.map(async ticker => {
-          const url = `/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&interval=1d&range=5d`;
+        batch.map(async ({ orig, fetch: yTicker }) => {
+          const url = `/api/yahoo-chart?ticker=${encodeURIComponent(yTicker)}&interval=1d&range=5d`;
           const res = await fetch(url, { signal: ac.signal });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
@@ -2840,7 +2854,8 @@ Return ONLY a valid JSON object, no markdown:
           const closes = result.indicators?.quote?.[0]?.close || [];
           const price = closes.filter(c => c != null).pop();
           if (!price || price <= 0) throw new Error("no price");
-          return { ticker, price: parseFloat(price.toFixed(2)) };
+          // Key result by original ticker so liveMap merge works correctly
+          return { ticker: orig, price: parseFloat(price.toFixed(2)) };
         })
       );
 
@@ -2850,11 +2865,11 @@ Return ONLY a valid JSON object, no markdown:
       });
 
       if (!ac.signal.aborted) {
-        const done = Math.min(i + BATCH, tickers.length);
-        setStockScanProgress({ done, total: tickers.length, ticker: tickers[Math.min(i + BATCH, tickers.length - 1)] });
+        const done = Math.min(i + BATCH, pairs.length);
+        setStockScanProgress({ done, total: pairs.length, ticker: pairs[Math.min(i + BATCH, pairs.length - 1)]?.orig });
       }
 
-      if (i + BATCH < tickers.length && !ac.signal.aborted) {
+      if (i + BATCH < pairs.length && !ac.signal.aborted) {
         await new Promise(r => setTimeout(r, 300));
       }
     }
