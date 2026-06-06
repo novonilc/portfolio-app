@@ -1119,6 +1119,13 @@ export default function App() {
   const [livePrevPrices,      setLivePrevPrices]       = useState({});
   const [livePricesFetching,  setLivePricesFetching]  = useState(false);
   const [livePricesFetchedAt, setLivePricesFetchedAt] = useState(null);
+  const [holdingSignals,      setHoldingSignals]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:holdingSignals") || "{}"); } catch { return {}; }
+  });
+  const [holdingSignalsLoading,    setHoldingSignalsLoading]    = useState(false);
+  const [holdingSignalsFetchedAt,  setHoldingSignalsFetchedAt]  = useState(
+    () => localStorage.getItem("portfolio:holdingSignals:ts") || null
+  );
   const [contribRoom,         setContribRoom]         = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:contribRoom") || "{}"); } catch { return {}; }
   });
@@ -1412,6 +1419,112 @@ export default function App() {
     setOptionPrices(p => ({ ...p, ...last }));
     setLivePricesFetchedAt(new Date().toISOString());
     setLivePricesFetching(false);
+  }
+
+  async function analyzeHoldings() {
+    setHoldingSignalsLoading(true);
+    const tickers = [...new Set(portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker)))];
+    const results = {};
+    const BATCH = 5;
+    for (let i = 0; i < tickers.length; i += BATCH) {
+      const batch = tickers.slice(i, i + BATCH);
+      await Promise.allSettled(batch.map(async ticker => {
+        try {
+          const res = await fetch(`/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&range=1y&interval=1d`);
+          if (!res.ok) return;
+          const data = await res.json();
+          const result = data.chart?.result?.[0];
+          if (!result) return;
+          const q = result.indicators?.quote?.[0] || {};
+          const bars = (q.close || []).map((c, j) => ({ c, h: (q.high||[])[j], l: (q.low||[])[j], v: (q.volume||[])[j] }))
+            .filter(b => b.c != null && b.h != null && b.l != null && b.v != null);
+          if (bars.length < 30) return;
+          const closes = bars.map(b => b.c), highs = bars.map(b => b.h),
+                lows   = bars.map(b => b.l), volumes = bars.map(b => b.v);
+          const price     = closes[closes.length - 1];
+          const prevClose = closes[closes.length - 2];
+          const sma50  = _ssSMA(closes, 50);
+          const sma200 = _ssSMA(closes, 200);
+          const rsi  = _ssRSI(closes);
+          const macd = _ssMACD(closes);
+          const vwap = _ssVWAP(highs, lows, closes, volumes, 20);
+          const lastVol  = volumes[volumes.length - 1];
+          const avg20Vol = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
+          const volumeRatio = avg20Vol > 0 ? parseFloat((lastVol / avg20Vol).toFixed(2)) : 1;
+          const atrResult = _ssATR(highs, lows, closes);
+          const atrPct    = atrResult?.atrPct ?? null;
+          const hvPct  = _ssHV(closes);
+          const bbPos  = _ssBBPos(closes);
+
+          // Fundamental data from stock universe when available
+          const uni = stockUniverseData.stocks.find(s => s.ticker === ticker);
+          const uniWithPrice = uni ? { ...uni, price } : null;
+          const fundScore   = uniWithPrice ? computeScanScore(uniWithPrice)     : null;
+          const fairPrice   = uniWithPrice ? computeScanFairPrice(uniWithPrice) : null;
+          const upside      = fairPrice    ? computeScanUpside(uniWithPrice)    : null;
+          const fundSig     = scanSignal(upside, fundScore ?? 50);
+
+          // Technical direction: bull/bear vote count
+          let bull = 0, bear = 0;
+          if (rsi != null)          { if (rsi >= 52) bull += 2; else bear += 2; }
+          if (macd?.histogram != null) { if (macd.histogram > 0) bull++; else bear++; }
+          if (macd?.macd != null && macd?.signal != null) {
+            if (macd.macd > macd.signal) bull++; else bear++;
+          }
+          if (sma50 != null)  { if (price > sma50)  bull += 2; else bear += 2; }
+          if (sma200 != null) { if (price > sma200)  bull++;   else bear++; }
+          if (sma50 != null && sma200 != null) { if (sma50 > sma200) bull += 2; else bear += 2; }
+          if (bbPos != null)  { if (bbPos < 0.25) bull++; else if (bbPos > 0.80) bear++; }
+          const techDir = bull >= bear + 3 ? "bullish" : bear >= bull + 3 ? "bearish" : "neutral";
+
+          // Pure technical signal (used when no fundamentals available, or as a second opinion)
+          let techSig;
+          if      (rsi != null && rsi < 32 && techDir !== "bearish")  techSig = { label:"Oversold",   color:"#22d3ee", icon:"⬇" };
+          else if (rsi != null && rsi > 72 && techDir === "bearish")  techSig = { label:"Overbought", color:"#ef4444", icon:"⬆" };
+          else if (techDir === "bullish")                              techSig = { label:"Bullish",    color:"#22c55e", icon:"↑"  };
+          else if (techDir === "bearish")                              techSig = { label:"Bearish",    color:"#f97316", icon:"↓"  };
+          else                                                         techSig = { label:"Neutral",    color:"#64748b", icon:"→"  };
+
+          // Merge: if fundamentals available, use them as the primary signal; tech as secondary
+          const sig = fundSig ?? techSig;
+
+          // Key reasons for the signal
+          const reasons = [];
+          if (rsi != null)   reasons.push(rsi < 35 ? `RSI ${Math.round(rsi)} oversold` : rsi > 70 ? `RSI ${Math.round(rsi)} overbought` : `RSI ${Math.round(rsi)}`);
+          if (sma50 != null) reasons.push(price > sma50 ? "Above 50-MA" : "Below 50-MA");
+          if (sma200 != null) reasons.push(price > sma200 ? "Above 200-MA" : "Below 200-MA");
+          if (sma50 != null && sma200 != null) { if (sma50 > sma200) reasons.push("Golden cross"); else reasons.push("Death cross"); }
+          if (macd?.histogram != null) reasons.push(macd.histogram > 0 ? "MACD positive" : "MACD negative");
+          if (upside != null) reasons.push(`${upside > 0 ? "+" : ""}${upside}% fair-value upside`);
+
+          results[ticker] = {
+            ticker,
+            price:      parseFloat(price.toFixed(2)),
+            dayChgPct:  prevClose ? parseFloat(((price - prevClose) / prevClose * 100).toFixed(2)) : null,
+            rsi:        rsi != null ? Math.round(rsi) : null,
+            sma50:      sma50  != null ? parseFloat(sma50.toFixed(2))  : null,
+            sma200:     sma200 != null ? parseFloat(sma200.toFixed(2)) : null,
+            vsPct50:    sma50  != null ? parseFloat(((price - sma50)  / sma50  * 100).toFixed(1)) : null,
+            vsPct200:   sma200 != null ? parseFloat(((price - sma200) / sma200 * 100).toFixed(1)) : null,
+            macdHist:   macd?.histogram != null ? parseFloat(macd.histogram.toFixed(3)) : null,
+            bbPos:      bbPos != null ? parseFloat(bbPos.toFixed(2)) : null,
+            atrPct,
+            fundScore, fairPrice, upside,
+            sig, techSig, techDir,
+            reasons: reasons.slice(0, 4),
+            high52w: parseFloat(Math.max(...highs).toFixed(2)),
+            low52w:  parseFloat(Math.min(...lows).toFixed(2)),
+          };
+        } catch { /* skip on network/parse error */ }
+      }));
+      if (i + BATCH < tickers.length) await new Promise(r => setTimeout(r, 300));
+    }
+    setHoldingSignals(results);
+    const ts = new Date().toISOString();
+    setHoldingSignalsFetchedAt(ts);
+    localStorage.setItem("portfolio:holdingSignals", JSON.stringify(results));
+    localStorage.setItem("portfolio:holdingSignals:ts", ts);
+    setHoldingSignalsLoading(false);
   }
 
   function updateContribRoom(key, val) {
@@ -7807,6 +7920,206 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               </div>
             </div>
+
+            {/* ════ PORTFOLIO SIGNALS ══════════════════════════════════════ */}
+            {(() => {
+              const allHeld = portfolios.flatMap(p =>
+                (holdings[p] || []).filter(h => h.current > 0).map(h => ({ ...h, acct: p }))
+              );
+              const hasSignals = Object.keys(holdingSignals).length > 0;
+              const signalAge = holdingSignalsFetchedAt ? (() => {
+                const m = Math.round((Date.now() - new Date(holdingSignalsFetchedAt).getTime()) / 60000);
+                if (m < 1)  return "just now";
+                if (m < 60) return `${m}m ago`;
+                const h = Math.floor(m / 60);
+                return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+              })() : null;
+
+              // Count signals by category
+              const sigCounts = { buy: 0, hold: 0, caution: 0, missing: 0 };
+              allHeld.forEach(h => {
+                const s = holdingSignals[h.ticker];
+                if (!s) { sigCounts.missing++; return; }
+                const lbl = s.sig?.label || "";
+                if (lbl === "Strong Buy" || lbl === "Buy" || lbl === "Bullish" || lbl === "Oversold") sigCounts.buy++;
+                else if (lbl === "Overbought" || lbl === "Bearish" || lbl === "Expensive") sigCounts.caution++;
+                else sigCounts.hold++;
+              });
+
+              return (
+                <div style={{ marginBottom:18, padding:"14px 18px", borderRadius:12,
+                  background:"rgba(34,197,94,0.03)", border:"1px solid rgba(34,197,94,0.15)" }}>
+
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                    flexWrap:"wrap", gap:8, marginBottom: hasSignals ? 14 : 0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:15 }}>📈</span>
+                      <p style={{ fontSize:13, fontWeight:700, color:"rgba(255,255,255,0.9)", margin:0 }}>
+                        Portfolio Signals
+                      </p>
+                      {signalAge && (
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                          analyzed {signalAge}
+                        </span>
+                      )}
+                      {hasSignals && (
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                          {sigCounts.buy > 0 && (
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:5,
+                              background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)",
+                              color:"#22c55e" }}>{sigCounts.buy} Buy</span>
+                          )}
+                          {sigCounts.hold > 0 && (
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:5,
+                              background:"rgba(100,116,139,0.12)", border:"1px solid rgba(100,116,139,0.3)",
+                              color:"#94a3b8" }}>{sigCounts.hold} Hold</span>
+                          )}
+                          {sigCounts.caution > 0 && (
+                            <span style={{ fontSize:10, fontWeight:700, padding:"2px 8px", borderRadius:5,
+                              background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)",
+                              color:"#ef4444" }}>{sigCounts.caution} Caution</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={analyzeHoldings}
+                      disabled={holdingSignalsLoading}
+                      style={{ fontSize:10, fontWeight:600, padding:"5px 14px", borderRadius:7,
+                        background: holdingSignalsLoading ? "rgba(34,197,94,0.06)" : "rgba(34,197,94,0.14)",
+                        border:"1px solid rgba(34,197,94,0.35)", color:"#22c55e",
+                        cursor: holdingSignalsLoading ? "wait" : "pointer",
+                        opacity: holdingSignalsLoading ? 0.6 : 1 }}>
+                      {holdingSignalsLoading ? "⏳ Analyzing…" : hasSignals ? "🔄 Re-analyze" : "📊 Analyze Holdings"}
+                    </button>
+                  </div>
+
+                  {/* Signals table */}
+                  {hasSignals && (() => {
+                    // Sort: caution first, then buy, then hold; secondary by value desc
+                    const sortPriority = (lbl) => {
+                      if (lbl === "Overbought" || lbl === "Bearish" || lbl === "Expensive") return 0;
+                      if (lbl === "Strong Buy" || lbl === "Oversold") return 2;
+                      if (lbl === "Buy" || lbl === "Bullish") return 1;
+                      return -1;
+                    };
+                    const rows = allHeld
+                      .map(h => ({ h, s: holdingSignals[h.ticker] }))
+                      .filter(({ s }) => s)
+                      .sort((a, b) => {
+                        const pa = sortPriority(a.s.sig?.label || "");
+                        const pb = sortPriority(b.s.sig?.label || "");
+                        if (pb !== pa) return pb - pa;
+                        return toCAD(b.h.current, b.h.ticker, b.h.currencyOverride)
+                          - toCAD(a.h.current, a.h.ticker, a.h.currencyOverride);
+                      });
+
+                    return (
+                      <div style={{ overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:11 }}>
+                          <thead>
+                            <tr style={{ borderBottom:"1px solid rgba(255,255,255,0.07)" }}>
+                              {["Ticker","Acct","Signal","RSI","vs 50-MA","vs 200-MA","Upside","Tech Trend","Key Signals"].map(h => (
+                                <th key={h} style={{ padding:"4px 8px", textAlign:"left", fontSize:9,
+                                  fontWeight:600, letterSpacing:"0.1em", textTransform:"uppercase",
+                                  color:"rgba(255,255,255,0.28)", whiteSpace:"nowrap" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map(({ h, s }) => {
+                              const sigColor  = s.sig?.color  || "#64748b";
+                              const sigLabel  = s.sig?.label  || "—";
+                              const sigIcon   = s.sig?.icon   || "—";
+                              const rsiColor  = s.rsi == null ? "#64748b"
+                                : s.rsi < 35 ? "#22d3ee" : s.rsi > 70 ? "#ef4444" : "#94a3b8";
+                              const vs50Color = s.vsPct50 == null ? "#64748b"
+                                : s.vsPct50 > 0 ? "#22c55e" : "#ef4444";
+                              const vs200Color = s.vsPct200 == null ? "#64748b"
+                                : s.vsPct200 > 0 ? "#22c55e" : "#ef4444";
+                              const upsideColor = s.upside == null ? "#64748b"
+                                : s.upside >= 20 ? "#22c55e" : s.upside >= 0 ? "#86efac"
+                                : s.upside >= -15 ? "#fbbf24" : "#ef4444";
+                              const techColor = s.techDir === "bullish" ? "#22c55e"
+                                : s.techDir === "bearish" ? "#ef4444" : "#94a3b8";
+                              const acctColor = h.acct === "TFSA" ? "#fbbf24" : "#22d3ee";
+                              return (
+                                <tr key={`${h.acct}-${h.ticker}`}
+                                  style={{ borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                                  <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                    fontWeight:700, color:"rgba(255,255,255,0.85)", whiteSpace:"nowrap" }}>
+                                    {h.ticker}
+                                    <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginLeft:4 }}>
+                                      {s.dayChgPct != null ? `${s.dayChgPct > 0 ? "+" : ""}${s.dayChgPct}%` : ""}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding:"7px 8px" }}>
+                                    <span style={{ fontSize:9, fontWeight:700, color:acctColor,
+                                      padding:"1px 5px", borderRadius:3,
+                                      background:`${acctColor}18`, border:`1px solid ${acctColor}30` }}>
+                                      {h.acct}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding:"7px 8px", whiteSpace:"nowrap" }}>
+                                    <span style={{ fontSize:10, fontWeight:700, color:sigColor,
+                                      padding:"2px 8px", borderRadius:5,
+                                      background:`${sigColor}18`, border:`1px solid ${sigColor}44`,
+                                      fontFamily:"'JetBrains Mono',monospace" }}>
+                                      {sigIcon} {sigLabel}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                    fontWeight:600, color:rsiColor }}>
+                                    {s.rsi ?? "—"}
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                    fontSize:10, color:vs50Color, whiteSpace:"nowrap" }}>
+                                    {s.vsPct50 != null ? `${s.vsPct50 > 0 ? "+" : ""}${s.vsPct50}%` : "—"}
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                    fontSize:10, color:vs200Color, whiteSpace:"nowrap" }}>
+                                    {s.vsPct200 != null ? `${s.vsPct200 > 0 ? "+" : ""}${s.vsPct200}%` : "—"}
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                    fontSize:10, color:upsideColor, whiteSpace:"nowrap" }}>
+                                    {s.upside != null ? `${s.upside > 0 ? "+" : ""}${s.upside}%` : "—"}
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontSize:10, color:techColor, whiteSpace:"nowrap" }}>
+                                    {s.techDir === "bullish" ? "↑ Bullish"
+                                      : s.techDir === "bearish" ? "↓ Bearish" : "→ Neutral"}
+                                  </td>
+                                  <td style={{ padding:"7px 8px", fontSize:10,
+                                    color:"rgba(255,255,255,0.4)", maxWidth:220 }}>
+                                    {(s.reasons || []).join(" · ")}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                        {allHeld.length > rows.length && (
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginTop:6 }}>
+                            {allHeld.length - rows.length} holding(s) could not be analyzed (data unavailable).
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {!hasSignals && !holdingSignalsLoading && (
+                    <p style={{ fontSize:11, color:"rgba(255,255,255,0.3)", marginTop:8 }}>
+                      Click "Analyze Holdings" to fetch live technical data and get Buy / Hold / Sell signals for every position.
+                    </p>
+                  )}
+                  {holdingSignalsLoading && (
+                    <p style={{ fontSize:11, color:"rgba(34,197,94,0.5)", marginTop:8 }}>
+                      Fetching 1-year chart data for {portfolios.flatMap(p => (holdings[p]||[]).filter(h=>h.current>0)).length} positions…
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* ── Row 1: Combined summary stats ── */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:10, marginBottom:20 }}>
