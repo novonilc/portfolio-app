@@ -27,7 +27,10 @@
       "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node scripts/rebuild-universe.mjs)",
       "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node -)",
       "Bash(python3 /home/nchoudhu/portfolio-app/scripts/rebuild-universe.mjs)",
-      "Bash(PATH=/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533:__TRACKED_VAR__ node /home/nchoudhu/portfolio-app/node_modules/vite/bin/vite.js build --mode production)"
+      "Bash(PATH=/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533:__TRACKED_VAR__ node /home/nchoudhu/portfolio-app/node_modules/vite/bin/vite.js build --mode production)",
+      "Bash(node /home/nchoudhu/portfolio-app/scripts/rebuild-universe.mjs)",
+      "Bash(/run/host/usr/bin/node /home/nchoudhu/portfolio-app/scripts/rebuild-universe.mjs)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks: {len\\(d[\\\\\"stocks\\\\\"]\\)}, lastUpdated: {d[\\\\\"lastUpdated\\\\\"]}'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp"
