@@ -11422,7 +11422,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   <div style={{ fontSize:11, color:"#94a3b8", lineHeight:1.7, fontFamily:"'JetBrains Mono',monospace",
                     background:"rgba(255,255,255,0.03)", borderRadius:6, padding:"8px 10px", marginBottom:8 }}>
                     fwdEPS = Price ÷ Forward P/E<br/>
-                    Fair PE = max(EPS Growth × tPEG, minPE), capped at 65 and 2× fwd P/E<br/>
+                    Fair PE = max(EPS Growth × tPEG, minPE), capped at 50 and 1.5× fwd P/E<br/>
                     Fair Price = fwdEPS × Fair PE
                   </div>
                   <div style={{ fontSize:11, color:"#64748b", lineHeight:1.6 }}>
@@ -11432,9 +11432,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     Exceptional ROE (≥ 60%) qualifies as premium regardless of gross margin.
                   </div>
                   <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
-                    {[["Premium (ROE≥25%+GM≥50% or ROE≥60%)","tPEG 2.0 · minPE 18","#22c55e"],
-                      ["Quality (ROE≥15%+GM≥30% or ROE≥40%)","tPEG 1.5 · minPE 14","#fbbf24"],
-                      ["Standard","tPEG 1.1 · minPE 10","#94a3b8"]].map(([tier,peg,col])=>(
+                    {[["Premium (ROE≥25%+GM≥50% or ROE≥60%)","tPEG 1.5 · minPE 15","#22c55e"],
+                      ["Quality (ROE≥15%+GM≥30% or ROE≥40%)","tPEG 1.2 · minPE 12","#fbbf24"],
+                      ["Standard","tPEG 0.9 · minPE 8","#94a3b8"]].map(([tier,peg,col])=>(
                       <span key={tier} style={{ fontSize:10, background:`${col}12`, border:`1px solid ${col}33`,
                         color:col, borderRadius:5, padding:"2px 8px" }}>
                         {tier}: {peg}

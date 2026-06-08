@@ -1,6 +1,6 @@
 {
   "lastUpdated": "Jun 2026",
-  "note": "Curated 96-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.",
+  "note": "Curated 97-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.",
   "stocks": [
     {
       "ticker": "AAPL",
@@ -400,6 +400,25 @@
       "peg": 1.94,
       "price": 720,
       "moat": "EUV Lithography Monopoly"
+    },
+    {
+      "ticker": "INTC",
+      "name": "Intel",
+      "sector": "Technology",
+      "market": "US",
+      "mktCap": "large",
+      "isBank": false,
+      "pe": 28,
+      "fwdPe": 20,
+      "epsGrowth": 20,
+      "roe": 8,
+      "de": 0.5,
+      "divYield": 1.5,
+      "fcfYield": 1.0,
+      "grossMargin": 36,
+      "peg": 1.4,
+      "price": 22,
+      "moat": "x86 CPU + IFS Foundry"
     },
     {
       "ticker": "JPM",

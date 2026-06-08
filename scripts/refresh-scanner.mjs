@@ -38,6 +38,7 @@ const US_STOCKS = [
   { ticker:'ANET',  name:'Arista Networks',         sector:'Technology',            mktCap:'large' },
   { ticker:'PANW',  name:'Palo Alto Networks',      sector:'Technology',            mktCap:'large' },
   { ticker:'FICO',  name:'Fair Isaac (FICO)',        sector:'Technology',            mktCap:'large' },
+  { ticker:'INTC',  name:'Intel',                   sector:'Technology',            mktCap:'large' },
   // Financials (12)
   { ticker:'JPM',   name:'JPMorgan Chase',          sector:'Financials',            mktCap:'mega'  },
   { ticker:'BAC',   name:'Bank of America',         sector:'Financials',            mktCap:'mega'  },
@@ -140,6 +141,7 @@ const CURATED_MOATS = {
   QCOM:'Mobile Chip Patents',          TSM:'Advanced Node Foundry',
   MRVL:'Custom AI ASIC for Hyperscalers', ANET:'AI Data Center Networking',
   PANW:'Cybersecurity Platform',       FICO:'Credit Score Monopoly',
+  INTC:'x86 CPU + IFS Foundry',
   JPM:'Global Banking Scale',          BAC:'Retail Banking Scale',
   GS:'Investment Banking Franchise',   V:'Global Payment Network',
   MA:'Global Payment Network',         AXP:'Premium Brand / Network',

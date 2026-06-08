@@ -30,6 +30,7 @@ const STOCKS = [
   { ticker:'PANW',  name:'Palo Alto Networks',        sector:'Technology',             market:'US', mktCap:'large', isBank:false, pe:50,  fwdPe:38, epsGrowth:20, roe:35,  de:0.3, divYield:0.0, fcfYield:2.5, grossMargin:74, peg:2.50, price:198,  moat:'Cybersecurity Platform' },
   { ticker:'FICO',  name:'Fair Isaac (FICO)',          sector:'Technology',             market:'US', mktCap:'large', isBank:false, pe:55,  fwdPe:45, epsGrowth:18, roe:200, de:5.0, divYield:0.0, fcfYield:2.0, grossMargin:78, peg:3.06, price:1685, moat:'Credit Score Monopoly' },
   { ticker:'ASML',  name:'ASML Holding',              sector:'Technology',             market:'US', mktCap:'mega',  isBank:false, pe:35,  fwdPe:28, epsGrowth:18, roe:55,  de:0.4, divYield:1.0, fcfYield:2.5, grossMargin:52, peg:1.94, price:720,  moat:'EUV Lithography Monopoly' },
+  { ticker:'INTC',  name:'Intel',                     sector:'Technology',             market:'US', mktCap:'large', isBank:false, pe:28,  fwdPe:20, epsGrowth:20, roe:8,   de:0.5, divYield:1.5, fcfYield:1.0, grossMargin:36, peg:1.40, price:22,   moat:'x86 CPU + IFS Foundry' },
   // ── Financials (12) ─────────────────────────────────────────────────────────
   { ticker:'JPM',   name:'JPMorgan Chase',            sector:'Financials',             market:'US', mktCap:'mega',  isBank:true,  pe:13,  fwdPe:12, epsGrowth:10, roe:17,  de:1.3, divYield:2.3, fcfYield:6.5, grossMargin:62, peg:1.30, price:246,  moat:'Global Banking Scale' },
   { ticker:'BAC',   name:'Bank of America',           sector:'Financials',             market:'US', mktCap:'mega',  isBank:true,  pe:14,  fwdPe:12, epsGrowth:8,  roe:12,  de:0.9, divYield:2.8, fcfYield:5.8, grossMargin:55, peg:1.75, price:44,   moat:'Retail Banking Scale' },
@@ -129,7 +130,7 @@ for (const s of STOCKS) {
 
 const output = {
   lastUpdated: 'Jun 2026',
-  note: 'Curated 96-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
+  note: 'Curated 97-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
   stocks: STOCKS,
 };
 
