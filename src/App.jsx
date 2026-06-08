@@ -932,14 +932,13 @@ function computeScanFairPrice(s) {
   const highQ = (roe >= 25 && gross >= 50) || roe >= 60;
   const midQ  = !highQ && ((roe >= 15 && gross >= 30) || roe >= 40);
 
-  // Higher tPEG targets reflect what the market actually pays for quality compounders.
-  // minPE floors prevent absurdly low fair values for quality slow-growers.
-  const tPEG  = highQ ? 2.0 : midQ ? 1.5 : 1.1;
-  const minPE = highQ ? 18  : midQ ? 14  : 10;
-
-  // Cap at 2× current fwd P/E: prevents cyclical peak-earnings stocks from
-  // showing implausible upside; consistent with using fwdPe for EPS.
-  const fairPE = Math.min(Math.max(g * tPEG, minPE), 65, fwdPe * 2);
+  // tPEG = the PEG ratio we're willing to pay for quality. 1.5/1.2/0.9 is
+  // more realistic in a higher-rate environment than the older 2.0/1.5/1.1.
+  // Cap at 1.5× current fwd P/E (was 2×) so a low-multiple stock can't show
+  // >50% upside purely from PE expansion, and hard cap at 50 (was 65).
+  const tPEG  = highQ ? 1.5 : midQ ? 1.2 : 0.9;
+  const minPE = highQ ? 15  : midQ ? 12  : 8;
+  const fairPE = Math.min(Math.max(g * tPEG, minPE), 50, fwdPe * 1.5);
   return Math.round(fwdEps * fairPE * 100) / 100;
 }
 function computeScanUpside(s) {
