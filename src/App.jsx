@@ -149,6 +149,94 @@ const CSV_HEADER_ALIASES = {
 // Canadian-listed tickers exempt from US withholding tax
 const CAD_EXEMPT = new Set(["CNQ","XIU","VFV.TO","BTCC","GOLD","ZAG.TO","XRE.TO","XEG.TO","XIU.TO","ZCN.TO"]);
 
+// ── AI Advisor prompt templates ────────────────────────────────────────────────
+const AI_ADVISOR_TEMPLATES = [
+  {
+    id: 0, icon: "📈", color: "#22d3ee",
+    title: "Market Analysis",
+    desc: "Identify emerging patterns and investment opportunities in a sector or stock",
+    fields: [{ key: "focus", label: "Sector or Stock", placeholder: "e.g. Semiconductors, NVDA, Canadian Banks" }],
+    buildPrompt: (f, ctx) =>
+      `You are a senior equity analyst providing research for a Canadian investor.\n\n${ctx}\n\nAnalyze the current trends in the stock market, focusing on ${f.focus}. Identify any emerging patterns and suggest possible investment opportunities. Take into account the latest earnings reports, macro environment, and sector-specific news in your analysis. Structure your response with: (1) Current Trend, (2) Emerging Patterns, (3) Investment Opportunities, (4) Key Risks to watch.`,
+  },
+  {
+    id: 1, icon: "🎯", color: "#a78bfa",
+    title: "Portfolio Diversification",
+    desc: "Strategies to diversify your portfolio and minimise concentration risk",
+    fields: [{ key: "focus", label: "Sectors or Stocks to Evaluate", placeholder: "e.g. Technology, Financials, NVDA, CNQ" }],
+    buildPrompt: (f, ctx) =>
+      `You are a portfolio strategist for a Canadian investor.\n\n${ctx}\n\nGiven this portfolio with concentration in ${f.focus}, suggest strategies to diversify further and minimize risk. Include: (1) Concentration risks identified, (2) Sectors to explore, (3) Specific stocks or instruments to consider, (4) Target allocation adjustments, (5) Canadian tax-efficiency considerations (TFSA vs RRSP placement).`,
+  },
+  {
+    id: 2, icon: "🛡", color: "#f97316",
+    title: "Risk Management",
+    desc: "Stop-loss, position sizing, and drawdown protection techniques",
+    fields: [{ key: "focus", label: "Trading Strategy or Stocks", placeholder: "e.g. growth stocks, NVDA + TSM, covered calls" }],
+    buildPrompt: (f, ctx) =>
+      `You are a risk management specialist advising a Canadian retail investor.\n\n${ctx}\n\nAnalyze effective risk management techniques for the following strategy/positions: ${f.focus}. Provide detailed examples of how to implement: (1) Stop-loss orders and trailing stops, (2) Diversification rules, (3) Position sizing (percentage of portfolio per position), (4) Portfolio-level drawdown limits, (5) Hedging strategies using options if applicable. Tailor advice to a Canadian registered account context (TFSA/RRSP constraints).`,
+  },
+  {
+    id: 3, icon: "📊", color: "#34d399",
+    title: "Technical Analysis",
+    desc: "Price action, moving averages, RSI and buy/sell/hold recommendations",
+    fields: [{ key: "tickers", label: "Stocks to Analyze", placeholder: "e.g. NVDA, AAPL, CNQ.TO" }],
+    buildPrompt: (f, ctx) =>
+      `You are a technical analyst evaluating stocks for a Canadian investor.\n\n${ctx}\n\nUsing technical analysis principles, evaluate the stocks: ${f.tickers}. For each stock analyze: (1) Recent price trend and momentum, (2) Key support and resistance levels, (3) Volume patterns and what they signal, (4) Moving averages (50-day, 200-day) — golden/death cross status, (5) RSI (overbought/oversold), (6) MACD signal, (7) Final recommendation: Buy / Accumulate / Hold / Reduce / Sell — with a suggested entry zone and stop-loss level.`,
+  },
+  {
+    id: 4, icon: "🌐", color: "#60a5fa",
+    title: "Economic Indicators",
+    desc: "How GDP, inflation, unemployment, and rates affect your stocks",
+    fields: [{ key: "focus", label: "Sector or Stocks", placeholder: "e.g. Canadian Banks, REITs, Energy stocks" }],
+    buildPrompt: (f, ctx) =>
+      `You are a macro economist advising a Canadian investor.\n\n${ctx}\n\nExplain how current economic indicators — including GDP growth, unemployment, CPI inflation, Bank of Canada and Fed interest rate policy, and currency (CAD/USD) — influence stock market performance. Then provide specific analysis of how these indicators affect ${f.focus}. Include: (1) Current macro environment summary, (2) Impact on the specified sector/stocks, (3) Key indicators to monitor in the next 3–6 months, (4) How investors can position portfolios given these conditions.`,
+  },
+  {
+    id: 5, icon: "💎", color: "#fbbf24",
+    title: "Value Investing",
+    desc: "Identify undervalued stocks using fundamental valuation principles",
+    fields: [{ key: "focus", label: "Stocks or Companies to Evaluate", placeholder: "e.g. INTC, NKE, Canadian banks" }],
+    buildPrompt: (f, ctx) =>
+      `You are a value investor in the tradition of Graham and Buffett, advising a Canadian investor.\n\n${ctx}\n\nDescribe the principles of value investing and identify whether ${f.focus} represent undervalued opportunities today. For each, analyze: (1) P/E vs. sector peers, (2) P/B and EV/EBITDA, (3) Free cash flow yield, (4) Balance sheet quality (debt/equity), (5) Competitive moat assessment, (6) Margin of safety at current price, (7) Verdict: undervalued, fairly valued, or overvalued — and a target price range.`,
+  },
+  {
+    id: 6, icon: "🧠", color: "#e879f9",
+    title: "Market Sentiment",
+    desc: "Assess investor sentiment and how to trade it for a stock or sector",
+    fields: [{ key: "focus", label: "Stock or Sector", placeholder: "e.g. AI stocks, Canadian Energy, PLTR" }],
+    buildPrompt: (f, ctx) =>
+      `You are a behavioural finance specialist advising a Canadian investor.\n\n${ctx}\n\nAnalyze how market sentiment currently influences ${f.focus}. Cover: (1) Current sentiment reading (fear/greed, bullish/bearish — with evidence), (2) Put/call ratios, short interest, analyst consensus shifts, (3) Social/media momentum signals, (4) How sentiment diverges from fundamentals (if it does), (5) Contrarian opportunity or momentum-following strategy, (6) Specific entry/exit signals based on sentiment extremes.`,
+  },
+  {
+    id: 7, icon: "📋", color: "#f43f5e",
+    title: "Earnings Report Analysis",
+    desc: "Interpret key metrics from earnings and predict price impact",
+    fields: [
+      { key: "company", label: "Company / Ticker", placeholder: "e.g. NVDA, Apple, Shopify" },
+      { key: "highlights", label: "Key Results (optional)", placeholder: "e.g. EPS beat $0.89 vs $0.81 est, revenue $26B, guidance raised" },
+    ],
+    buildPrompt: (f, ctx) =>
+      `You are a sell-side equity analyst reviewing an earnings report for a Canadian investor.\n\n${ctx}\n\nExplain how to interpret ${f.company}'s results report${f.highlights ? `, focusing on these highlights: ${f.highlights}` : ""}. Cover: (1) Revenue growth vs. expectations and year-over-year, (2) EPS (GAAP vs. adjusted) and beat/miss magnitude, (3) Gross margin and operating margin trends, (4) Forward guidance vs. analyst consensus, (5) Balance sheet highlights (cash, debt, buybacks), (6) Management commentary and tone, (7) Expected stock price reaction and whether the move is justified, (8) Revised price target or investment thesis update.`,
+  },
+  {
+    id: 8, icon: "⚖️", color: "#94a3b8",
+    title: "Growth vs Dividend Stocks",
+    desc: "Compare growth and dividend strategies with your actual holdings",
+    fields: [{ key: "focus", label: "Specific Stocks to Compare", placeholder: "e.g. NVDA vs ENB, AMZN vs TD" }],
+    buildPrompt: (f, ctx) =>
+      `You are a portfolio strategist advising a Canadian investor on income vs. growth allocation.\n\n${ctx}\n\nCompare and contrast growth stocks and dividend stocks, using ${f.focus} as specific examples. Cover: (1) Total return potential over 5–10 years for each, (2) Dividend reinvestment (DRIP) compounding math, (3) Tax efficiency in TFSA vs. RRSP for each type (IRS withholding on US dividends), (4) Volatility and drawdown characteristics, (5) Which is better suited for: accumulation phase vs. near-retirement, (6) Recommended blend for this investor's profile and timeline.`,
+  },
+  {
+    id: 9, icon: "🌍", color: "#fb923c",
+    title: "Geopolitical & World Events",
+    desc: "Analyse major events impact on markets and how to protect your portfolio",
+    fields: [{ key: "event", label: "Event or Theme", placeholder: "e.g. US-China trade war, oil price shock, rate hikes, pandemic" },
+             { key: "focus", label: "Sector or Stock Impacted", placeholder: "e.g. Canadian Energy, semiconductors, NVDA" }],
+    buildPrompt: (f, ctx) =>
+      `You are a geopolitical risk analyst advising a Canadian investor.\n\n${ctx}\n\nAnalyze the impact of ${f.event} on the stock market, specifically examining the effect on ${f.focus}. Structure your analysis as: (1) Event summary and timeline, (2) Transmission mechanism (how this event flows through to stock prices), (3) Sector/stock specific impact — winners and losers, (4) Historical precedent from similar events, (5) Portfolio protection strategies (defensive positioning, hedges, safe havens), (6) Opportunity: which sectors or stocks benefit from this disruption, (7) Monitoring signals — what to watch that signals escalation vs. resolution.`,
+  },
+];
+
 // Normalise Wealthsimple CSV "Account Type" values → short portfolio names
 function normalizeWsAccountName(raw = "") {
   const s = raw.trim().toLowerCase();
@@ -1145,6 +1233,16 @@ export default function App() {
   // ── CSV import account mapping ─────────────────────────────────────────────
   // { [csvAcctName]: { target: appPortfolioName, mode: "replace"|"merge" } }
   const [brokerImportMapping, setBrokerImportMapping] = useState({});
+
+  // ── AI Advisor ─────────────────────────────────────────────────────────────
+  const [advisorTemplateId,  setAdvisorTemplateId]  = useState(null);   // selected template id
+  const [advisorInputs,      setAdvisorInputs]      = useState({});      // { fieldKey: value }
+  const [advisorResponse,    setAdvisorResponse]    = useState(null);    // string response
+  const [advisorLoading,     setAdvisorLoading]     = useState(false);
+  const [advisorError,       setAdvisorError]       = useState(null);
+  const [advisorHistory,     setAdvisorHistory]     = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
+  });
 
   // ── Load from localStorage ─────────────────────────────────────────────
   useEffect(() => {
@@ -4158,7 +4256,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["help","📖 Help"]].map(([v,l]) => {
+            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["advisor","🧠 AI Advisor"],["help","📖 Help"]].map(([v,l]) => {
             const locked = !helpUnlocked && v !== "help";
             return (
               <button key={v} className={`tab-btn ${tab===v?"on":""}`}
@@ -11599,6 +11697,427 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               Data is approximate and manually curated as of {stockUniverseData.lastUpdated}. Fundamental metrics change quarterly.
               Always verify current P/E, EPS, and balance sheet data before making any investment decision. Not financial advice.
             </p>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: AI ADVISOR
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "advisor" && (() => {
+        const selectedTpl = advisorTemplateId !== null
+          ? AI_ADVISOR_TEMPLATES.find(t => t.id === advisorTemplateId) : null;
+
+        // Build portfolio context string injected into every prompt
+        function buildAdvisorPortfolioCtx() {
+          const fxRate = usdCadRate || 1.38;
+          const allH = portfolios.flatMap(p => (holdings[p] || []).map(h => ({ ...h, acct: p })));
+          if (!allH.length) return "";
+          const totalCAD = allH.reduce((s, h) => {
+            const cur = getTickerCurrency(h.ticker, h.currencyOverride);
+            return s + (cur === "USD" ? h.current * fxRate : h.current);
+          }, 0);
+          const holdingLines = allH
+            .filter(h => h.current > 0)
+            .sort((a, b) => {
+              const av = getTickerCurrency(a.ticker, a.currencyOverride) === "USD" ? a.current * fxRate : a.current;
+              const bv = getTickerCurrency(b.ticker, b.currencyOverride) === "USD" ? b.current * fxRate : b.current;
+              return bv - av;
+            })
+            .map(h => {
+              const cur = getTickerCurrency(h.ticker, h.currencyOverride);
+              const cadVal = cur === "USD" ? h.current * fxRate : h.current;
+              const pct = totalCAD > 0 ? ((cadVal / totalCAD) * 100).toFixed(1) : "0.0";
+              return `  ${h.acct} | ${h.ticker} | ${h.name} | C$${Math.round(cadVal).toLocaleString()} (${pct}%) | div:${h.divYield ?? 0}% | sector:${h.notes || "—"}`;
+            })
+            .join("\n");
+          const regime = marketPulse?.regime?.label || "Unknown";
+          const riskScore = marketPulse?.riskMeter?.score ?? 50;
+          const profCtx = profileContext();
+          return [
+            "PORTFOLIO CONTEXT:",
+            `Total value: C$${Math.round(totalCAD).toLocaleString()} | USD/CAD: ${fxRate} | Accounts: ${portfolios.join(", ")}`,
+            `Market regime: ${regime} | Risk score: ${riskScore}/100`,
+            profCtx || null,
+            "Holdings (account | ticker | name | CAD value | div yield | notes):",
+            holdingLines,
+          ].filter(Boolean).join("\n");
+        }
+
+        async function runAdvisorQuery() {
+          if (!selectedTpl) return;
+          if (licenseTier === "basic") {
+            setAdvisorError("AI Advisor requires the Pro plan.");
+            return;
+          }
+          setAdvisorLoading(true);
+          setAdvisorError(null);
+          setAdvisorResponse(null);
+          try {
+            const ctx = buildAdvisorPortfolioCtx();
+            const fieldValues = Object.fromEntries(
+              selectedTpl.fields.map(f => [f.key, advisorInputs[f.key] || ""])
+            );
+            const prompt = selectedTpl.buildPrompt(fieldValues, ctx);
+            const res = await callClaude({
+              model: "claude-sonnet-4-6",
+              max_tokens: 4096,
+              messages: [{ role: "user", content: prompt }],
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error?.message || `API error ${res.status}`);
+            }
+            const data = await res.json();
+            const text = (data.content?.[0]?.text || "").trim();
+            setAdvisorResponse(text);
+            const entry = {
+              id: Date.now(),
+              templateId: selectedTpl.id,
+              title: selectedTpl.title,
+              icon: selectedTpl.icon,
+              inputs: { ...fieldValues },
+              response: text,
+              ts: new Date().toISOString(),
+            };
+            setAdvisorHistory(prev => {
+              const next = [entry, ...prev].slice(0, 20);
+              try { localStorage.setItem("portfolio:advisorHistory", JSON.stringify(next)); } catch {}
+              return next;
+            });
+          } catch (e) {
+            setAdvisorError(e.message || "Analysis failed. Try again.");
+          } finally {
+            setAdvisorLoading(false);
+          }
+        }
+
+        // ── Auto-populate field defaults from portfolio context ─────────
+        function getFieldDefault(tplId, fieldKey) {
+          const allH = portfolios.flatMap(p => (holdings[p] || []).map(h => h));
+          const fxRate = usdCadRate || 1.38;
+          const topTickers = [...allH]
+            .filter(h => h.current > 0)
+            .sort((a, b) => {
+              const av = getTickerCurrency(a.ticker, a.currencyOverride) === "USD" ? a.current * fxRate : a.current;
+              const bv = getTickerCurrency(b.ticker, b.currencyOverride) === "USD" ? b.current * fxRate : b.current;
+              return bv - av;
+            })
+            .slice(0, 3)
+            .map(h => h.ticker)
+            .join(", ");
+          if (fieldKey === "tickers") return topTickers;
+          if (fieldKey === "focus") {
+            const sectors = [...new Set(allH.map(h => {
+              if (h.ticker.endsWith(".TO") || CAD_EXEMPT.has(h.ticker)) return "Canadian Equities";
+              if (["NVDA","AMD","TSM","AAPL","MSFT","GOOGL","META","AMZN","PLTR","NOW","CRWD","AVGO","MRVL","ANET"].includes(h.ticker)) return "Technology";
+              if (["JPM","BAC","GS","V","MA","AXP","TD","RY","BNS","BMO","CM","SCHW","BLK"].includes(h.ticker)) return "Financials";
+              if (["XOM","CVX","COP","SLB","OXY","CNQ","ENB","TRP"].includes(h.ticker)) return "Energy";
+              if (["LLY","JNJ","ABBV","UNH","NVO","MRK","AMGN"].includes(h.ticker)) return "Healthcare";
+              return null;
+            }).filter(Boolean))];
+            return sectors.slice(0, 2).join(", ") || topTickers;
+          }
+          return "";
+        }
+
+        function selectTemplate(tpl) {
+          setAdvisorTemplateId(tpl.id);
+          setAdvisorResponse(null);
+          setAdvisorError(null);
+          const defaults = {};
+          tpl.fields.forEach(f => {
+            defaults[f.key] = getFieldDefault(tpl.id, f.key);
+          });
+          setAdvisorInputs(defaults);
+        }
+
+        const canRun = selectedTpl && selectedTpl.fields.every(f =>
+          (advisorInputs[f.key] || "").trim().length > 0
+        );
+
+        // ── Render ─────────────────────────────────────────────────────
+        return (
+          <div style={{ padding:"22px 28px", display:"flex", gap:20, alignItems:"flex-start", flexWrap:"wrap" }}>
+
+            {/* ── Left column: template library + history ── */}
+            <div style={{ flex:"0 0 260px", minWidth:220, display:"flex", flexDirection:"column", gap:12 }}>
+
+              {/* Library header */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+                <span style={{ fontSize:18 }}>🧠</span>
+                <span style={{ fontSize:14, fontWeight:800, color:"#f1f5f9" }}>AI Advisor</span>
+                <span style={{ marginLeft:"auto", fontSize:9, padding:"2px 7px", borderRadius:4,
+                  background:"rgba(167,139,250,0.15)", color:"#a78bfa",
+                  border:"1px solid rgba(167,139,250,0.3)", fontWeight:600, letterSpacing:"0.1em" }}>
+                  PRO
+                </span>
+              </div>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:"0 0 8px",lineHeight:1.5 }}>
+                10 expert prompt templates, pre-loaded with your portfolio context.
+              </p>
+
+              {/* Template cards */}
+              {AI_ADVISOR_TEMPLATES.map(tpl => {
+                const isActive = advisorTemplateId === tpl.id;
+                return (
+                  <button key={tpl.id} onClick={() => selectTemplate(tpl)}
+                    style={{
+                      width:"100%", textAlign:"left", cursor:"pointer", borderRadius:10,
+                      padding:"11px 13px",
+                      background: isActive ? `${tpl.color}18` : "rgba(255,255,255,0.03)",
+                      border: `1px solid ${isActive ? tpl.color + "55" : "rgba(255,255,255,0.08)"}`,
+                      transition:"all 0.15s",
+                    }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <span style={{ fontSize:15 }}>{tpl.icon}</span>
+                      <span style={{ fontSize:12, fontWeight:700,
+                        color: isActive ? tpl.color : "#e2e8f0" }}>{tpl.title}</span>
+                    </div>
+                    <p style={{ margin:0, fontSize:10, color:"rgba(255,255,255,0.38)", lineHeight:1.4 }}>
+                      {tpl.desc}
+                    </p>
+                  </button>
+                );
+              })}
+
+              {/* History */}
+              {advisorHistory.length > 0 && (
+                <div style={{ marginTop:8 }}>
+                  <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                    color:"rgba(255,255,255,0.25)", fontWeight:600, marginBottom:8 }}>
+                    Recent Analyses
+                  </p>
+                  {advisorHistory.slice(0, 5).map(h => (
+                    <button key={h.id} onClick={() => {
+                      const tpl = AI_ADVISOR_TEMPLATES.find(t => t.id === h.templateId);
+                      if (tpl) {
+                        setAdvisorTemplateId(tpl.id);
+                        setAdvisorInputs(h.inputs || {});
+                        setAdvisorResponse(h.response);
+                        setAdvisorError(null);
+                      }
+                    }} style={{
+                      width:"100%", textAlign:"left", cursor:"pointer", padding:"7px 10px",
+                      background:"transparent", border:"none", borderRadius:7,
+                      borderBottom:"1px solid rgba(255,255,255,0.04)", display:"block",
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:12 }}>{h.icon}</span>
+                        <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)", flex:1,
+                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {h.title}
+                        </span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", flexShrink:0 }}>
+                          {new Date(h.ts).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}
+                        </span>
+                      </div>
+                      {h.inputs && Object.values(h.inputs).filter(Boolean).length > 0 && (
+                        <p style={{ margin:"3px 0 0 18px", fontSize:9,
+                          color:"rgba(255,255,255,0.25)", overflow:"hidden",
+                          textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {Object.values(h.inputs).filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                  {advisorHistory.length > 5 && (
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop:4 }}>
+                      +{advisorHistory.length - 5} more in history
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* ── Right column: builder + response ── */}
+            <div style={{ flex:"1 1 480px", minWidth:300, display:"flex", flexDirection:"column", gap:16 }}>
+
+              {!selectedTpl ? (
+                /* ── Welcome screen ── */
+                <div className="card" style={{ textAlign:"center", padding:"56px 32px" }}>
+                  <div style={{ fontSize:48, marginBottom:16 }}>🧠</div>
+                  <p style={{ fontSize:18, fontWeight:800, color:"#f1f5f9", marginBottom:8 }}>
+                    AI Financial Advisor
+                  </p>
+                  <p style={{ fontSize:13, color:"rgba(255,255,255,0.4)", maxWidth:420,
+                    margin:"0 auto 24px", lineHeight:1.6 }}>
+                    Choose one of the 10 expert templates on the left. Each analysis is automatically
+                    enriched with your live portfolio holdings, market regime, and investor profile.
+                  </p>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",
+                    gap:10, maxWidth:520, margin:"0 auto" }}>
+                    {AI_ADVISOR_TEMPLATES.map(tpl => (
+                      <button key={tpl.id} onClick={() => selectTemplate(tpl)}
+                        style={{ padding:"14px 10px", borderRadius:10, cursor:"pointer",
+                          background:`${tpl.color}10`, border:`1px solid ${tpl.color}30`,
+                          display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:22 }}>{tpl.icon}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color: tpl.color,
+                          textAlign:"center" }}>{tpl.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* ── Prompt builder card ── */}
+                  <div className="card" style={{ padding:"20px 22px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                      <span style={{ fontSize:22 }}>{selectedTpl.icon}</span>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:0, fontSize:15, fontWeight:800, color: selectedTpl.color }}>
+                          {selectedTpl.title}
+                        </p>
+                        <p style={{ margin:0, fontSize:11, color:"rgba(255,255,255,0.4)" }}>
+                          {selectedTpl.desc}
+                        </p>
+                      </div>
+                      <button onClick={() => { setAdvisorTemplateId(null); setAdvisorResponse(null); }}
+                        style={{ fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                          color:"rgba(255,255,255,0.35)" }}>
+                        ← Back
+                      </button>
+                    </div>
+
+                    {/* Context badge */}
+                    <div style={{ marginBottom:14, padding:"8px 12px", borderRadius:8,
+                      background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.07)",
+                      display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>
+                        ✅ Auto-injected context:
+                      </span>
+                      {[
+                        `${portfolios.flatMap(p => (holdings[p]||[]).filter(h=>h.current>0)).length} holdings`,
+                        `C$${Math.round(portfolios.reduce((s,p)=>{
+                          return s+(holdings[p]||[]).reduce((a,h)=>{
+                            const c=getTickerCurrency(h.ticker,h.currencyOverride);
+                            return a+(c==="USD"?h.current*usdCadRate:h.current);
+                          },0);
+                        },0)).toLocaleString()} portfolio`,
+                        marketPulse?.regime?.label || null,
+                        investorProfile ? `${investorProfile.riskTolerance} risk` : null,
+                      ].filter(Boolean).map(label => (
+                        <span key={label} style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                          background:"rgba(167,139,250,0.1)", color:"#a78bfa",
+                          border:"1px solid rgba(167,139,250,0.2)" }}>
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Input fields */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
+                      {selectedTpl.fields.map(field => (
+                        <div key={field.key}>
+                          <label style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.6)",
+                            display:"block", marginBottom:5 }}>
+                            {field.label}
+                          </label>
+                          <input
+                            type="text"
+                            value={advisorInputs[field.key] || ""}
+                            placeholder={field.placeholder}
+                            onChange={e => setAdvisorInputs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            style={{
+                              width:"100%", boxSizing:"border-box",
+                              padding:"9px 12px", borderRadius:8, fontSize:13,
+                              background:"rgba(255,255,255,0.05)",
+                              border:`1px solid ${selectedTpl.color}40`,
+                              color:"#f1f5f9", outline:"none",
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Run button */}
+                    <button onClick={runAdvisorQuery} disabled={!canRun || advisorLoading}
+                      style={{
+                        width:"100%", padding:"12px", borderRadius:9, cursor: canRun && !advisorLoading ? "pointer" : "not-allowed",
+                        background: canRun && !advisorLoading ? `${selectedTpl.color}22` : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${canRun && !advisorLoading ? selectedTpl.color + "55" : "rgba(255,255,255,0.08)"}`,
+                        color: canRun && !advisorLoading ? selectedTpl.color : "rgba(255,255,255,0.2)",
+                        fontWeight:700, fontSize:13, transition:"all 0.15s",
+                      }}>
+                      {advisorLoading ? "⏳ Analysing…" : `${selectedTpl.icon} Run Analysis`}
+                    </button>
+
+                    {advisorError && (
+                      <p style={{ margin:"10px 0 0", fontSize:12, color:"#f43f5e" }}>
+                        ⚠ {advisorError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* ── Response card ── */}
+                  {(advisorResponse || advisorLoading) && (
+                    <div className="card" style={{ padding:"20px 22px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                        <span style={{ fontSize:14 }}>{selectedTpl.icon}</span>
+                        <span style={{ fontSize:13, fontWeight:700, color: selectedTpl.color }}>
+                          Analysis
+                        </span>
+                        {advisorLoading && (
+                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)",
+                            animation:"pulse 1.5s infinite" }}>
+                            generating…
+                          </span>
+                        )}
+                        {advisorResponse && !advisorLoading && (
+                          <button onClick={() => {
+                            navigator.clipboard?.writeText(advisorResponse).catch(() => {});
+                          }} style={{
+                            marginLeft:"auto", fontSize:10, padding:"3px 9px", borderRadius:6,
+                            cursor:"pointer", background:"rgba(255,255,255,0.05)",
+                            border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.4)",
+                          }}>
+                            Copy
+                          </button>
+                        )}
+                      </div>
+
+                      {advisorLoading ? (
+                        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                          {[90, 75, 85, 60, 70].map((w, i) => (
+                            <div key={i} style={{
+                              height:12, borderRadius:6, background:"rgba(255,255,255,0.06)",
+                              width:`${w}%`, animation:"pulse 1.5s infinite",
+                              animationDelay: `${i * 0.12}s`,
+                            }}/>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize:13, color:"rgba(255,255,255,0.82)", lineHeight:1.75,
+                          whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                          {advisorResponse}
+                        </div>
+                      )}
+
+                      {advisorResponse && !advisorLoading && (
+                        <div style={{ marginTop:18, paddingTop:14,
+                          borderTop:"1px solid rgba(255,255,255,0.06)",
+                          display:"flex", alignItems:"center", justifyContent:"space-between",
+                          flexWrap:"wrap", gap:10 }}>
+                          <p style={{ margin:0, fontSize:9, color:"rgba(255,255,255,0.2)" }}>
+                            ⚠ Not financial advice. For educational purposes only.
+                            Consult a licensed financial advisor before investing.
+                          </p>
+                          <button onClick={runAdvisorQuery}
+                            style={{ fontSize:10, padding:"4px 12px", borderRadius:6,
+                              cursor:"pointer", background:`${selectedTpl.color}15`,
+                              border:`1px solid ${selectedTpl.color}35`,
+                              color: selectedTpl.color }}>
+                            Regenerate ↺
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         );
       })()}
