@@ -280,6 +280,19 @@ async function main() {
     await sleep(DELAY_MS);
   }
 
+  console.log(`\n── Summary ──────────────────────────────────────`);
+  console.log(`   Tickers fetched  : ${updated}`);
+  console.log(`   Tickers skipped  : ${kept}`);
+
+  // Abort if too few tickers succeeded — Yahoo likely blocked the run.
+  // Writing empty/partial data would erase the deployed universe and break the app.
+  const MIN_REQUIRED = Math.floor(allStocks.length * 0.5);
+  if (updated < MIN_REQUIRED) {
+    console.error(`\n⚠  Only ${updated}/${allStocks.length} tickers fetched (need ≥ ${MIN_REQUIRED}).`);
+    console.error('   Yahoo Finance likely blocked this run. Aborting write to preserve existing data.');
+    process.exit(1);
+  }
+
   const now = new Date();
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -290,10 +303,6 @@ async function main() {
   };
 
   writeFileSync(DATA_PATH, JSON.stringify(output, null, 2) + '\n');
-
-  console.log(`\n── Summary ──────────────────────────────────────`);
-  console.log(`   Tickers fetched  : ${updated}`);
-  console.log(`   Tickers skipped  : ${kept}`);
   console.log(`   lastUpdated      : ${output.lastUpdated}`);
   console.log(`   Output           : src/data/stockUniverse.json`);
 }

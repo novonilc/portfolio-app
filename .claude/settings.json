@@ -30,7 +30,9 @@
       "Bash(PATH=/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533:__TRACKED_VAR__ node /home/nchoudhu/portfolio-app/node_modules/vite/bin/vite.js build --mode production)",
       "Bash(node /home/nchoudhu/portfolio-app/scripts/rebuild-universe.mjs)",
       "Bash(/run/host/usr/bin/node /home/nchoudhu/portfolio-app/scripts/rebuild-universe.mjs)",
-      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks: {len\\(d[\\\\\"stocks\\\\\"]\\)}, lastUpdated: {d[\\\\\"lastUpdated\\\\\"]}'\\)\")"
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks: {len\\(d[\\\\\"stocks\\\\\"]\\)}, lastUpdated: {d[\\\\\"lastUpdated\\\\\"]}'\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('stocks:', len\\(d['stocks']\\), '| lastUpdated:', d['lastUpdated'], '| note:', d['note'][:60]\\)\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('src/data/stockUniverse.json'\\)\\); print\\('LOCAL stocks:', len\\(d['stocks']\\), '| note:', d['note'][:60]\\)\")"
     ],
     "additionalDirectories": [
       "/tmp"

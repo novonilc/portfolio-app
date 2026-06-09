@@ -10753,6 +10753,24 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           TAB: SCANNER
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "scanner" && (() => {
+        // Universe-empty guard — happens when the daily GitHub Actions refresh
+        // wrote an empty file (Yahoo Finance blocked). Show a clear error early
+        // rather than letting the table silently appear empty.
+        if (!stockUniverseData.stocks.length) {
+          return (
+            <div className="card" style={{ textAlign:"center", padding:"48px 24px", borderColor:"rgba(239,68,68,0.3)" }}>
+              <div style={{ fontSize:32, marginBottom:12 }}>⚠️</div>
+              <div style={{ fontSize:14, fontWeight:700, color:"#fca5a5", marginBottom:8 }}>
+                Stock universe is empty
+              </div>
+              <div style={{ fontSize:12, color:"#94a3b8", maxWidth:480, margin:"0 auto" }}>
+                The daily data refresh wrote an empty file — Yahoo Finance likely blocked the run.
+                Re-deploy or re-run <code style={{ color:"rgba(255,255,255,0.4)" }}>scripts/rebuild-universe.mjs</code> to restore the 97-stock baseline.
+              </div>
+            </div>
+          );
+        }
+
         // Merge live prices (from Scan Now) over the static JSON fundamentals
         const liveMap = stockScanResults
           ? Object.fromEntries(stockScanResults.stocks.map(r => [r.ticker, r.price]))
