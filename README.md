@@ -2,7 +2,7 @@
 
 **The AI-powered portfolio tool built for Canadian TFSA & RRSP investors.**
 
-Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, a daily Vertical Spread Scanner, BNN Bloomberg expert picks, and Claude AI — all in your browser, no bank connection ever.
+Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, a daily Vertical Spread Scanner, BNN Bloomberg expert picks, a 95-stock fundamental screener, and Claude AI with 10 expert analysis templates — all in your browser, no bank connection ever.
 
 ### Subscription plans
 
@@ -13,8 +13,8 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | Ideas & curated recommendations | ✓ | ✓ |
 | Options Calculator (CC + CSP) | ✓ | ✓ |
 | 📊 Spread Scanner (daily auto-refresh, 5:30 PM ET (after close)) | ✓ | ✓ |
-| 🔎 Stock Scanner (79 stocks, 9 presets, Ideas integration, daily refresh) | ✓ | ✓ |
-| 📰 BNN Bloomberg Market Call Picks | ✓ | ✓ |
+| 🔎 Stock Scanner (95 stocks, 9 presets, Ideas integration, daily refresh) | ✓ | ✓ |
+| 📰 BNN Bloomberg Market Call Picks (last 5 days) | ✓ | ✓ |
 | Investor Profile | ✓ | ✓ |
 | ☁️ Automatic cloud sync (multi-device) | ✓ | ✓ |
 | ⚡ Market Pulse AI refresh | — | ✓ |
@@ -22,6 +22,7 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | 🤖 AI Diversification Analysis | — | ✓ |
 | 🤖 AI Options Analysis | — | ✓ |
 | 🏦 Broker CSV Import (AI-parsed) | — | ✓ |
+| 🧠 AI Advisor (10 expert analysis templates) | — | ✓ |
 | AI calls per day | — | 10 (resets midnight UTC) |
 | No Anthropic API key needed | ✓ | ✓ |
 
@@ -71,8 +72,12 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 | [Investor Profile](docs/investor-profile.md) | Setting up your age, risk tolerance, and goal to personalise all AI features |
 | [Customizing Data Files](docs/data-customization.md) | Editing `recommendations.json` and `marketPulse.json` without touching app code |
 
+> **AI Advisor quick reference:** The 🧠 AI Advisor tab (Pro plan) provides 10 expert prompt templates — Market Analysis, Portfolio Diversification, Risk Management, Technical Analysis, Economic Indicators, Value Investing, Market Sentiment, Earnings Report Analysis, Growth vs Dividend Stocks, and Geopolitical/World Events. Each template auto-injects your portfolio context so you never need to paste holdings manually.
+
 > **Recent changes:**
-> - **🔎 Stock Scanner + Ideas Integration** — a new tab covering 79 stocks (US large/mega-cap, US mid/small-cap, and Canadian TSX) with 9 preset screens (Buffett Zone, GARP, Income Quality, Deep Value, Compounders, Mid & Small, Ideas Picks, Canadian Value, Show All), 7 custom filter sliders, a Value Score (0–100), and Market Cap badges. The **Ideas Picks** preset shows only stocks curated in the Ideas tab; clicking any Ideas-linked row expands an inline thesis panel with the full investment thesis, risk factors, tags, and CAGR estimate. Data refreshes daily at 6AM Vancouver via GitHub Actions — no API key or manual update required.
+> - **🧠 AI Advisor** — a new tab (Pro plan) with 10 expert prompt templates that auto-inject your full portfolio context into every Claude call. Templates cover: Market Analysis, Portfolio Diversification, Risk Management, Technical Analysis, Economic Indicators, Value Investing, Market Sentiment, Earnings Report Analysis, Growth vs Dividend Stocks, and Geopolitical/World Events. A two-column layout shows the template library on the left and the builder/response panel on the right. Results can be copied or regenerated, and the 10 most recent analyses are saved in a persistent history panel.
+> - **📰 BNN Bloomberg 5-day history** — the BNN Bloomberg Market Call section in the Ideas tab now shows the last 5 broadcast days. Older days collapse behind a toggle so the latest session loads fast.
+> - **🔎 Stock Scanner + Ideas Integration** — a tab covering 95 stocks (US large/mega-cap, US mid/small-cap, and Canadian TSX) with 9 preset screens (Buffett Zone, GARP, Income Quality, Deep Value, Compounders, Mid & Small, Ideas Picks, Canadian Value, Show All), 7 custom filter sliders, a Value Score (0–100), and Market Cap badges. The **Ideas Picks** preset shows only stocks curated in the Ideas tab; clicking any Ideas-linked row expands an inline thesis panel with the full investment thesis, risk factors, tags, and CAGR estimate. Data refreshes daily at 6AM Vancouver via GitHub Actions — no API key or manual update required.
 > - **📊 Vertical Spread Scanner** — a new sub-tab in Options that scores 69 liquid tickers daily for vertical spread suitability. Computes RSI (14), MACD (12/26/9), SMA 50 & 200, 20-day VWAP, and volume ratio from 1 year of daily data. Each ticker gets a 0–100 spread score and a recommendation: Bull Put Spread, Bear Call Spread, Iron Condor, Caution, or Skip. Refreshes automatically every day at 5:30 PM ET (after close) via Vercel Cron. Included in both Basic and Pro.
 > - **📰 BNN Bloomberg Market Call Picks** — expert analyst buy/hold/sell calls from BNN Bloomberg's daily Market Call segment, parsed and structured by Claude AI each weekday morning. Organised into Canadian stocks, US stocks, and ETFs. Included in both plans.
 > - **📖 Help tab & onboarding gate** — a full in-app guide covering every tab, TFSA/RRSP strategy, Basic vs Pro features, and 7 best practices. New users land on the Help tab automatically and cannot access other tabs until they click "Start using the app →". Returning users go straight to Dashboard.
@@ -330,7 +335,7 @@ Each horizon has three scenario cards — Bull, Base, Bear — each showing prob
 
 ### Stock Scanner Tab
 
-A fundamental screener covering **79 stocks** (US large/mega-cap, US mid/small-cap, and Canadian TSX names) designed to surface quality businesses at the right price.
+A fundamental screener covering **95 stocks** (US large/mega-cap, US mid/small-cap, and Canadian TSX names) designed to surface quality businesses at the right price.
 
 **9 one-click preset screens:**
 
@@ -372,7 +377,7 @@ Score ≥ 75 = green, 50–74 = yellow, < 50 = red. Bank stocks receive a neutra
 
 Click the same row again to collapse the panel.
 
-**Daily data refresh:** A GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) runs every day at 6AM Vancouver time (13:00 UTC). It fetches live P/E, forward P/E, EPS growth, ROE, D/E, dividend yield, FCF yield, and gross margin from Yahoo Finance for all 79 tickers and commits the updated `src/data/stockUniverse.json`. This triggers a Vercel auto-deploy, so the scanner always shows yesterday's closing fundamentals. No API key or manual update required.
+**Daily data refresh:** A GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) runs every day at 6AM Vancouver time (13:00 UTC). It fetches live P/E, forward P/E, EPS growth, ROE, D/E, dividend yield, FCF yield, and gross margin from Yahoo Finance for all 95 tickers and commits the updated `src/data/stockUniverse.json`. This triggers a Vercel auto-deploy, so the scanner always shows yesterday's closing fundamentals. No API key or manual update required.
 
 **Manual refresh:**
 
@@ -383,6 +388,45 @@ npm run refresh-scanner
 Runs `scripts/refresh-scanner.mjs` locally against Yahoo Finance. Outputs ✓/✗ per ticker and writes `src/data/stockUniverse.json`.
 
 **Updating the stock universe:** Edit `src/data/stockUniverse.json` directly. See [Updating Curated Data — stockUniverse.json](#updating-stockuniversejson) below for the full field reference.
+
+---
+
+### AI Advisor Tab
+
+A Pro-only tab giving you direct access to 10 expert financial analysis templates, each pre-loaded with your full portfolio context. No copy-pasting required — every Claude conversation already knows your holdings, their values, the current market regime, your FX rate, and your Investor Profile.
+
+**The 10 templates:**
+
+| Template | What it does |
+|---|---|
+| 📈 Market Analysis | Analyses a specific sector or stock in the context of current regime, macro signals, and your existing exposure |
+| 🌐 Portfolio Diversification | Maps your gaps across sectors, geographies, and asset classes; suggests additions and trims with account placement rationale |
+| 🛡️ Risk Management | Scores your portfolio's vulnerability to the top bear risks; proposes hedges and concentration fixes |
+| 📉 Technical Analysis | Delivers a structured technical read (trend, momentum, support/resistance) on any ticker |
+| 📊 Economic Indicators | Explains how a specific macro event (CPI, FOMC, GDP) flows through to your holdings |
+| 💎 Value Investing | Applies Buffett/Graham criteria to a ticker or sector; identifies quality-at-a-reasonable-price candidates |
+| 😨 Market Sentiment | Reads Fear & Greed, put/call ratio, and AAII sentiment against your current positioning |
+| 📋 Earnings Report Analysis | Breaks down a recent earnings release (EPS, revenue, guidance) and its implications for your position |
+| 🌱 Growth vs Dividend | Compares the long-term wealth impact of reinvesting dividends vs holding growth stocks in your registered accounts |
+| 🌍 Geopolitical / World Events | Maps a geopolitical development to sector-level impacts and suggests tactical adjustments |
+
+**How it works:**
+
+1. Select a template from the left sidebar — each shows an icon, a one-line description, and any custom input fields (e.g. "Sector or Stock", "Earnings Date")
+2. Fill in the optional custom field (pre-populated with a sensible default)
+3. Click **Ask Claude** — the app builds a complete prompt that injects your portfolio summary, market regime, and investor profile automatically
+4. The response appears in the right panel with full markdown formatting
+5. Copy the response or click **Regenerate** for a fresh take
+6. The last 10 analyses are saved to a collapsible history panel (persisted in localStorage)
+
+**AI Advisor vs. other AI features:**
+
+| | AI Advisor | AI Diversification | Market Pulse AI | Options AI |
+|---|---|---|---|---|
+| Scope | Open-ended analysis | Gap detection + trim alerts | Regime + actions | CC/CSP suggestions |
+| User controls prompt | Yes (choose template + input) | No (fixed output) | No (fixed output) | No (fixed output) |
+| Custom follow-up | Yes (regenerate or copy to claude.ai) | No | No | No |
+| Counts toward 10/day | Yes | Yes | Yes | Yes |
 
 ---
 
@@ -1490,6 +1534,7 @@ Answers are saved to `localStorage` immediately. The header button updates to a 
 | AI Diversification Analysis | Generic sector-gap suggestions | Sectors and weightings match your risk level and years-to-retirement |
 | AI Target Suggestions | WHT-aware allocation defaults | Also factors income vs. growth weighting from your stated goal |
 | AI Options Analysis | Standard premium suggestions | Conservative profiles receive Low-risk trades only; Aggressive profiles see all risk levels |
+| AI Advisor | Generic analysis against your holdings | Each of the 10 templates prepends age, risk tolerance, and goal — Claude calibrates risk sizing, time horizon, and account placement to your situation |
 | Ideas Tab | Unfiltered recommendations | Profile strip shows context; Claude weights suggestions to your goal and timeline |
 
 ### Risk tolerance levels

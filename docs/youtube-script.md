@@ -164,7 +164,36 @@
 
 ---
 
-## SECTION 7 — Options Income (7:30–8:30)
+## SECTION 7 — AI Advisor (7:30–8:15)
+
+**[Navigate to 🧠 AI Advisor tab]**
+
+**VO:**
+> "Here's the newest feature — and if you've ever wanted to just ask a question about your portfolio and get a real, informed answer, this is it. The AI Advisor tab is a library of 10 expert analysis templates, and every single one already knows your portfolio."
+
+**[Click "Market Analysis" template]**
+
+**VO:**
+> "Pick a template — Market Analysis, Risk Management, Technical Analysis, Earnings Report, Geopolitical Events — there are ten to choose from. I'll pick Market Analysis. Type a sector or stock name in the field — let's say 'Semiconductors' — and hit Ask Claude."
+
+**[Show response loading and appearing]**
+
+**VO:**
+> "Within 30 seconds you get a full analyst-grade writeup. Claude already knows what I hold, the current market regime, my FX rate, and my investor profile — I didn't have to paste any of that. This is what separates this from just opening claude.ai and asking."
+
+**[Show Portfolio Diversification template]**
+
+**VO:**
+> "The Portfolio Diversification template is the one I use most. It maps every gap in my sector and geography coverage, suggests what to add and where to put it, and flags anything that's overweight or in the wrong account. The Risk Management template is another favourite — it tells you exactly which positions are vulnerable to the top bear risks right now, not generic risk advice."
+
+**[Show history panel]**
+
+**VO:**
+> "Your last 10 analyses are saved automatically. And you can copy any response to your clipboard or regenerate it for a fresh take."
+
+---
+
+## SECTION 8 — Options Income (8:15–9:15)
 
 **[Navigate to Options tab]**
 
@@ -183,7 +212,7 @@
 
 ---
 
-## SECTION 8 — Investor Profile (8:30–9:00)
+## SECTION 9 — Investor Profile (9:15–9:45)
 
 **[Click 👤 Set Profile in header]**
 
@@ -197,7 +226,7 @@
 
 ---
 
-## SECTION 9 — Privacy & Setup (9:00–9:30)
+## SECTION 10 — Privacy & Setup (9:45–10:15)
 
 **[Show browser DevTools Network tab briefly]**
 
@@ -211,12 +240,12 @@
 
 ---
 
-## OUTRO — CTA (9:30–10:00)
+## OUTRO — CTA (10:15–10:45)
 
 **[Screen: Return to Marketing page or pricing card]**
 
 **VO:**
-> "That's Portfolio Rebalancer Pro. Two plans: Basic at $49 Canadian per year covers all portfolio tools. Pro at $99 adds Claude AI — Market Pulse refresh, AI Target Suggestions, Diversification Analysis, Options AI, and Broker Import — all included, no API key needed. You get a license key by email instantly, paste it into the app, and you're in."
+> "That's Portfolio Rebalancer Pro. Two plans: Basic at $49 Canadian per year covers all portfolio tools. Pro at $99 adds Claude AI — Market Pulse refresh, AI Target Suggestions, Diversification Analysis, Options AI, Broker Import, and the full AI Advisor with 10 expert templates — all included, no API key needed. You get a license key by email instantly, paste it into the app, and you're in."
 
 **[Show the license gate in the app]**
 
@@ -235,9 +264,11 @@ Portfolio Rebalancer Pro — the complete AI-powered portfolio tool built for Ca
 ✅ Smart rebalancing (cash-only, no forced sells)
 ✅ Withholding tax optimizer — stop losing 15% of dividends to the IRS
 ✅ Claude AI built-in: Diversification Analysis, Target Suggestions, Options Analysis
+✅ 🧠 AI Advisor — 10 expert templates that auto-inject your portfolio context
 ✅ Market Pulse with Action Center — read the market and act in the same tab
 ✅ Options income planner (CC + CSP + AI suggestions)
 ✅ Broker CSV Import from Wealthsimple
+✅ 95-stock fundamental screener with daily Yahoo Finance refresh
 ✅ 100% private — no bank connection, data stays in your browser
 
 Basic plan → [BASIC CHECKOUT URL] — $49 CAD/year · All portfolio tools
@@ -251,10 +282,11 @@ Timestamps:
 04:15 – Rebalancing & DCA calendar
 05:15 – Fixing your WHT leak permanently
 05:45 – AI Diversification Analysis & Market Pulse
-07:30 – Options income planner
-08:30 – Investor Profile personalisation
-09:00 – Privacy model
-09:30 – Pricing & CTA
+07:30 – AI Advisor — 10 expert analysis templates
+08:15 – Options income planner
+09:15 – Investor Profile personalisation
+09:45 – Privacy model
+10:15 – Pricing & CTA
 
 #CanadianInvesting #TFSA #RRSP #PortfolioManagement #Investing
 ```

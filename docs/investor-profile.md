@@ -2,7 +2,7 @@
 
 The Investor Profile is a short questionnaire that tells the app's AI features who you are. Without a profile, every AI request returns generic advice for a hypothetical Canadian investor. With a profile, Claude adjusts sector weightings, position sizing, account placement guidance, and option trade risk levels to match your actual age, timeline, goal, and risk appetite.
 
-> **Plan availability:** The Investor Profile questionnaire is available on both Basic and Pro plans. However, the AI features it personalises (Market Pulse refresh, AI Target Suggestions, AI Diversification Analysis, AI Options Analysis) require the **Pro plan**.
+> **Plan availability:** The Investor Profile questionnaire is available on both Basic and Pro plans. However, the AI features it personalises (Market Pulse refresh, AI Target Suggestions, AI Diversification Analysis, AI Options Analysis, AI Advisor) require the **Pro plan**.
 
 ---
 
@@ -92,11 +92,12 @@ INVESTOR PROFILE:
 - Monthly contribution capacity: C$1,000
 ```
 
-This block appears before the portfolio holdings data in all three AI features:
+This block appears before the portfolio holdings data in all AI features:
 
 - **AI Diversification Analysis** — Claude uses the profile to weight which gaps matter most and which existing positions to flag for trimming
 - **AI Target Suggestions** — Claude adjusts the allocation split between growth and income/defensive positions
 - **AI Options Analysis** — Claude filters trade risk levels and adjusts DTE/strike distance to match the stated tolerance
+- **AI Advisor** — all 10 templates prepend the profile block before injecting portfolio context, so every analysis is calibrated to your age, timeline, and risk level from the start
 
 ---
 

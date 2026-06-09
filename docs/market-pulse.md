@@ -2,7 +2,9 @@
 
 The Market Pulse tab is the app's AI-powered market dashboard. It shows the current market regime, macro signals, recent news with portfolio impact, 3/6-month scenarios, and an Action Center where you can buy and reduce positions without leaving the tab.
 
-The **Ideas tab** also includes a daily **BNN Bloomberg Market Call** section — expert analyst stock picks from each morning's live broadcast, parsed and structured automatically by Claude AI. See [BNN Bloomberg Picks](#bnn-bloomberg-market-call-picks) below.
+The **Ideas tab** also includes a daily **BNN Bloomberg Market Call** section — expert analyst stock picks from the last 5 broadcast days, parsed and structured automatically by Claude AI. See [BNN Bloomberg Picks](#bnn-bloomberg-market-call-picks) below.
+
+> **Also see:** The [🧠 AI Advisor tab](../README.md#ai-advisor-tab) (Pro plan) provides 10 expert prompt templates that auto-inject your portfolio context, letting you ask open-ended questions like "run a risk management review" or "analyse semiconductor exposure" without copying your holdings manually.
 
 ---
 
@@ -197,6 +199,8 @@ This runs Monday–Friday. Weekend calls are not parsed (BNN does not air Market
 
 ### Reading the picks
 
+The BNN section shows the **last 5 broadcast days**. The most recent session loads expanded; earlier days collapse behind a toggle so the tab stays scannable. Each day's header shows the broadcast date and a count of picks.
+
 Each pick card shows:
 
 | Field | Example |
@@ -207,7 +211,7 @@ Each pick card shows:
 | Action | **▲ BUY** / **→ HOLD** / **▼ SELL** |
 | Rationale | One-sentence summary of the analyst's thesis |
 
-Cards are colour-coded by action: green border for Buy, amber for Hold, red for Sell.
+Cards are colour-coded by action: green border for Buy, amber for Hold, red for Sell. Picks are organised into three sections per day: **Canadian stocks**, **US stocks**, and **ETFs**.
 
 ### Caveats
 
