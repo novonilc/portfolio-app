@@ -1107,6 +1107,7 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem("diversify:suggestions") || "null"); } catch { return null; }
   });
   const [bnnCalls,            setBnnCalls]            = useState(null);
+  const [bnnDayIndex,         setBnnDayIndex]         = useState(0);
   const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
   const [aiOptionsError,      setAiOptionsError]      = useState(null);
   const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
@@ -3278,24 +3279,30 @@ Return ONLY a valid JSON object, no markdown:
       [...(holdings.TFSA || []), ...(holdings.RRSP || [])].map(h => h.ticker)
     );
     let bnnBlock = "";
-    if (bnnCalls?.experts?.length) {
+    const bnnDays = bnnCalls?.days?.length ? bnnCalls.days : (bnnCalls?.experts?.length ? [bnnCalls] : []);
+    if (bnnDays.length) {
       const rows = [];
-      bnnCalls.experts.forEach(expert => {
-        (expert.picks || []).forEach(pick => {
-          const held = allHeld.has(pick.ticker);
-          // Include: picks on held tickers OR strong buy signals on unwatched tickers
-          if (held || pick.action === "buy") {
-            rows.push(
-              `  ${pick.ticker} — ${pick.rawAction || pick.action.toUpperCase()} ` +
-              `[${expert.guest}${expert.firm ? ", " + expert.firm : ""}]: ` +
-              `"${pick.rationale}"` +
-              (held ? " ← YOU HOLD THIS" : "")
-            );
-          }
+      bnnDays.forEach(day => {
+        const dayLabel = day.date || day.fetchedAt?.slice(0, 10) || "recent";
+        (day.experts || []).forEach(expert => {
+          (expert.picks || []).forEach(pick => {
+            const held = allHeld.has(pick.ticker);
+            if (held || pick.action === "buy") {
+              rows.push(
+                `  [${dayLabel}] ${pick.ticker} — ${pick.rawAction || pick.action.toUpperCase()} ` +
+                `[${expert.guest}${expert.firm ? ", " + expert.firm : ""}]: ` +
+                `"${pick.rationale}"` +
+                (held ? " ← YOU HOLD THIS" : "")
+              );
+            }
+          });
         });
       });
       if (rows.length) {
-        bnnBlock = `\nBNN Bloomberg Market Call picks (${bnnCalls.date || bnnCalls.fetchedAt?.slice(0, 10) || "latest"}):\n` + rows.join("\n");
+        const dateRange = bnnDays.length > 1
+          ? `${bnnDays[bnnDays.length-1].date || ""} to ${bnnDays[0].date || ""}`
+          : (bnnDays[0].date || bnnDays[0].fetchedAt?.slice(0, 10) || "latest");
+        bnnBlock = `\nBNN Bloomberg Market Call picks (${dateRange}):\n` + rows.join("\n");
       }
     }
 
@@ -5678,9 +5685,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </div>
 
           {/* ── BNN Bloomberg Market Call picks ─────────────────────────── */}
-          {bnnCalls?.experts?.length > 0 && (() => {
+          {(bnnCalls?.days?.length > 0 || bnnCalls?.experts?.length > 0) && (() => {
             const ACTION_COLOR = { buy:"#22c55e", sell:"#ef4444", hold:"#fbbf24", caution:"#fb923c" };
             const ACTION_BG    = { buy:"rgba(34,197,94,0.1)", sell:"rgba(239,68,68,0.1)", hold:"rgba(251,191,36,0.1)", caution:"rgba(251,146,60,0.1)" };
+
+            const days = bnnCalls.days?.length ? bnnCalls.days : [bnnCalls];
+            const safeIdx = Math.min(bnnDayIndex, days.length - 1);
+            const activeDay = days[safeIdx] || days[0];
 
             const renderPick = (pick, i) => {
               const ac = ACTION_COLOR[pick.action] || "#94a3b8";
@@ -5733,28 +5744,60 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             return (
               <div className="card" style={{ marginBottom:16, padding:"16px 20px",
                 background:"rgba(239,68,68,0.03)", border:"1px solid rgba(239,68,68,0.18)" }}>
-                {/* Header */}
+                {/* Header row */}
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-                  flexWrap:"wrap", gap:10, marginBottom:16 }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                    <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#f87171" }}>
-                      📺 BNN Bloomberg — Market Call
-                    </p>
-                    <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
-                      background:"rgba(248,113,113,0.1)", color:"#f87171",
-                      border:"1px solid rgba(248,113,113,0.25)" }}>
-                      {bnnCalls.experts.reduce((s, e) => s + (e.picks?.length || 0), 0)} picks today
-                    </span>
-                  </div>
+                  flexWrap:"wrap", gap:10, marginBottom: days.length > 1 ? 10 : 16 }}>
+                  <p style={{ margin:0, fontSize:13, fontWeight:700, color:"#f87171" }}>
+                    📺 BNN Bloomberg — Market Call
+                  </p>
                   <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
                     fontFamily:"'JetBrains Mono',monospace" }}>
-                    {bnnCalls.date || bnnCalls.fetchedAt}
+                    {activeDay.date || activeDay.fetchedAt?.slice(0,10)}
                   </span>
                 </div>
 
-                {/* One section per expert */}
-                {bnnCalls.experts.map((expert, ei) => (
-                  <div key={ei} style={{ marginBottom: ei < bnnCalls.experts.length - 1 ? 20 : 0 }}>
+                {/* Day selector tabs — only shown when we have more than one day */}
+                {days.length > 1 && (
+                  <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+                    {days.map((day, di) => {
+                      const dateStr = day.date || day.fetchedAt?.slice(0,10) || `Day ${di+1}`;
+                      const pickCount = (day.experts || []).reduce((s,e) => s + (e.picks?.length || 0), 0);
+                      const isActive = di === safeIdx;
+                      return (
+                        <button key={di} onClick={() => setBnnDayIndex(di)} style={{
+                          padding:"4px 10px", borderRadius:5, cursor:"pointer",
+                          border:`1px solid ${isActive ? "rgba(248,113,113,0.5)" : "rgba(255,255,255,0.1)"}`,
+                          background: isActive ? "rgba(248,113,113,0.15)" : "transparent",
+                          color: isActive ? "#f87171" : "rgba(255,255,255,0.35)",
+                          fontSize:10, fontFamily:"'JetBrains Mono',monospace", display:"flex", alignItems:"center", gap:5,
+                        }}>
+                          {dateStr}
+                          {di === 0 && (
+                            <span style={{ fontSize:8, opacity:0.6 }}>LATEST</span>
+                          )}
+                          <span style={{ fontSize:9, padding:"1px 5px", borderRadius:3,
+                            background: isActive ? "rgba(248,113,113,0.2)" : "rgba(255,255,255,0.05)",
+                            color: isActive ? "#f87171" : "rgba(255,255,255,0.25)" }}>
+                            {pickCount}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Picks summary badge */}
+                <div style={{ marginBottom:14 }}>
+                  <span style={{ fontSize:10, padding:"2px 7px", borderRadius:4,
+                    background:"rgba(248,113,113,0.1)", color:"#f87171",
+                    border:"1px solid rgba(248,113,113,0.25)" }}>
+                    {(activeDay.experts || []).reduce((s, e) => s + (e.picks?.length || 0), 0)} picks
+                  </span>
+                </div>
+
+                {/* One section per expert in the active day */}
+                {(activeDay.experts || []).map((expert, ei) => (
+                  <div key={ei} style={{ marginBottom: ei < (activeDay.experts?.length ?? 1) - 1 ? 20 : 0 }}>
                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
                       <span style={{ fontSize:11, fontWeight:600, color:"rgba(255,255,255,0.7)" }}>
                         {expert.guest}
@@ -6501,11 +6544,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </div>
 
                           {/* BNN Bloomberg signal badge (if available for this ticker) */}
-                          {ticker && bnnCalls?.experts?.length > 0 && (() => {
-                            const allPicks = bnnCalls.experts.flatMap(exp =>
-                              (exp.picks || [])
-                                .filter(p => p.ticker === ticker)
-                                .map(p => ({ guest: exp.guest, firm: exp.firm, action: p.action, rawAction: p.rawAction, rationale: p.rationale }))
+                          {ticker && (bnnCalls?.days?.length > 0 || bnnCalls?.experts?.length > 0) && (() => {
+                            const bnnSrc = bnnCalls?.days?.length ? bnnCalls.days : [bnnCalls];
+                            const allPicks = bnnSrc.flatMap(day =>
+                              (day.experts || []).flatMap(exp =>
+                                (exp.picks || [])
+                                  .filter(p => p.ticker === ticker)
+                                  .map(p => ({ guest: exp.guest, firm: exp.firm, action: p.action, rawAction: p.rawAction, rationale: p.rationale, date: day.date }))
+                              )
                             );
                             if (!allPicks.length) return null;
                             const isBuy = allPicks.some(p => p.action === "buy");

@@ -150,12 +150,17 @@ export default async function handler(req, res) {
     const parsed = JSON.parse(jsonStr);
     const payload = { ...parsed, _scheduledAt: new Date().toISOString() };
 
-    await put(BLOB_PATH, JSON.stringify(payload), {
-      access:          "public",
-      contentType:     "application/json",
-      addRandomSuffix: false,
-      allowOverwrite:  true,
-    });
+    // Save as "latest" (overwrite) AND as a date-stamped copy for 5-day history.
+    await Promise.all([
+      put(BLOB_PATH, JSON.stringify(payload), {
+        access: "public", contentType: "application/json",
+        addRandomSuffix: false, allowOverwrite: true,
+      }),
+      put(`bnn-calls/${today}.json`, JSON.stringify(payload), {
+        access: "public", contentType: "application/json",
+        addRandomSuffix: false, allowOverwrite: true,
+      }),
+    ]);
 
     const totalPicks = (parsed.experts || []).reduce((s, e) => s + (e.picks?.length || 0), 0);
     return res.status(200).json({
