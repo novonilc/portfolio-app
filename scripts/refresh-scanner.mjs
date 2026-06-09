@@ -11,7 +11,21 @@ import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_PATH = join(__dirname, '../src/data/stockUniverse.json');
-const DELAY_MS  = 350;  // polite delay between Yahoo Finance requests
+const DELAY_MS  = 400;  // polite delay between Yahoo Finance requests
+
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+async function getYahooCrumb() {
+  const r1 = await fetch('https://fc.yahoo.com', { headers: { 'User-Agent': UA } });
+  const cookies = r1.headers.get('set-cookie') || '';
+  const r2 = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+    headers: { 'User-Agent': UA, 'Cookie': cookies },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r2.ok) throw new Error(`Crumb fetch HTTP ${r2.status}`);
+  const crumb = await r2.text();
+  return { crumb, cookies };
+}
 
 // ── Curated universe — 77 US + 18 CA = 95 tickers ───────────────────────────
 // Only mega, large, and select mid-cap names. Intentionally < 100 tickers so
@@ -119,7 +133,7 @@ const CA_STOCKS = [
   { ticker:'CM',     name:'CIBC',                         sector:'Financials',      market:'CA', mktCap:'large' },
   { ticker:'MFC',    name:'Manulife Financial',           sector:'Financials',      market:'CA', mktCap:'large' },
   { ticker:'SLF',    name:'Sun Life Financial',           sector:'Financials',      market:'CA', mktCap:'large' },
-  { ticker:'ATD',    name:'Alimentation Couche-Tard',     sector:'Consumer Staples',market:'CA', mktCap:'large' },
+  { ticker:'ATD.TO', name:'Alimentation Couche-Tard',     sector:'Consumer Staples',market:'CA', mktCap:'large' },
   { ticker:'SHOP',   name:'Shopify',                      sector:'Technology',      market:'CA', mktCap:'large' },
   { ticker:'TRP',    name:'TC Energy',                    sector:'Energy Infra',    market:'CA', mktCap:'large' },
   { ticker:'BAM',    name:'Brookfield Asset Management',  sector:'Financials',      market:'CA', mktCap:'large' },
@@ -175,7 +189,7 @@ const CURATED_MOATS = {
   TD:'Canadian Banking Oligopoly',      RY:'Canadian Banking Oligopoly',
   BNS:'LatAm Banking Franchise',        BMO:'Canadian Banking Oligopoly',
   CM:'Canadian Banking Oligopoly',      MFC:'Insurance Distribution Network',
-  SLF:'Insurance Distribution Scale',  ATD:'Convenience + Fuel Scale',
+  SLF:'Insurance Distribution Scale',  'ATD.TO':'Convenience + Fuel Scale',
   SHOP:'E-Commerce Platform',           BAM:'Alternative Asset Management',
   'CP.TO':'North American Rail Duopoly', 'CNR.TO':'North American Rail Duopoly',
   CNQ:'Low-Cost Oil Sands',             'SU.TO':'$45/bbl Break-Even Advantage',
@@ -190,11 +204,11 @@ const BANK_TICKERS = new Set([
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchFundamentals(ticker) {
-  const url = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}` +
-              `?modules=summaryDetail,financialData,defaultKeyStatistics`;
+async function fetchFundamentals(ticker, crumb, cookies) {
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}` +
+              `?modules=summaryDetail,financialData,defaultKeyStatistics&crumb=${encodeURIComponent(crumb)}`;
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0' },
+    headers: { 'User-Agent': UA, 'Cookie': cookies },
     signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -243,13 +257,16 @@ async function main() {
   ];
 
   console.log(`Refreshing ${allStocks.length} tickers (mega + large/mid cap)...\n`);
+  console.log('Fetching Yahoo Finance session crumb...');
+  const { crumb, cookies } = await getYahooCrumb();
+  console.log(`Crumb acquired. Starting ticker fetch...\n`);
 
   const stocks = [];
   let updated = 0, kept = 0;
 
   for (const base of allStocks) {
     try {
-      const live = await fetchFundamentals(base.ticker);
+      const live = await fetchFundamentals(base.ticker, crumb, cookies);
       const stock = {
         ticker:      base.ticker,
         name:        base.name,

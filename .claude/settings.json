@@ -34,7 +34,9 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('stocks:', len\\(d['stocks']\\), '| lastUpdated:', d['lastUpdated'], '| note:', d['note'][:60]\\)\")",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('src/data/stockUniverse.json'\\)\\); print\\('LOCAL stocks:', len\\(d['stocks']\\), '| note:', d['note'][:60]\\)\")",
       "Bash(~/.local/bin/node_modules/.bin/vite build *)",
-      "Bash(/home/nchoudhu/.nvm/versions/node/*/bin/npm run *)"
+      "Bash(/home/nchoudhu/.nvm/versions/node/*/bin/npm run *)",
+      "Bash(nvm list *)",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks count: {len\\(d[\\\\\"stocks\\\\\"]\\)}'\\)\")"
     ],
     "additionalDirectories": [
       "/tmp"
