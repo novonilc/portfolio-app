@@ -2203,10 +2203,12 @@ Rules:
   - SKIP any row where Account Classification is "Managed"
   - These tickers must be excluded entirely: ${[...excludedTickers].join(", ") || "none"}
 - Use the EXACT value from the "Account Type" column verbatim for the "account" field — do NOT normalise it. Preserve it exactly as it appears in the CSV.
-- For "current" (market value in CAD):
-  - If "Market Value Currency" is CAD: use the "Market Value" column value
-  - If "Market Value Currency" is USD: multiply "Market Value" by ${rate}
-- Use "Book Value (CAD)" column for "costBasis"
+- For "current" (market value in the holding's NATIVE currency — do NOT pre-convert):
+  - If "Market Value Currency" is CAD: use the "Market Value" column value as-is
+  - If "Market Value Currency" is USD: use the "Market Value" column value as-is (keep in USD)
+- For "costBasis" (cost basis in the holding's NATIVE currency):
+  - If "Market Value Currency" is CAD: use the "Book Value (CAD)" column value as-is
+  - If "Market Value Currency" is USD: divide the "Book Value (CAD)" column value by ${rate} to convert to USD
 - Use "Symbol" for "ticker", "Name" for "name"
 - "currencyOverride": set to "USD" if the Market Value Currency is USD, "CAD" if CAD, else ""
 - Suggest "target" % allocation per account (integers; each account's targets must sum to 100)
@@ -2219,8 +2221,8 @@ Rules:
 - "notes": one-line rationale for the target
 
 Return ONLY a valid JSON array — no markdown fences, no explanation.
-Example element:
-{"account":"TFSA","ticker":"NVDA","name":"NVIDIA Corp","current":1767.91,"costBasis":2053.54,"target":15,"divYield":0.03,"cagr":18,"currencyOverride":"USD","notes":"AI infrastructure leader","locked":"✅ Keep"}`;
+Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91; Book Value CAD = 2053.54 → costBasis = 2053.54 / ${rate} ≈ ${(2053.54/rate).toFixed(2)}):
+{"account":"TFSA","ticker":"NVDA","name":"NVIDIA Corp","current":1767.91,"costBasis":${(2053.54/rate).toFixed(2)},"target":15,"divYield":0.03,"cagr":18,"currencyOverride":"USD","notes":"AI infrastructure leader","locked":"✅ Keep"}`;
 
         // Client-side safety filter applied after Claude responds (see below)
 
@@ -7331,6 +7333,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const rrspGrandTotal = rrspTotalCAD + rrspCash;
         const combGrandTotal = tfsaGrandTotal + rrspGrandTotal;
 
+        // True total across ALL portfolios (includes Crypto, RESP, etc.)
+        const allPortfoliosTotal = portfolios.reduce((s, p) => {
+          const h = holdings[p] || [];
+          const mv = h.reduce((a, x) => a + toCAD(x.current, x.ticker, x.currencyOverride), 0);
+          return s + mv + (cashHolding[p] || 0);
+        }, 0);
+        const otherPortfoliosTotal = allPortfoliosTotal - combGrandTotal;
+
         // USD vs CAD splits per account (values in CAD for comparison, native USD for display)
         const tfsaUSDValCAD = tfsaH.filter(h => getTickerCurrency(h.ticker, h.currencyOverride) === "USD")
           .reduce((s, h) => s + h.current * usdCadRate, 0);
@@ -8175,11 +8185,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:8 }}>Total Portfolio</p>
                 <p style={{ fontSize:22, fontFamily:"'JetBrains Mono',monospace", fontWeight:700,
                   color:"#a78bfa", marginBottom:4 }}>
-                  C${fmt(combGrandTotal)}
+                  C${fmt(allPortfoliosTotal)}
                 </p>
                 <p style={{ fontSize:10, color:"rgba(96,165,250,0.85)" }}>
-                  US${fmt(combGrandTotal / usdCadRate)} equiv.
+                  US${fmt(allPortfoliosTotal / usdCadRate)} equiv.
                 </p>
+                {otherPortfoliosTotal > 0 && (
+                  <p style={{ fontSize:9, color:"rgba(167,139,250,0.5)", marginTop:2 }}>
+                    incl. C${fmt(otherPortfoliosTotal)} other accounts
+                  </p>
+                )}
               </div>
 
               {/* TFSA total */}
