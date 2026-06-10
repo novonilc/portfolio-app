@@ -1254,7 +1254,7 @@ export default function App() {
   const [advisorResponse,    setAdvisorResponse]    = useState(null);    // string response
   const [advisorLoading,     setAdvisorLoading]     = useState(false);
   const [advisorError,       setAdvisorError]       = useState(null);
-  const [advisorIndustry,    setAdvisorIndustry]    = useState(null);    // selected industry id
+  const [advisorIndustry,    setAdvisorIndustry]    = useState([]);      // selected industry ids
   const [advisorHistory,     setAdvisorHistory]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
   });
@@ -11749,7 +11749,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const regime = marketPulse?.regime?.label || "Unknown";
           const riskScore = marketPulse?.riskMeter?.score ?? 50;
           const profCtx = profileContext();
-          const indLabel = advisorIndustry ? ADVISOR_INDUSTRIES.find(i => i.id === advisorIndustry)?.label : null;
+          const indLabel = advisorIndustry.length > 0
+            ? ADVISOR_INDUSTRIES.filter(i => advisorIndustry.includes(i.id)).map(i => i.label).join(", ")
+            : null;
           return [
             "PORTFOLIO CONTEXT:",
             `Total value: C$${Math.round(totalCAD).toLocaleString()} | USD/CAD: ${fxRate} | Accounts: ${portfolios.join(", ")}`,
@@ -11842,7 +11844,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setAdvisorTemplateId(tpl.id);
           setAdvisorResponse(null);
           setAdvisorError(null);
-          setAdvisorIndustry(null);
+          setAdvisorIndustry([]);
           const defaults = {};
           tpl.fields.forEach(f => {
             defaults[f.key] = getFieldDefault(tpl.id, f.key);
@@ -12129,16 +12131,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {label}
                         </span>
                       ))}
-                      {advisorIndustry && (() => {
-                        const ind = ADVISOR_INDUSTRIES.find(i => i.id === advisorIndustry);
-                        return ind ? (
-                          <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
-                            background:`${ind.color}18`, color:ind.color,
-                            border:`1px solid ${ind.color}40` }}>
-                            {ind.icon} {ind.label}
-                          </span>
-                        ) : null;
-                      })()}
+                      {ADVISOR_INDUSTRIES.filter(i => advisorIndustry.includes(i.id)).map(ind => (
+                        <span key={ind.id} style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                          background:`${ind.color}18`, color:ind.color,
+                          border:`1px solid ${ind.color}40` }}>
+                          {ind.icon} {ind.label}
+                        </span>
+                      ))}
                     </div>
 
                     {/* Industry selector */}
@@ -12150,14 +12149,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       </label>
                       <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
                         {ADVISOR_INDUSTRIES.map(ind => {
-                          const active = advisorIndustry === ind.id;
+                          const active = advisorIndustry.includes(ind.id);
                           return (
                             <button key={ind.id}
                               onClick={() => {
-                                const next = active ? null : ind.id;
+                                const next = active
+                                  ? advisorIndustry.filter(id => id !== ind.id)
+                                  : [...advisorIndustry, ind.id];
                                 setAdvisorIndustry(next);
-                                if (selectedTpl.fields.some(f => f.key === "focus") && next) {
-                                  setAdvisorInputs(prev => ({ ...prev, focus: ind.label }));
+                                if (selectedTpl.fields.some(f => f.key === "focus")) {
+                                  const labels = ADVISOR_INDUSTRIES.filter(i => next.includes(i.id)).map(i => i.label);
+                                  setAdvisorInputs(prev => ({ ...prev, focus: labels.join(", ") }));
                                 }
                               }}
                               style={{
