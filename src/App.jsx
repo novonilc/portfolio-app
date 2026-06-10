@@ -251,6 +251,29 @@ const ADVISOR_INDUSTRIES = [
   { id: "crypto",      label: "Crypto",      icon: "₿",  color: "#fbbf24" },
 ];
 
+// ── Monthly AI budget tracker ─────────────────────────────────────────────────
+const MONTHLY_AI_BUDGET = 10.00; // USD hard cap per calendar month
+
+const AI_MODEL_COSTS = {
+  "claude-sonnet-4-6":         { input: 3.00 / 1e6, output: 15.00 / 1e6 },
+  "claude-haiku-4-5-20251001": { input: 0.80 / 1e6, output:  4.00 / 1e6 },
+};
+
+function aiUsageKey() {
+  const d = new Date();
+  return `portfolio:aiUsage:${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}`;
+}
+function getAiMonthlySpend() {
+  try { return parseFloat(localStorage.getItem(aiUsageKey()) || "0") || 0; } catch { return 0; }
+}
+function recordAiSpend(inputTokens, outputTokens, model) {
+  const costs = AI_MODEL_COSTS[model] || AI_MODEL_COSTS["claude-sonnet-4-6"];
+  const delta = inputTokens * costs.input + outputTokens * costs.output;
+  const next = getAiMonthlySpend() + delta;
+  try { localStorage.setItem(aiUsageKey(), next.toFixed(6)); } catch {}
+  return next;
+}
+
 // Normalise Wealthsimple CSV "Account Type" values → short portfolio names
 function normalizeWsAccountName(raw = "") {
   const s = raw.trim().toLowerCase();
@@ -1162,13 +1185,40 @@ export default function App() {
   const spreadScanAbortRef = useRef(null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
-  function callClaude(body) {
+  async function callClaude(body) {
+    // Pre-call budget gate
+    const spent = getAiMonthlySpend();
+    if (spent >= MONTHLY_AI_BUDGET) {
+      const nextMonth = new Date();
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1, 1);
+      nextMonth.setUTCHours(0, 0, 0, 0);
+      const resetDate = nextMonth.toLocaleDateString("en-CA", { month: "long", day: "numeric" });
+      throw new Error(
+        `Monthly AI budget of $${MONTHLY_AI_BUDGET.toFixed(2)} reached. Resets on ${resetDate}.`
+      );
+    }
     const lic = (() => { try { return JSON.parse(localStorage.getItem("portfolio:license") || "null"); } catch { return null; } })();
-    return fetch("/api/claude", {
+    const res = await fetch("/api/claude", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(lic?.key ? { "x-license-key": lic.key } : {}) },
       body: JSON.stringify(body),
     });
+    const model = body.model || "claude-sonnet-4-6";
+    const origJson = res.json.bind(res);
+    return {
+      ok: res.ok,
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+      json: async () => {
+        const data = await origJson();
+        if (res.ok && data?.usage) {
+          const newSpend = recordAiSpend(data.usage.input_tokens || 0, data.usage.output_tokens || 0, model);
+          setAiMonthlySpend(newSpend);
+        }
+        return data;
+      },
+    };
   }
   const [marketPulse,      setMarketPulse]     = useState(() => {
     try {
@@ -1255,6 +1305,8 @@ export default function App() {
   const [advisorLoading,     setAdvisorLoading]     = useState(false);
   const [advisorError,       setAdvisorError]       = useState(null);
   const [advisorIndustry,    setAdvisorIndustry]    = useState([]);      // selected industry ids
+  const [aiMonthlySpend,     setAiMonthlySpend]     = useState(() => getAiMonthlySpend());
+  const [aiBudgetDismissed,  setAiBudgetDismissed]  = useState(false);
   const [advisorHistory,     setAdvisorHistory]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
   });
@@ -3965,6 +4017,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               {investorProfile ? `👤 ${investorProfile.age}yr · ${investorProfile.riskTolerance}` : "👤 Set Profile"}
             </button>
 
+            {/* AI monthly budget indicator */}
+            {(() => {
+              const pct = aiMonthlySpend / MONTHLY_AI_BUDGET;
+              const color = pct >= 1 ? "#f43f5e" : pct >= 0.9 ? "#fb923c" : "#64748b";
+              const label = `AI $${aiMonthlySpend.toFixed(2)} / $${MONTHLY_AI_BUDGET.toFixed(0)}`;
+              return (
+                <span title={`Monthly AI usage: $${aiMonthlySpend.toFixed(4)} of $${MONTHLY_AI_BUDGET.toFixed(2)}`}
+                  style={{ fontSize:10, padding:"5px 10px", borderRadius:7, fontFamily:"'JetBrains Mono',monospace",
+                    background:`${color}12`, border:`1px solid ${color}35`, color, userSelect:"none",
+                    display:"flex", alignItems:"center", gap:5 }}>
+                  🤖 {label}
+                  <span style={{ display:"inline-block", width:32, height:4, borderRadius:2,
+                    background:"rgba(255,255,255,0.08)", overflow:"hidden", verticalAlign:"middle" }}>
+                    <span style={{ display:"block", height:"100%", borderRadius:2,
+                      width:`${Math.min(pct * 100, 100).toFixed(1)}%`,
+                      background: color, transition:"width 0.4s" }}/>
+                  </span>
+                </span>
+              );
+            })()}
+
             {/* License tier indicator */}
             <button
               onClick={() => { setLicenseModalKey(""); setLicenseModalError(null); setLicenseModalSuccess(false); setShowLicenseModal(true); }}
@@ -4266,6 +4339,36 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           </p>
         </div>
       </div>
+
+      {/* ── AI budget warning banner ── */}
+      {(() => {
+        const pct = aiMonthlySpend / MONTHLY_AI_BUDGET;
+        const atLimit = pct >= 1;
+        const nearLimit = pct >= 0.9 && !atLimit;
+        if ((!nearLimit && !atLimit) || aiBudgetDismissed) return null;
+        const bg    = atLimit ? "rgba(244,63,94,0.10)"  : "rgba(251,146,60,0.08)";
+        const bdr   = atLimit ? "rgba(244,63,94,0.35)"  : "rgba(251,146,60,0.35)";
+        const color = atLimit ? "#f43f5e" : "#fb923c";
+        const msg   = atLimit
+          ? `Monthly AI budget of $${MONTHLY_AI_BUDGET.toFixed(2)} reached — AI features are disabled until the 1st of next month.`
+          : `AI usage at ${(pct * 100).toFixed(0)}% of the $${MONTHLY_AI_BUDGET.toFixed(2)} monthly budget ($${aiMonthlySpend.toFixed(2)} used). Approaching limit.`;
+        return (
+          <div style={{ margin:"0 28px", marginTop:10, padding:"10px 14px",
+            background:bg, border:`1px solid ${bdr}`, borderRadius:9,
+            display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+            <span style={{ fontSize:13 }}>{atLimit ? "🚫" : "⚠️"}</span>
+            <span style={{ flex:1, fontSize:12, color, lineHeight:1.5 }}>{msg}</span>
+            {!atLimit && (
+              <button onClick={() => setAiBudgetDismissed(true)}
+                style={{ flexShrink:0, fontSize:10, padding:"3px 9px", borderRadius:5,
+                  cursor:"pointer", background:"transparent",
+                  border:`1px solid ${bdr}`, color }}>
+                Dismiss
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Tab bar ── */}
       <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
