@@ -237,6 +237,20 @@ const AI_ADVISOR_TEMPLATES = [
   },
 ];
 
+const ADVISOR_INDUSTRIES = [
+  { id: "technology",  label: "Technology",  icon: "💻", color: "#22d3ee" },
+  { id: "financials",  label: "Financials",  icon: "🏦", color: "#fbbf24" },
+  { id: "energy",      label: "Energy",      icon: "⚡", color: "#f97316" },
+  { id: "healthcare",  label: "Healthcare",  icon: "💊", color: "#34d399" },
+  { id: "consumer",    label: "Consumer",    icon: "🛒", color: "#a78bfa" },
+  { id: "industrials", label: "Industrials", icon: "🏭", color: "#94a3b8" },
+  { id: "real_estate", label: "Real Estate", icon: "🏢", color: "#fb923c" },
+  { id: "materials",   label: "Materials",   icon: "⛏",  color: "#60a5fa" },
+  { id: "utilities",   label: "Utilities",   icon: "🔌", color: "#e879f9" },
+  { id: "telecom",     label: "Telecom",     icon: "📡", color: "#f43f5e" },
+  { id: "crypto",      label: "Crypto",      icon: "₿",  color: "#fbbf24" },
+];
+
 // Normalise Wealthsimple CSV "Account Type" values → short portfolio names
 function normalizeWsAccountName(raw = "") {
   const s = raw.trim().toLowerCase();
@@ -1240,6 +1254,7 @@ export default function App() {
   const [advisorResponse,    setAdvisorResponse]    = useState(null);    // string response
   const [advisorLoading,     setAdvisorLoading]     = useState(false);
   const [advisorError,       setAdvisorError]       = useState(null);
+  const [advisorIndustry,    setAdvisorIndustry]    = useState(null);    // selected industry id
   const [advisorHistory,     setAdvisorHistory]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
   });
@@ -11734,10 +11749,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const regime = marketPulse?.regime?.label || "Unknown";
           const riskScore = marketPulse?.riskMeter?.score ?? 50;
           const profCtx = profileContext();
+          const indLabel = advisorIndustry ? ADVISOR_INDUSTRIES.find(i => i.id === advisorIndustry)?.label : null;
           return [
             "PORTFOLIO CONTEXT:",
             `Total value: C$${Math.round(totalCAD).toLocaleString()} | USD/CAD: ${fxRate} | Accounts: ${portfolios.join(", ")}`,
             `Market regime: ${regime} | Risk score: ${riskScore}/100`,
+            indLabel ? `Industry focus: ${indLabel}` : null,
             profCtx || null,
             "Holdings (account | ticker | name | CAD value | div yield | notes):",
             holdingLines,
@@ -11825,6 +11842,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setAdvisorTemplateId(tpl.id);
           setAdvisorResponse(null);
           setAdvisorError(null);
+          setAdvisorIndustry(null);
           const defaults = {};
           tpl.fields.forEach(f => {
             defaults[f.key] = getFieldDefault(tpl.id, f.key);
@@ -11835,6 +11853,112 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const canRun = selectedTpl && selectedTpl.fields.every(f =>
           (advisorInputs[f.key] || "").trim().length > 0
         );
+
+        // ── Enhanced response renderer ──────────────────────────────────
+        function renderAdvisorResponse(text, accentColor) {
+          const VERDICT_STYLES = {
+            "Strong Buy":   { bg: "#34d399", text: "#052e16" },
+            "Strong Sell":  { bg: "#f43f5e", text: "#fff1f2" },
+            "Fairly valued":{ bg: "#fbbf24", text: "#1c1700" },
+            "Accumulate":   { bg: "#34d399", text: "#052e16" },
+            "Undervalued":  { bg: "#34d399", text: "#052e16" },
+            "Overvalued":   { bg: "#f43f5e", text: "#fff1f2" },
+            "Overbought":   { bg: "#f43f5e", text: "#fff1f2" },
+            "Oversold":     { bg: "#34d399", text: "#052e16" },
+            "Bullish":      { bg: "#34d399", text: "#052e16" },
+            "Bearish":      { bg: "#f43f5e", text: "#fff1f2" },
+            "Buy":          { bg: "#34d399", text: "#052e16" },
+            "Sell":         { bg: "#f43f5e", text: "#fff1f2" },
+            "Reduce":       { bg: "#f97316", text: "#fff" },
+            "Hold":         { bg: "#fbbf24", text: "#1c1700" },
+            "Neutral":      { bg: "#94a3b8", text: "#0f172a" },
+          };
+          const VERDICT_RE = /\b(Strong Buy|Strong Sell|Fairly valued|Accumulate|Undervalued|Overvalued|Overbought|Oversold|Bullish|Bearish|Buy|Sell|Reduce|Hold|Neutral)\b/g;
+
+          function renderInline(str, keyPfx) {
+            // split on **bold** and verdict keywords
+            const parts = str.split(/(\*\*[^*]+\*\*)/);
+            return parts.flatMap((part, pi) => {
+              if (part.startsWith("**") && part.endsWith("**")) {
+                return [<strong key={`${keyPfx}-b${pi}`} style={{ color:"#f1f5f9", fontWeight:700 }}>{part.slice(2,-2)}</strong>];
+              }
+              const segments = part.split(VERDICT_RE);
+              return segments.map((seg, si) => {
+                const vs = VERDICT_STYLES[seg];
+                if (vs) {
+                  return (
+                    <span key={`${keyPfx}-v${pi}-${si}`} style={{
+                      display:"inline-block", padding:"1px 7px", borderRadius:4,
+                      fontSize:"0.82em", fontWeight:700, margin:"0 2px", verticalAlign:"middle",
+                      background: vs.bg, color: vs.text,
+                    }}>{seg}</span>
+                  );
+                }
+                return seg;
+              });
+            });
+          }
+
+          const lines = text.split("\n");
+          const elements = [];
+          let sectionIdx = 0;
+
+          lines.forEach((line, li) => {
+            const t = line.trim();
+            if (!t) { elements.push(<div key={`g${li}`} style={{ height:6 }} />); return; }
+
+            // Section header: (1) Title  or  1. Title  or  **1. Title**
+            const secM = t.match(/^(?:\*\*)?(?:\((\d+)\)|(\d+)[\.:\)]\s)(.+?)(?:\*\*)?$/);
+            if (secM && !t.startsWith("-") && !t.startsWith("•")) {
+              const num = secM[1] || secM[2];
+              const title = secM[3].replace(/\*\*/g, "");
+              if (num && parseInt(num) <= 15) {
+                sectionIdx++;
+                elements.push(
+                  <div key={`sec${li}`} style={{
+                    display:"flex", alignItems:"center", gap:10,
+                    margin: sectionIdx > 1 ? "20px 0 8px" : "4px 0 8px",
+                    paddingBottom:6, borderBottom:`1px solid ${accentColor}22`,
+                  }}>
+                    <span style={{
+                      flexShrink:0, width:22, height:22, borderRadius:"50%",
+                      background:`${accentColor}20`, border:`1px solid ${accentColor}55`,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:10, fontWeight:800, color:accentColor,
+                    }}>{num}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:accentColor }}>
+                      {renderInline(title, `sh${li}`)}
+                    </span>
+                  </div>
+                );
+                return;
+              }
+            }
+
+            // Bullet: starts with - • * or  •
+            if (/^[-•*]\s/.test(t) || /^•/.test(t)) {
+              const content = t.replace(/^[-•*•]\s*/, "");
+              elements.push(
+                <div key={`bl${li}`} style={{ display:"flex", gap:8, marginBottom:4, paddingLeft:10 }}>
+                  <span style={{ flexShrink:0, color:accentColor, marginTop:3, fontSize:9 }}>▸</span>
+                  <span style={{ fontSize:13, color:"rgba(255,255,255,0.78)", lineHeight:1.65 }}>
+                    {renderInline(content, `bi${li}`)}
+                  </span>
+                </div>
+              );
+              return;
+            }
+
+            // Regular paragraph
+            elements.push(
+              <p key={`p${li}`} style={{ margin:"0 0 5px", fontSize:13, color:"rgba(255,255,255,0.78)", lineHeight:1.7 }}>
+                {renderInline(t, `pi${li}`)}
+              </p>
+            );
+          });
+
+          return <div>{elements}</div>;
+        }
 
         // ── Render ─────────────────────────────────────────────────────
         return (
@@ -12005,6 +12129,49 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {label}
                         </span>
                       ))}
+                      {advisorIndustry && (() => {
+                        const ind = ADVISOR_INDUSTRIES.find(i => i.id === advisorIndustry);
+                        return ind ? (
+                          <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                            background:`${ind.color}18`, color:ind.color,
+                            border:`1px solid ${ind.color}40` }}>
+                            {ind.icon} {ind.label}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+
+                    {/* Industry selector */}
+                    <div style={{ marginBottom:14 }}>
+                      <label style={{ fontSize:10, fontWeight:700, letterSpacing:"0.09em",
+                        textTransform:"uppercase", color:"rgba(255,255,255,0.35)",
+                        display:"block", marginBottom:7 }}>
+                        Industry Focus <span style={{ opacity:0.5, fontWeight:400, textTransform:"none" }}>(optional)</span>
+                      </label>
+                      <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                        {ADVISOR_INDUSTRIES.map(ind => {
+                          const active = advisorIndustry === ind.id;
+                          return (
+                            <button key={ind.id}
+                              onClick={() => {
+                                const next = active ? null : ind.id;
+                                setAdvisorIndustry(next);
+                                if (selectedTpl.fields.some(f => f.key === "focus") && next) {
+                                  setAdvisorInputs(prev => ({ ...prev, focus: ind.label }));
+                                }
+                              }}
+                              style={{
+                                padding:"4px 10px", borderRadius:20, cursor:"pointer", fontSize:11,
+                                background: active ? `${ind.color}25` : "rgba(255,255,255,0.04)",
+                                border:`1px solid ${active ? ind.color+"60" : "rgba(255,255,255,0.1)"}`,
+                                color: active ? ind.color : "rgba(255,255,255,0.45)",
+                                fontWeight: active ? 700 : 400, transition:"all 0.12s",
+                              }}>
+                              {ind.icon} {ind.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Input fields */}
@@ -12089,9 +12256,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           ))}
                         </div>
                       ) : (
-                        <div style={{ fontSize:13, color:"rgba(255,255,255,0.82)", lineHeight:1.75,
-                          whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-                          {advisorResponse}
+                        <div style={{ wordBreak:"break-word" }}>
+                          {renderAdvisorResponse(advisorResponse, selectedTpl.color)}
                         </div>
                       )}
 
