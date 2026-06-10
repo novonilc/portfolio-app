@@ -4964,7 +4964,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
           </div>
           <div className="card" style={{ padding:0, overflow:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1380 }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1465 }}>
               <thead>
                 <tr>
                   {(() => {
@@ -4977,6 +4977,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       <SortTh col="pnl"       label="P&L $"         sort={targetsSort} onSort={onSort} className="th" style={{ textAlign:"right", width:120 }} />
                       <SortTh col="pnlPct"    label="P&L %"         sort={targetsSort} onSort={onSort} className="th" style={{ textAlign:"right", width:75 }} />
                       <SortTh col="target"    label="Target %"      sort={targetsSort} onSort={onSort} className="th" style={{ width:95 }} />
+                      <SortTh col="holdPct"   label="Held %"        sort={targetsSort} onSort={onSort} className="th" style={{ width:80, textAlign:"right" }} />
                       <SortTh col="cagr"      label="CAGR %"        sort={targetsSort} onSort={onSort} className="th" style={{ width:90 }} />
                       <th className="th" style={{ textAlign:"right", width:105 }}>10yr</th>
                       <th className="th" style={{ textAlign:"right", width:105 }}>15yr</th>
@@ -4993,6 +4994,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   pnl: h.costBasis > 0 ? h.current - h.costBasis : null,
                   pnlPct: h.costBasis > 0 ? ((h.current - h.costBasis) / h.costBasis) * 100 : null,
                   target: h.target, cagr: h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10,
+                  holdPct: currentTotal > 0 ? (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100 : 0,
                 }[col] ?? null)).map(({ h, idx }) => {
                   const cagr      = h.cagr ?? DEFAULT_CAGR[h.ticker] ?? 10;
                   const cb        = h.costBasis || 0;
@@ -5118,6 +5120,26 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           <span style={{ fontSize:12, color:"rgba(255,255,255,0.35)", flexShrink:0 }}>%</span>
                         </div>
                       </td>
+                      <td className="td" style={{ textAlign:"right", whiteSpace:"nowrap" }}>
+                        {(() => {
+                          if (currentTotal <= 0 || h.current <= 0) return <span style={{ color:"rgba(255,255,255,0.2)" }}>—</span>;
+                          const pct = (toCAD(h.current, h.ticker, h.currencyOverride) / currentTotal) * 100;
+                          const diff = pct - h.target;
+                          return (
+                            <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                                color:"#22d3ee" }}>{pct.toFixed(1)}%</span>
+                              {h.target > 0 && (
+                                <span style={{ fontSize:9, fontFamily:"'JetBrains Mono',monospace",
+                                  color: Math.abs(diff) < 1 ? "rgba(255,255,255,0.25)"
+                                    : diff > 0 ? "#fb923c" : "#34d399" }}>
+                                  {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="td">
                         <input type="number" value={cagr} min="0" max="100" step="0.5"
                           onChange={e => updateHolding(idx, "cagr", e.target.value)}
@@ -5161,6 +5183,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   <td className="td" style={{ fontWeight:700, fontSize:14,
                     color: Math.abs(targetSum-100) > 0.5 ? "#ef4444" : "#34d399" }}>
                     {targetSum}%
+                  </td>
+                  <td className="td" style={{ textAlign:"right", fontWeight:700, fontSize:14, color:"#22d3ee" }}>
+                    {currentTotal > 0 ? "100%" : "—"}
                   </td>
                   <td className="td"></td>
                   <td className="td" style={{ textAlign:"right", color:"#34d399", fontWeight:500 }}>
