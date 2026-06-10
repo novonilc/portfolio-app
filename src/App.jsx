@@ -11062,6 +11062,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         // Build lookup for curated Ideas recommendations
         const REC_MAP = Object.fromEntries(RECOMMENDATIONS.map(r => [r.ticker, r]));
 
+        // Build holding value map: ticker → total current $ across all portfolios
+        const holdingValueMap = {};
+        let totalHeldValue = 0;
+        portfolios.forEach(p => {
+          (holdings[p] || []).forEach(h => {
+            if (h.current > 0) {
+              holdingValueMap[h.ticker] = (holdingValueMap[h.ticker] || 0) + h.current;
+              totalHeldValue += h.current;
+            }
+          });
+        });
+
         // ── Main scan pass (uses committed filters) ──────────────────────────
         const scanned = STOCKS.filter(s => {
           if (f.ideasOnly && !REC_MAP[s.ticker]) return false;
@@ -11086,7 +11098,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const fairPrice = computeScanFairPrice(s);
           const upside    = computeScanUpside(s);
           const signal    = scanSignal(upside, score);
-          return { ...s, score, fairPrice, upside, signal };
+          const hv        = holdingValueMap[s.ticker] || 0;
+          const holdPct   = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
+          return { ...s, score, fairPrice, upside, signal, holdPct };
         });
 
         // ── Live result filters (instant, no re-scan needed) ─────────────────
@@ -11490,6 +11504,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <tr>
                       {th("ticker","Ticker")}
                       {th("name","Company")}
+                      {th("holdPct","Held")}
                       {th("sector","Sector")}
                       {th("pe","P/E")}
                       {th("peg","PEG")}
@@ -11552,6 +11567,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             </td>
                             <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
                               whiteSpace:"nowrap", color:"#e2e8f0", fontSize:12 }}>{s.name}</td>
+                            {/* Held % */}
+                            <td className="td" style={{ textAlign:"right", whiteSpace:"nowrap" }}>
+                              {s.holdPct > 0
+                                ? <span style={{ fontSize:11, fontWeight:700, color:"#22d3ee",
+                                    fontFamily:"'JetBrains Mono',monospace",
+                                    background:"rgba(34,211,238,0.08)", border:"1px solid rgba(34,211,238,0.25)",
+                                    borderRadius:5, padding:"2px 7px" }}>
+                                    {s.holdPct.toFixed(1)}%
+                                  </span>
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
+                            </td>
                             <td className="td">
                               <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
                                 borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
@@ -11656,7 +11682,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {/* Expanded thesis panel */}
                           {isExpanded && rec && (
                             <tr style={{ background:"rgba(251,191,36,0.04)", borderLeft:"2px solid rgba(251,191,36,0.4)" }}>
-                              <td colSpan={15} style={{ padding:"14px 20px 16px" }}>
+                              <td colSpan={16} style={{ padding:"14px 20px 16px" }}>
                                 <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:16, alignItems:"start" }}>
                                   <div>
                                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
