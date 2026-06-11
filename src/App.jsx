@@ -1871,7 +1871,8 @@ export default function App() {
       return;
     }
     if ((holdings[account] || []).length >= 25) {
-      alert(`${account} has ${holdings[account].length} holdings — optimal range is 10–20. Consider trimming before adding more.`);
+      alert(`${account} has reached 25 holdings (optimal range is 10–20). Remove a position before adding a new one.`);
+      return;
     }
     const next = { ...holdings };
     next[account] = [...next[account], {
@@ -1905,7 +1906,8 @@ export default function App() {
       return;
     }
     if ((holdings[targetAccount] || []).length >= 25) {
-      alert(`${targetAccount} has ${(holdings[targetAccount] || []).length} holdings — optimal range is 10–20. Consider trimming before adding more.`);
+      alert(`${targetAccount} has reached 25 holdings (optimal range is 10–20). Remove a position before adding a new one.`);
+      return;
     }
     const next = { ...holdings };
     next[targetAccount] = [...next[targetAccount], {
@@ -1986,8 +1988,9 @@ Dividend yield: ${h.divYield || 0}%${pnlLine}`;
       next[acct] = [...next[acct]];
       next[acct][idx] = { ...next[acct][idx], current: next[acct][idx].current + amt };
     } else {
-      if (Object.values(next).flat().length >= 25) {
-        setPulseTradeFlash({ msg:`Over 25 total holdings — optimal range is 15–25. Consider trimming other positions.`, ok:true });
+      if (Object.values(next).flat().length >= 30) {
+        setPulseTradeFlash({ msg:"Portfolio limit reached (30 holdings — optimal is 15–25) — remove a position first.", ok:false });
+        return;
       }
       next[acct] = [...next[acct], {
         ticker, name: name || ticker, current: amt, costBasis: amt,
@@ -5326,29 +5329,35 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           {/* Add ticker */}
           <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
             <button className={`btn ${addForm ? "btn-primary" : ""}`}
+              disabled={!addForm && atHoldingsCap}
+              title={!addForm && atHoldingsCap ? "Portfolio limit reached (30 holdings) — remove a position first" : undefined}
               onClick={() => setAddForm(addForm ? null : { ...BLANK_FORM })}>
               {addForm ? "✕ Cancel" : "+ Add Ticker"}
             </button>
             <span style={{
               fontSize:11, padding:"3px 9px", borderRadius:12, fontWeight:600,
-              background: inSweetSpot      ? "rgba(34,197,94,0.08)"
-                        : underDiversified ? "rgba(251,191,36,0.1)"
+              background: atHoldingsCap    ? "rgba(239,68,68,0.12)"
                         : nearHoldingsCap  ? "rgba(249,115,22,0.1)"
+                        : inSweetSpot      ? "rgba(34,197,94,0.08)"
+                        : underDiversified ? "rgba(251,191,36,0.1)"
                         :                   "rgba(255,255,255,0.06)",
-              border:     inSweetSpot      ? "1px solid rgba(34,197,94,0.25)"
-                        : underDiversified ? "1px solid rgba(251,191,36,0.25)"
+              border:     atHoldingsCap    ? "1px solid rgba(239,68,68,0.35)"
                         : nearHoldingsCap  ? "1px solid rgba(249,115,22,0.3)"
+                        : inSweetSpot      ? "1px solid rgba(34,197,94,0.25)"
+                        : underDiversified ? "1px solid rgba(251,191,36,0.25)"
                         :                   "1px solid rgba(255,255,255,0.1)",
-              color:      inSweetSpot      ? "#22c55e"
-                        : underDiversified ? "#fbbf24"
+              color:      atHoldingsCap    ? "#ef4444"
                         : nearHoldingsCap  ? "#f97316"
+                        : inSweetSpot      ? "#22c55e"
+                        : underDiversified ? "#fbbf24"
                         :                   "rgba(255,255,255,0.4)",
             }} title="Optimal diversification: 15–25 positions">
-              {totalHoldingsCount} holdings
+              {totalHoldingsCount} / 30
               {inSweetSpot      ? " ✓ Diversified"
              : underDiversified ? " — Add more"
-             : nearHoldingsCap  ? " — Consider trimming"
-             :                    ""}
+             : nearHoldingsCap  ? " — Near limit"
+             : atHoldingsCap    ? " — At max"
+             :                    " holdings"}
             </span>
           </div>
 
