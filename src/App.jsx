@@ -1870,8 +1870,8 @@ export default function App() {
       alert(`${ticker} already exists in ${account}`);
       return;
     }
-    if (Object.values(holdings).flat().length >= 30) {
-      alert("Portfolio limit reached (30 holdings — optimal range is 15–25). Remove a position before adding a new one.");
+    if ((holdings[account] || []).length >= 25) {
+      alert(`${account} has reached 25 holdings (optimal range is 10–20). Remove a position before adding a new one.`);
       return;
     }
     const next = { ...holdings };
@@ -1905,8 +1905,8 @@ export default function App() {
       alert(`${rec.ticker} already exists in ${targetAccount}`);
       return;
     }
-    if (Object.values(holdings).flat().length >= 30) {
-      alert("Portfolio limit reached (30 holdings — optimal range is 15–25). Remove a position before adding a new one.");
+    if ((holdings[targetAccount] || []).length >= 25) {
+      alert(`${targetAccount} has reached 25 holdings (optimal range is 10–20). Remove a position before adding a new one.`);
       return;
     }
     const next = { ...holdings };
