@@ -2403,9 +2403,29 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         }
 
         const data = await res.json();
-        const text = (data.content?.[0]?.text || "").trim();
-        const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-        const rows = JSON.parse(stripped);
+        const rawText = (data.content?.[0]?.text || "").trim();
+
+        // Strip markdown fences Claude sometimes adds despite instructions
+        let stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
+        // Extract just the [...] array in case Claude wrapped it in explanation text
+        const arrStart = stripped.indexOf("[");
+        const arrEnd   = stripped.lastIndexOf("]");
+        if (arrStart !== -1 && arrEnd > arrStart) stripped = stripped.slice(arrStart, arrEnd + 1);
+
+        // Sanitize common LLM JSON mistakes before parsing:
+        // 1. Literal newlines/tabs inside string values → space
+        // 2. Trailing commas before } or ] (invalid JSON but common from LLMs)
+        stripped = stripped
+          .replace(/[\r\n\t]+/g, " ")
+          .replace(/,(\s*[}\]])/g, "$1");
+
+        let rows;
+        try {
+          rows = JSON.parse(stripped);
+        } catch (parseErr) {
+          throw new Error(`AI returned malformed JSON (${parseErr.message}). Try re-uploading the CSV.`);
+        }
 
         if (!Array.isArray(rows) || !rows.length) throw new Error("Claude returned no holdings");
 
