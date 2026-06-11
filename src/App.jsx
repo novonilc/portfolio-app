@@ -981,6 +981,7 @@ const SCAN_PRESET_FILTERS = {
   midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
   ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
   canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
+  retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:2.0, minDivY:0, minFcfY:2, minEpsG:12,minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
@@ -992,6 +993,7 @@ const SCAN_PRESETS = [
   { key:"midsmall",   icon:"🎯", label:"Mid & Small",    desc:"$300M–$10B, often-overlooked gems"   },
   { key:"ideas",      icon:"💡", label:"Ideas Picks",    desc:"Stocks curated in the Ideas tab"     },
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
+  { key:"retire",     icon:"🏖️", label:"Retire in 10-15yr", desc:"High-growth compounders for a 45yr wealth plan" },
 ];
 function computeScanScore(s) {
   // Null-safe: missing metrics score 0 rather than false-positives from JS null coercion
@@ -1012,6 +1014,36 @@ function computeScanScore(s) {
   const e = s.epsGrowth;
   pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
   return Math.min(100, pts);
+}
+// Retirement wealth-building score — weights EPS growth + quality over cheapness
+function computeRetireScore(s) {
+  let pts = 0;
+  // EPS growth is the #1 driver of 10-15yr compounding (35 pts)
+  const e = s.epsGrowth;
+  pts += e >= 25 ? 35 : e >= 18 ? 28 : e >= 12 ? 20 : e >= 8 ? 10 : e >= 3 ? 4 : 0;
+  // ROE — quality of the business (25 pts)
+  const r = s.roe != null ? Math.min(s.roe, 100) : null;
+  pts += r != null ? (r >= 40 ? 25 : r >= 25 ? 20 : r >= 18 ? 14 : r >= 12 ? 7 : 2) : 0;
+  // PEG — not overpaying for growth (20 pts)
+  const fwdPeg = (s.fwdPe > 0 && s.epsGrowth > 0) ? s.fwdPe / s.epsGrowth : null;
+  const p = fwdPeg ?? s.peg;
+  pts += (p != null && p > 0) ? (p <= 1.0 ? 20 : p <= 1.5 ? 15 : p <= 2.0 ? 9 : p <= 2.5 ? 4 : 0) : 0;
+  // Gross margin — pricing power / moat durability (12 pts)
+  const gm = s.grossMargin;
+  pts += gm != null ? (gm >= 70 ? 12 : gm >= 50 ? 9 : gm >= 35 ? 5 : gm >= 20 ? 2 : 0) : 0;
+  // FCF yield — real cash generation (8 pts)
+  const f = s.fcfYield;
+  pts += f != null ? (f >= 6 ? 8 : f >= 4 ? 6 : f >= 2 ? 3 : 1) : 0;
+  return Math.min(100, pts);
+}
+// Estimate realistic long-run CAGR from EPS growth rate × quality factor
+function estimateRetireCagr(s) {
+  const g    = Math.min(Math.max(s.epsGrowth || 0, 3), 22);
+  const roe  = s.roe   || 0;
+  const gm   = s.grossMargin || 0;
+  const highQ = (roe >= 25 && gm >= 50) || roe >= 60;
+  const midQ  = !highQ && ((roe >= 15 && gm >= 30) || roe >= 40);
+  return Math.round(g * (highQ ? 1.0 : midQ ? 0.88 : 0.76));
 }
 function ScanPill({ value, color }) {
   return (
@@ -11139,13 +11171,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (f.mktCap === "large+" && !["large","mega"].includes(s.mktCap)) return false;
           return true;
         }).map(s => {
-          const score     = computeScanScore(s);
-          const fairPrice = computeScanFairPrice(s);
-          const upside    = computeScanUpside(s);
-          const signal    = scanSignal(upside, score);
-          const hv        = holdingValueMap[s.ticker] || 0;
-          const holdPct   = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
-          return { ...s, score, fairPrice, upside, signal, holdPct };
+          const score       = computeScanScore(s);
+          const fairPrice   = computeScanFairPrice(s);
+          const upside      = computeScanUpside(s);
+          const signal      = scanSignal(upside, score);
+          const hv          = holdingValueMap[s.ticker] || 0;
+          const holdPct     = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
+          const retireScore = computeRetireScore(s);
+          const estCagr     = estimateRetireCagr(s);
+          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr };
         });
 
         // ── Live result filters (instant, no re-scan needed) ─────────────────
@@ -11334,6 +11368,39 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               );
             })()}
+
+            {/* Retire-mode banner */}
+            {scanPreset === "retire" && (
+              <div style={{ marginBottom:16, padding:"14px 18px", borderRadius:10,
+                background:"rgba(251,191,36,0.06)", border:"1px solid rgba(251,191,36,0.25)" }}>
+                <div style={{ display:"flex", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:24, lineHeight:1 }}>🏖️</span>
+                  <div style={{ flex:1, minWidth:220 }}>
+                    <div style={{ fontSize:13, fontWeight:800, color:"#fbbf24", marginBottom:4 }}>
+                      Retirement Wealth-Builder — Age 45 · Retire in 10-15 years
+                    </div>
+                    <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.65, margin:"0 0 8px" }}>
+                      These stocks pass four retirement filters: <strong style={{color:"#f1f5f9"}}>EPS growth ≥ 12%</strong> (compounding engine),{" "}
+                      <strong style={{color:"#f1f5f9"}}>ROE ≥ 15%</strong> (quality moat), <strong style={{color:"#f1f5f9"}}>FCF yield ≥ 2%</strong> (real cash),{" "}
+                      <strong style={{color:"#f1f5f9"}}>gross margin ≥ 30%</strong> (pricing power).
+                      The <em>Retire Score</em> (0–100) weights compounding potential over cheap P/E.
+                      The <em>Est. CAGR</em> and <em>$10K→15yr</em> columns show what a $10K position could grow to — sort by those to find your highest-conviction bets.
+                    </p>
+                    <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+                      {[
+                        { label:"Rule of 72", tip:"At 15% CAGR, money doubles every ~5 yrs. 3 doublings in 15 yrs = 8× your capital." },
+                        { label:"Quality > Cheapness", tip:"A stock at P/E 40 growing 20%/yr beats a P/E 10 stock growing 3%/yr every time over 15 years." },
+                        { label:"Stay invested", tip:"Missing the 10 best days in 15 years cuts returns by ~50%. Buy quality, hold through volatility." },
+                      ].map(({ label, tip }) => (
+                        <div key={label} style={{ fontSize:10, color:"rgba(255,255,255,0.4)", maxWidth:220 }}>
+                          <span style={{ color:"#fbbf24", fontWeight:700 }}>{label}: </span>{tip}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Preset buttons */}
             <div style={{ marginBottom:16 }}>
@@ -11544,7 +11611,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             ) : (
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1140 }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1320 }}>
                   <thead>
                     <tr>
                       {th("ticker","Ticker")}
@@ -11559,6 +11626,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("divYield","Div %")}
                       {th("epsGrowth","EPS Grw")}
                       {th("score","Score")}
+                      {th("retireScore","Retire")}
+                      {th("estCagr","Est. CAGR")}
                       {th("price","Price")}
                       {th("fairPrice","Fair Buy")}
                       {th("upside","Upside")}
@@ -11683,6 +11752,41 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 {s.score}
                               </div>
                             </td>
+                            {/* Retire Score */}
+                            <td className="td" style={{ textAlign:"center" }}>
+                              {(() => {
+                                const rs = s.retireScore;
+                                const rc = rs >= 70 ? "#22c55e" : rs >= 50 ? "#fbbf24" : rs >= 30 ? "#fb923c" : "#ef4444";
+                                const label = rs >= 70 ? "Elite" : rs >= 50 ? "Strong" : rs >= 30 ? "Steady" : "Weak";
+                                return (
+                                  <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                    <div style={{ width:34, height:34, borderRadius:"50%",
+                                      border:`2px solid ${rc}`, background:`${rc}12`,
+                                      display:"inline-flex", alignItems:"center", justifyContent:"center",
+                                      fontSize:10, fontWeight:800, color:rc,
+                                      fontFamily:"'JetBrains Mono',monospace" }}>
+                                      {rs}
+                                    </div>
+                                    <span style={{ fontSize:8, color:rc, fontWeight:700, letterSpacing:"0.03em" }}>{label}</span>
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                            {/* Est. CAGR */}
+                            <td className="td" style={{ textAlign:"center", whiteSpace:"nowrap" }}>
+                              {s.estCagr > 0 ? (
+                                <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:1 }}>
+                                  <span style={{ fontSize:12, fontWeight:800,
+                                    color: s.estCagr >= 15 ? "#22c55e" : s.estCagr >= 10 ? "#fbbf24" : "#94a3b8",
+                                    fontFamily:"'JetBrains Mono',monospace" }}>
+                                    {s.estCagr}%
+                                  </span>
+                                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>
+                                    ${Math.round(10000 * Math.pow(1 + s.estCagr / 100, 15) / 1000)}K
+                                  </span>
+                                </div>
+                              ) : <span style={{ color:"#334155", fontSize:10 }}>—</span>}
+                            </td>
                             {/* Price */}
                             <td className="td" style={{ textAlign:"right", whiteSpace:"nowrap",
                               color:"#cbd5e1", fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
@@ -11727,7 +11831,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {/* Expanded thesis panel */}
                           {isExpanded && rec && (
                             <tr style={{ background:"rgba(251,191,36,0.04)", borderLeft:"2px solid rgba(251,191,36,0.4)" }}>
-                              <td colSpan={16} style={{ padding:"14px 20px 16px" }}>
+                              <td colSpan={18} style={{ padding:"14px 20px 16px" }}>
                                 <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:16, alignItems:"start" }}>
                                   <div>
                                     <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
