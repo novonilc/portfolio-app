@@ -3309,6 +3309,28 @@ Return ONLY a valid JSON object, no markdown:
   const underDiversified   = totalHoldingsCount < 10 && totalHoldingsCount > 0;
   const inSweetSpot        = totalHoldingsCount >= 15 && totalHoldingsCount <= 25;
 
+  // Buy Radar — fair-value triggers shared across all tabs
+  const buyRadarData = (() => {
+    if (!stockUniverseData.stocks.length) return { inZone: [], nearZone: [] };
+    const livePriceMap = stockScanResults
+      ? Object.fromEntries(stockScanResults.stocks.map(r => [r.ticker, r.price]))
+      : {};
+    const heldSet = new Set(portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker)));
+    const scored = stockUniverseData.stocks
+      .filter(s => s.price > 0)
+      .map(s => {
+        const st = livePriceMap[s.ticker] != null ? { ...s, price: livePriceMap[s.ticker] } : s;
+        const fairPrice = computeScanFairPrice(st);
+        const upside    = computeScanUpside(st);
+        return { ...st, fairPrice, upside, score: computeScanScore(st), held: heldSet.has(st.ticker) };
+      })
+      .filter(s => s.fairPrice != null && s.score >= 35);
+    return {
+      inZone:   scored.filter(s => s.upside >= 0).sort((a, b) => b.upside - a.upside),
+      nearZone: scored.filter(s => s.upside < 0 && s.upside >= -18).sort((a, b) => b.upside - a.upside),
+    };
+  })();
+
   // 4× take-profit alerts — any holding where current ≥ 4× cost basis
   const fourXAlerts = Object.entries(holdings).flatMap(([acct, list]) =>
     list
@@ -4460,6 +4482,50 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "rebalance" && (
         <div style={{ padding:"22px 28px" }}>
+          {/* Buy Radar — compact */}
+          {(buyRadarData.inZone.length > 0 || buyRadarData.nearZone.length > 0) && (() => {
+            const pFmt = p => p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p);
+            return (
+              <div className="card" style={{ marginBottom:14, padding:"12px 16px",
+                borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.02)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:13 }}>🎯</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9" }}>Buy Radar</span>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>prioritise these when deploying cash</span>
+                  <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                    {buyRadarData.inZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", fontWeight:700 }}>{buyRadarData.inZone.length} in zone</span>}
+                    {buyRadarData.nearZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", color:"#fbbf24", fontWeight:700 }}>{buyRadarData.nearZone.length} approaching</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {buyRadarData.inZone.slice(0, 6).map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+                      border: s.held ? "1px solid rgba(34,197,94,0.28)" : "1px solid rgba(34,197,94,0.18)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>buy@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#22c55e" }}>+{s.upside}%</span>
+                    </div>
+                  ))}
+                  {buyRadarData.nearZone.slice(0, 5).map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(251,191,36,0.05)" : "rgba(255,255,255,0.02)",
+                      border:"1px solid rgba(251,191,36,0.18)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>trigger@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, color:"#fbbf24" }}>{Math.abs(s.upside).toFixed(1)}% away</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div className="card" style={{ marginBottom:16, display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
             <div style={{ flex:"1 1 220px" }}>
               <p className="sec">Cash available to deploy — CAD ({account})</p>
@@ -4757,6 +4823,50 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       ════════════════════════════════════════════════════════════════════ */}
       {tab === "dca" && (
         <div style={{ padding:"22px 28px" }}>
+          {/* Buy Radar — compact */}
+          {(buyRadarData.inZone.length > 0 || buyRadarData.nearZone.length > 0) && (() => {
+            const pFmt = p => p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p);
+            return (
+              <div className="card" style={{ marginBottom:14, padding:"12px 16px",
+                borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.02)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:13 }}>🎯</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9" }}>Buy Radar</span>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>DCA into these — already at or near fair value</span>
+                  <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                    {buyRadarData.inZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", fontWeight:700 }}>{buyRadarData.inZone.length} in zone</span>}
+                    {buyRadarData.nearZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", color:"#fbbf24", fontWeight:700 }}>{buyRadarData.nearZone.length} approaching</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {buyRadarData.inZone.slice(0, 6).map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+                      border: s.held ? "1px solid rgba(34,197,94,0.28)" : "1px solid rgba(34,197,94,0.18)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>buy@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#22c55e" }}>+{s.upside}%</span>
+                    </div>
+                  ))}
+                  {buyRadarData.nearZone.slice(0, 5).map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(251,191,36,0.05)" : "rgba(255,255,255,0.02)",
+                      border:"1px solid rgba(251,191,36,0.18)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>trigger@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, color:"#fbbf24" }}>{Math.abs(s.upside).toFixed(1)}% away</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           <div className="card" style={{ marginBottom:16 }}>
             <div style={{ display:"flex", gap:20, alignItems:"center", flexWrap:"wrap" }}>
               <div style={{ flex:"1 1 280px" }}>
@@ -5977,6 +6087,55 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               {filteredRecs.length} stock{filteredRecs.length !== 1 ? "s" : ""} · already-owned excluded
             </span>
           </div>
+
+          {/* Buy Radar — compact, filtered to Ideas tickers */}
+          {(() => {
+            const ideaTickers = new Set(RECOMMENDATIONS.map(r => r.ticker));
+            const inZone   = buyRadarData.inZone.filter(s => ideaTickers.has(s.ticker)).slice(0, 6);
+            const nearZone = buyRadarData.nearZone.filter(s => ideaTickers.has(s.ticker)).slice(0, 6);
+            if (!inZone.length && !nearZone.length) return null;
+            const pFmt = p => p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p);
+            return (
+              <div className="card" style={{ marginBottom:14, padding:"12px 16px",
+                borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.02)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:13 }}>🎯</span>
+                  <span style={{ fontSize:12, fontWeight:700, color:"#f1f5f9" }}>Buy Radar</span>
+                  <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>Ideas picks currently at or near fair value</span>
+                  <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                    {inZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", fontWeight:700 }}>{inZone.length} buy now</span>}
+                    {nearZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", color:"#fbbf24", fontWeight:700 }}>{nearZone.length} approaching</span>}
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                  {inZone.map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+                      border:"1px solid rgba(34,197,94,0.25)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>buy@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, fontWeight:700, color:"#22c55e" }}>+{s.upside}%</span>
+                    </div>
+                  ))}
+                  {nearZone.map(s => (
+                    <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:8,
+                      background: s.held ? "rgba(251,191,36,0.05)" : "rgba(255,255,255,0.02)",
+                      border:"1px solid rgba(251,191,36,0.18)" }}>
+                      <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>{s.ticker}</span>
+                      {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                      <span style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>trigger@${pFmt(s.fairPrice)}</span>
+                      <span style={{ fontSize:10, color:"#fbbf24" }}>{Math.abs(s.upside).toFixed(1)}% away</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ── BNN Bloomberg Market Call picks ─────────────────────────── */}
           {(bnnCalls?.days?.length > 0 || bnnCalls?.experts?.length > 0) && (() => {
@@ -8230,6 +8389,150 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 )}
               </div>
             </div>
+
+            {/* ── Buy Radar ─────────────────────────────────────────────── */}
+            {(() => {
+              const { inZone: inZoneAll, nearZone: nearZoneAll } = buyRadarData;
+              const inZone   = inZoneAll.slice(0, 6);
+              const nearZone = nearZoneAll.slice(0, 8);
+
+              if (!inZone.length && !nearZone.length) return null;
+
+              const pFmt = p => p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p);
+
+              return (
+                <div className="card" style={{ marginBottom:16,
+                  borderColor:"rgba(34,197,94,0.2)", background:"rgba(34,197,94,0.02)" }}>
+                  {/* Header */}
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                    flexWrap:"wrap", gap:8, marginBottom:14 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontSize:16 }}>🎯</span>
+                      <div>
+                        <p style={{ fontSize:13, fontWeight:700, color:"#f1f5f9", margin:0 }}>Buy Radar</p>
+                        <p style={{ fontSize:10, color:"rgba(255,255,255,0.35)", margin:0, marginTop:1 }}>
+                          Fair-value trigger prices · {stockScanResults ? "live prices" : "static prices — run Scan Now for live"}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:8 }}>
+                      {inZone.length > 0 && (
+                        <span style={{ fontSize:10, padding:"3px 9px", borderRadius:10,
+                          background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)",
+                          color:"#22c55e", fontWeight:700 }}>
+                          {inZone.length} in zone
+                        </span>
+                      )}
+                      {nearZone.length > 0 && (
+                        <span style={{ fontSize:10, padding:"3px 9px", borderRadius:10,
+                          background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)",
+                          color:"#fbbf24", fontWeight:700 }}>
+                          {nearZone.length} approaching
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* In Zone */}
+                  {inZone.length > 0 && (
+                    <>
+                      <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+                        color:"#22c55e", marginBottom:8 }}>
+                        ✅ At or below fair value — buy now
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))", gap:8, marginBottom:14 }}>
+                        {inZone.map(s => (
+                          <div key={s.ticker} style={{ padding:"10px 12px", borderRadius:8,
+                            background: s.held ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.02)",
+                            border: s.held ? "1px solid rgba(34,197,94,0.25)" : "1px solid rgba(255,255,255,0.07)" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                              <span style={{ fontSize:12, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                                color:"#22c55e" }}>{s.ticker}</span>
+                              {s.held && (
+                                <span style={{ fontSize:9, padding:"1px 5px", borderRadius:4, fontWeight:700,
+                                  background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.3)",
+                                  color:"#22d3ee" }}>✓ Held</span>
+                              )}
+                              <span style={{ fontSize:10, fontWeight:700, marginLeft:"auto",
+                                color:"#22c55e" }}>+{s.upside}% upside</span>
+                            </div>
+                            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", marginBottom:6,
+                              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.name}</div>
+                            <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                              <div>
+                                <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:1 }}>Current</div>
+                                <div style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                                  color:"#cbd5e1" }}>${pFmt(s.price)}</div>
+                              </div>
+                              <div style={{ color:"rgba(255,255,255,0.15)", fontSize:14 }}>→</div>
+                              <div>
+                                <div style={{ fontSize:9, color:"#22c55e", marginBottom:1, fontWeight:700 }}>Fair Buy (trigger)</div>
+                                <div style={{ fontSize:13, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                                  color:"#22c55e" }}>${pFmt(s.fairPrice)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Near Zone */}
+                  {nearZone.length > 0 && (
+                    <>
+                      <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase",
+                        color:"#fbbf24", marginBottom:8 }}>
+                        👁 Approaching fair value — set your price alert
+                      </div>
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(290px,1fr))", gap:8 }}>
+                        {nearZone.map(s => {
+                          const gapPct = Math.abs(s.upside);
+                          return (
+                            <div key={s.ticker} style={{ padding:"10px 12px", borderRadius:8,
+                              background: s.held ? "rgba(251,191,36,0.05)" : "rgba(255,255,255,0.02)",
+                              border: s.held ? "1px solid rgba(251,191,36,0.2)" : "1px solid rgba(255,255,255,0.06)" }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+                                <span style={{ fontSize:12, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                                  color:"rgba(255,255,255,0.7)" }}>{s.ticker}</span>
+                                {s.held && (
+                                  <span style={{ fontSize:9, padding:"1px 5px", borderRadius:4, fontWeight:700,
+                                    background:"rgba(34,211,238,0.12)", border:"1px solid rgba(34,211,238,0.3)",
+                                    color:"#22d3ee" }}>✓ Held</span>
+                                )}
+                                <span style={{ fontSize:10, color:"#fbbf24", marginLeft:"auto", fontWeight:700 }}>
+                                  {gapPct.toFixed(1)}% away
+                                </span>
+                              </div>
+                              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginBottom:6,
+                                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.name}</div>
+                              <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                                <div>
+                                  <div style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:1 }}>Current</div>
+                                  <div style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                                    color:"#cbd5e1" }}>${pFmt(s.price)}</div>
+                                </div>
+                                <div style={{ color:"rgba(255,255,255,0.15)", fontSize:14 }}>→</div>
+                                <div>
+                                  <div style={{ fontSize:9, color:"#fbbf24", marginBottom:1, fontWeight:700 }}>Buy trigger</div>
+                                  <div style={{ fontSize:13, fontWeight:800, fontFamily:"'JetBrains Mono',monospace",
+                                    color:"#fbbf24" }}>${pFmt(s.fairPrice)}</div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  <p style={{ fontSize:10, color:"rgba(255,255,255,0.2)", marginTop:12, marginBottom:0, lineHeight:1.6 }}>
+                    Fair prices use the Lynch PEG model (growth stocks) or dividend-yield normalisation (income stocks).
+                    Run <strong style={{color:"rgba(255,255,255,0.3)"}}>Scanner → Scan Now</strong> to refresh with live prices.
+                    Not financial advice.
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* ── Header label ── */}
             <div style={{ marginBottom:18, display:"flex", alignItems:"flex-end",
@@ -11364,6 +11667,55 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       ⚠ {stockScanError}
                     </div>
                   )}
+                </div>
+              );
+            })()}
+
+            {/* Buy Radar — compact strip above preset buttons */}
+            {(buyRadarData.inZone.length > 0 || buyRadarData.nearZone.length > 0) && (() => {
+              const pFmt = p => p < 10 ? p.toFixed(2) : p < 100 ? p.toFixed(1) : Math.round(p);
+              return (
+                <div className="card" style={{ marginBottom:14, padding:"10px 14px",
+                  borderColor:"rgba(34,197,94,0.18)", background:"rgba(34,197,94,0.02)" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:12 }}>🎯</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:"#f1f5f9" }}>Buy Radar</span>
+                    <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>— search these below for full fundamentals</span>
+                    <div style={{ marginLeft:"auto", display:"flex", gap:6 }}>
+                      {buyRadarData.inZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(34,197,94,0.12)", border:"1px solid rgba(34,197,94,0.3)", color:"#22c55e", fontWeight:700 }}>{buyRadarData.inZone.length} buy now</span>}
+                      {buyRadarData.nearZone.length > 0 && <span style={{ fontSize:10, padding:"2px 8px", borderRadius:10, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", color:"#fbbf24", fontWeight:700 }}>{buyRadarData.nearZone.length} approaching</span>}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                    {buyRadarData.inZone.slice(0, 8).map(s => (
+                      <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:4, padding:"4px 9px", borderRadius:7,
+                        background: s.held ? "rgba(34,197,94,0.08)" : "rgba(255,255,255,0.03)",
+                        border: s.held ? "1px solid rgba(34,197,94,0.28)" : "1px solid rgba(34,197,94,0.18)",
+                        cursor:"pointer" }}
+                        onClick={() => setScanSearch(s.ticker)}>
+                        <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>{s.ticker}</span>
+                        {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                        <span style={{ fontSize:10, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${pFmt(s.fairPrice)}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color:"#22c55e" }}>+{s.upside}%</span>
+                      </div>
+                    ))}
+                    {buyRadarData.nearZone.slice(0, 6).map(s => (
+                      <div key={s.ticker} style={{ display:"flex", alignItems:"center", gap:4, padding:"4px 9px", borderRadius:7,
+                        background: s.held ? "rgba(251,191,36,0.05)" : "rgba(255,255,255,0.02)",
+                        border:"1px solid rgba(251,191,36,0.15)",
+                        cursor:"pointer" }}
+                        onClick={() => setScanSearch(s.ticker)}>
+                        <span style={{ fontSize:11, fontWeight:800, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>{s.ticker}</span>
+                        {s.held && <span style={{ fontSize:8, color:"#22d3ee", fontWeight:700 }}>held</span>}
+                        <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>${pFmt(s.price)}</span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)" }}>→</span>
+                        <span style={{ fontSize:10, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>${pFmt(s.fairPrice)}</span>
+                        <span style={{ fontSize:10, color:"#fbbf24" }}>{Math.abs(s.upside).toFixed(1)}% away</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               );
             })()}

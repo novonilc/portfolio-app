@@ -38,7 +38,16 @@
       "Bash(nvm list *)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks count: {len\\(d[\\\\\"stocks\\\\\"]\\)}'\\)\")",
       "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node /home/nchoudhu/portfolio-app/node_modules/.bin/vite build)",
-      "Bash(awk 'NR>=2693 && NR<=2800' /home/nchoudhu/portfolio-app/src/App.jsx)"
+      "Bash(awk 'NR>=2693 && NR<=2800' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(awk -F: '$2 >= 8200 && $2 <= 8500')",
+      "Bash(awk -F: 'NR>=60 && NR<=80')",
+      "Bash(awk -F: '$2 >= 8072 && $2 <= 8500')",
+      "Bash(awk -F: '$2 >= 8072 && $2 <= 9900')",
+      "Bash(sed -n '4458,4465p' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(sed -n '5409,5420p' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(sed -n '6335,6345p' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(sed -n '4755,4762p' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(awk -F: '$2 >= 5475 && $2 <= 5700')"
     ],
     "additionalDirectories": [
       "/tmp"
