@@ -37,7 +37,8 @@
       "Bash(/home/nchoudhu/.nvm/versions/node/*/bin/npm run *)",
       "Bash(nvm list *)",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\(f'stocks count: {len\\(d[\\\\\"stocks\\\\\"]\\)}'\\)\")",
-      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node /home/nchoudhu/portfolio-app/node_modules/.bin/vite build)"
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node /home/nchoudhu/portfolio-app/node_modules/.bin/vite build)",
+      "Bash(awk 'NR>=2693 && NR<=2800' /home/nchoudhu/portfolio-app/src/App.jsx)"
     ],
     "additionalDirectories": [
       "/tmp"

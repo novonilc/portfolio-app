@@ -2690,8 +2690,6 @@ Return ONLY a JSON array, no markdown:
       }, 0);
 
       // Detected gaps
-      const tfsaH = holdings.TFSA || [];
-      const rrspH = holdings.RRSP || [];
       const gapList = Object.entries(SECTOR_TICKERS)
         .filter(([, tickers]) => !tickers.some(t => [...heldTickers].includes(t)))
         .map(([sector]) => sector);
@@ -3381,7 +3379,7 @@ Return ONLY a valid JSON object, no markdown:
     }
     return true;
   }).filter(r => {
-    const allTickers = new Set([...holdings.TFSA, ...holdings.RRSP].map(h => h.ticker));
+    const allTickers = new Set(portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker)));
     return !allTickers.has(r.ticker);
   });
 
@@ -3489,13 +3487,14 @@ Return ONLY a valid JSON object, no markdown:
         .join("\n");
       return rows ? `  ${acct}:\n${rows}` : "";
     };
-    const tfsaSummary = buildHoldingSummary("TFSA", holdings.TFSA || []);
-    const rrspSummary = buildHoldingSummary("RRSP", holdings.RRSP || []);
-    const holdingsBlock = [tfsaSummary, rrspSummary].filter(Boolean).join("\n");
+    const holdingsBlock = portfolios
+      .map(p => buildHoldingSummary(p, holdings[p] || []))
+      .filter(Boolean)
+      .join("\n");
 
     // BNN Bloomberg Market Call picks — cross-reference with held tickers
     const allHeld = new Set(
-      [...(holdings.TFSA || []), ...(holdings.RRSP || [])].map(h => h.ticker)
+      portfolios.flatMap(p => (holdings[p] || []).map(h => h.ticker))
     );
     let bnnBlock = "";
     const bnnDays = bnnCalls?.days?.length ? bnnCalls.days : (bnnCalls?.experts?.length ? [bnnCalls] : []);
