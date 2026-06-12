@@ -2694,6 +2694,39 @@ Return ONLY a JSON array, no markdown:
         .filter(([, tickers]) => !tickers.some(t => [...heldTickers].includes(t)))
         .map(([sector]) => sector);
 
+      // Cross-portfolio overlap — tickers held in 2+ accounts
+      const overlapMap = {};
+      portfolios.forEach(p => {
+        (holdings[p] || []).forEach(h => {
+          if (!overlapMap[h.ticker]) overlapMap[h.ticker] = [];
+          overlapMap[h.ticker].push(p);
+        });
+      });
+      const overlappingTickers = Object.entries(overlapMap)
+        .filter(([, accts]) => accts.length > 1)
+        .map(([ticker, accts]) => {
+          const portions = accts.map(a => {
+            const h = (holdings[a] || []).find(x => x.ticker === ticker);
+            const cur = h ? getTickerCurrency(h.ticker, h.currencyOverride) : "USD";
+            const cadVal = h ? (cur === "USD" ? h.current * fxRate : h.current) : 0;
+            const acctTotal = (holdings[a] || []).reduce((s, x) => {
+              const c = getTickerCurrency(x.ticker, x.currencyOverride);
+              return s + (c === "USD" ? x.current * fxRate : x.current);
+            }, 0);
+            const pct = acctTotal > 0 ? (cadVal / acctTotal * 100).toFixed(1) : "0.0";
+            return `${a}:${pct}%`;
+          });
+          return `  ${ticker}: ${portions.join(" + ")}`;
+        });
+
+      // Buy Radar — scanner-validated stocks near/at fair value, not yet held
+      const radarInZone   = buyRadarData.inZone.filter(s => !heldTickers.has(s.ticker)).slice(0, 10);
+      const radarNearZone = buyRadarData.nearZone.filter(s => !heldTickers.has(s.ticker)).slice(0, 5);
+      const radarLines = [
+        ...radarInZone.map(s   => `  ${s.ticker} | ${s.name} | +${s.upside}% upside | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%`),
+        ...radarNearZone.map(s => `  ${s.ticker} | ${s.name} | ${s.upside}% upside (near zone) | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%`),
+      ];
+
       const regime    = marketPulse?.regime?.label    || "Unknown";
       const riskScore = marketPulse?.riskMeter?.score ?? 50;
       const riskCtx   = riskScore < 40 ? "risk-off — prefer defensive, quality positions"
@@ -2711,6 +2744,12 @@ USD/CAD rate: ${fxRate}
 Current holdings by account (ticker | name | currency | CAD value (% of account) | div yield):
 ${accountSummaries}
 
+Tickers held in multiple accounts (same stock duplicated across portfolios):
+${overlappingTickers.length ? overlappingTickers.join("\n") : "  (none — all tickers unique per account)"}
+
+Scanner Buy Radar — stocks at or near fair value not yet held (quantitative screen):
+${radarLines.length ? radarLines.join("\n") : "  (none — market fully valued right now)"}
+
 Already held tickers: ${[...heldTickers].join(", ")}
 
 TASK A — Suggest exactly 3–6 NEW positions that would meaningfully diversify this portfolio.
@@ -2727,7 +2766,7 @@ Addition rules:
 - Consider the regime: in risk-off, lean toward defensive dividend stocks (JNJ, KO, ENB); in risk-on, lean toward growth stocks
 - Stop at 6 — do not pad with unnecessary positions
 
-TASK B — Identify any existing positions that should be trimmed or removed.
+TASK B — Identify existing positions that should be trimmed or removed.
 
 Trim rules (flag a position if ANY of these apply):
 - Single-stock position exceeds 20% of its account (concentration risk)
@@ -2737,7 +2776,22 @@ Trim rules (flag a position if ANY of these apply):
 - Position is speculative/high-risk and oversized given the current risk score
 - Only flag genuine concerns — do NOT invent trims; return an empty array if holdings are well-balanced
 
-Return ONLY a valid JSON object, no markdown:
+TASK C — Cross-portfolio overlap advice.
+For each ticker that appears in 2+ accounts (listed above):
+- "Keep in both" — if holding it across accounts serves a deliberate purpose (large core position intentionally split, different lot dates, etc.)
+- "Consolidate to RRSP" or "Consolidate to TFSA" — if one account placement clearly dominates for tax reasons
+- "Diversify — swap [account] slot to [altTicker]" — if you'd capture more diversification by replacing one of the duplicate slots with a correlated-but-distinct stock (e.g., keeping NVDA in RRSP but swapping TFSA NVDA → AMD or MRVL for semi diversification)
+If there are no overlapping tickers, return an empty array.
+
+TASK D — Scanner-validated picks.
+From the Buy Radar list above, select up to 3 stocks that:
+- Have a meaningful buy signal (positive or near-zero upside to fair value)
+- Fill a genuine gap not covered by TASK A suggestions
+- Suit the current market regime
+- Are NOT already in the held list
+These are quantitatively screened — they can overlap with TASK A; that's fine. If none qualify, return [].
+
+Return ONLY a valid JSON object, no markdown, no trailing commas:
 {
   "additions": [{
     "ticker": "ENB",
@@ -2758,6 +2812,28 @@ Return ONLY a valid JSON object, no markdown:
     "suggestedPct": 15,
     "action": "Reduce",
     "reason": "At 28.5% of TFSA this single semi position dominates the account. A 15% cap reduces concentration risk while keeping meaningful upside exposure."
+  }],
+  "crossPortfolioAdvice": [{
+    "ticker": "NVDA",
+    "inAccounts": ["TFSA", "RRSP"],
+    "verdict": "Consolidate to RRSP",
+    "altTicker": null,
+    "altAccount": null,
+    "reason": "NVDA pays a minimal dividend but the RRSP slot means zero WHT. The TFSA slot would be better used for a Canadian name or zero-dividend growth stock."
+  }],
+  "scannerPicks": [{
+    "ticker": "TSM",
+    "name": "Taiwan Semiconductor",
+    "account": "RRSP",
+    "targetPct": 5,
+    "upside": 45,
+    "signal": "Strong Buy",
+    "sector": "Technology",
+    "divYield": 0.9,
+    "cagr": 15,
+    "fillsGap": "Foundry / advanced-node manufacturing not represented",
+    "thesis": "Sole manufacturer of leading-edge chips for NVDA, AAPL, AMD. AI capex supercycle drives volume. 45% upside to fair value at current prices.",
+    "placementReason": "US-listed, pays a dividend — RRSP treaty eliminates 15% WHT"
   }]
 }`;
 
@@ -2780,10 +2856,20 @@ Return ONLY a valid JSON object, no markdown:
       if (!parsed.additions || !Array.isArray(parsed.additions)) throw new Error("Claude returned no suggestions");
 
       // Safety: strip any tickers that are already held
-      const clean      = parsed.additions.filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
-      const cleanTrims = (parsed.trims || []).filter(s => s.ticker && heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+      const clean               = parsed.additions.filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+      const cleanTrims          = (parsed.trims || []).filter(s => s.ticker && heldTickers.has(s.ticker.toUpperCase())).slice(0, 6);
+      const cleanCrossPortfolio = (parsed.crossPortfolioAdvice || []).slice(0, 8);
+      const cleanScannerPicks   = (parsed.scannerPicks || []).filter(s => s.ticker && !heldTickers.has(s.ticker.toUpperCase())).slice(0, 3);
 
-      const result = { suggestions: clean, trims: cleanTrims, generatedAt: new Date().toISOString(), regime, riskScore };
+      const result = {
+        suggestions: clean,
+        trims: cleanTrims,
+        crossPortfolioAdvice: cleanCrossPortfolio,
+        scannerPicks: cleanScannerPicks,
+        generatedAt: new Date().toISOString(),
+        regime,
+        riskScore,
+      };
       setDiversifySuggestions(result);
       localStorage.setItem("diversify:suggestions", JSON.stringify(result));
     } catch (err) {
@@ -5752,10 +5838,180 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </div>
                 )}
 
+                {/* ── Cross-portfolio overlap advice ── */}
+                {ds?.crossPortfolioAdvice?.length > 0 && (
+                  <div style={{ marginBottom:14 }}>
+                    <p style={{ fontSize:11, fontWeight:600, color:"#a78bfa", marginBottom:8,
+                      display:"flex", alignItems:"center", gap:6 }}>
+                      🔀 Cross-Portfolio Overlap
+                      <span style={{ fontSize:10, fontWeight:400, color:"rgba(255,255,255,0.35)" }}>
+                        — same ticker held in multiple accounts
+                      </span>
+                    </p>
+                    <div style={{ display:"grid", gap:8,
+                      gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))" }}>
+                      {ds.crossPortfolioAdvice.map((adv, i) => {
+                        const isDiversify = adv.verdict?.startsWith("Diversify");
+                        const isConsolidate = adv.verdict?.startsWith("Consolidate");
+                        const accentColor = isDiversify ? "#f97316" : isConsolidate ? "#22d3ee" : "#a78bfa";
+                        return (
+                          <div key={i} style={{
+                            background:"rgba(167,139,250,0.04)",
+                            border:`1px solid rgba(167,139,250,0.18)`,
+                            borderLeft:`3px solid ${accentColor}`,
+                            borderRadius:10, padding:"12px 14px",
+                          }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
+                              <span style={{ fontSize:15, fontWeight:800,
+                                fontFamily:"'JetBrains Mono',monospace", color:accentColor }}>
+                                {adv.ticker}
+                              </span>
+                              {(adv.inAccounts || []).map(a => (
+                                <span key={a} style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                  background:"rgba(167,139,250,0.12)", color:"#a78bfa",
+                                  border:"1px solid rgba(167,139,250,0.25)", fontWeight:600 }}>
+                                  {a}
+                                </span>
+                              ))}
+                              <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4,
+                                background:`${accentColor}15`, color:accentColor,
+                                border:`1px solid ${accentColor}30`, fontWeight:700, marginLeft:"auto" }}>
+                                {adv.verdict}
+                              </span>
+                            </div>
+                            <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)",
+                              lineHeight:1.5, margin:0 }}>
+                              {adv.reason}
+                            </p>
+                            {adv.altTicker && (
+                              <p style={{ fontSize:10, color:"#f97316", marginTop:6, marginBottom:0 }}>
+                                💡 Alternative: <strong>{adv.altTicker}</strong>{adv.altAccount ? ` in ${adv.altAccount}` : ""}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Scanner-validated picks ── */}
+                {ds?.scannerPicks?.length > 0 && (
+                  <div style={{ marginBottom:14 }}>
+                    <p style={{ fontSize:11, fontWeight:600, color:"#fbbf24", marginBottom:8,
+                      display:"flex", alignItems:"center", gap:6 }}>
+                      📡 Scanner-Validated Buys
+                      <span style={{ fontSize:10, fontWeight:400, color:"rgba(255,255,255,0.35)" }}>
+                        — at or near fair value per the Buy Radar model
+                      </span>
+                    </p>
+                    <div style={{ display:"grid", gap:12,
+                      gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))" }}>
+                      {ds.scannerPicks.map((s, i) => {
+                        const alreadyHeld = portfolios.some(p =>
+                          (holdings[p] || []).some(h => h.ticker === s.ticker)
+                        );
+                        const acctColor   = s.account === "RRSP" ? "#22d3ee" : "#fbbf24";
+                        const signalColor = (s.upside ?? 0) >= 25 ? "#22c55e"
+                          : (s.upside ?? 0) >= 0 ? "#86efac" : "#fbbf24";
+                        return (
+                          <div key={i} style={{
+                            background:"rgba(251,191,36,0.03)",
+                            border:"1px solid rgba(251,191,36,0.18)",
+                            borderLeft:"3px solid #fbbf24",
+                            borderRadius:10, padding:"14px 16px",
+                          }}>
+                            <div style={{ display:"flex", justifyContent:"space-between",
+                              alignItems:"flex-start", marginBottom:8 }}>
+                              <div>
+                                <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:3 }}>
+                                  <span style={{ fontSize:16, fontWeight:800,
+                                    fontFamily:"'JetBrains Mono',monospace", color:"#fbbf24" }}>
+                                    {s.ticker}
+                                  </span>
+                                  <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                    background:`${acctColor}15`, color:acctColor,
+                                    border:`1px solid ${acctColor}30`, fontWeight:600 }}>
+                                    {s.account}
+                                  </span>
+                                  <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
+                                    background:`${signalColor}15`, color:signalColor,
+                                    border:`1px solid ${signalColor}30`, fontWeight:600 }}>
+                                    {s.signal || "Buy"}
+                                  </span>
+                                </div>
+                                <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", margin:0 }}>
+                                  {s.name}
+                                </p>
+                              </div>
+                              <div style={{ textAlign:"right", flexShrink:0, marginLeft:8 }}>
+                                <p style={{ fontSize:13, fontWeight:700, color:signalColor,
+                                  fontFamily:"'JetBrains Mono',monospace", margin:0 }}>
+                                  {s.upside != null ? `+${s.upside}%` : "—"}
+                                </p>
+                                <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", margin:0 }}>
+                                  upside
+                                </p>
+                              </div>
+                            </div>
+                            <div style={{ fontSize:10, color:"rgba(251,191,36,0.75)",
+                              background:"rgba(251,191,36,0.06)",
+                              border:"1px solid rgba(251,191,36,0.15)",
+                              borderRadius:5, padding:"3px 8px", marginBottom:8,
+                              display:"inline-block", lineHeight:1.4 }}>
+                              🎯 {s.fillsGap}
+                            </div>
+                            <p style={{ fontSize:11, color:"rgba(255,255,255,0.5)",
+                              lineHeight:1.55, marginBottom:8 }}>{s.thesis}</p>
+                            {s.placementReason && (
+                              <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)",
+                                lineHeight:1.4, marginBottom:10,
+                                borderTop:"1px solid rgba(255,255,255,0.05)",
+                                paddingTop:7, margin:"0 0 10px" }}>
+                                📍 {s.placementReason}
+                              </p>
+                            )}
+                            <div style={{ display:"flex", gap:12, marginBottom:10 }}>
+                              {[["Target", `${s.targetPct ?? 5}%`], ["Div yield", `${s.divYield ?? 0}%`], ["Est. CAGR", `${s.cagr ?? 10}%`]].map(([label, val]) => (
+                                <div key={label}>
+                                  <p style={{ fontSize:9, color:"rgba(255,255,255,0.28)", margin:0,
+                                    textTransform:"uppercase", letterSpacing:"0.07em" }}>{label}</p>
+                                  <p style={{ fontSize:12, fontWeight:600,
+                                    color:"rgba(255,255,255,0.7)", margin:0,
+                                    fontFamily:"'JetBrains Mono',monospace" }}>{val}</p>
+                                </div>
+                              ))}
+                            </div>
+                            {alreadyHeld ? (
+                              <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>
+                                ✓ Already in portfolio
+                              </span>
+                            ) : (
+                              <button
+                                className="btn btn-primary"
+                                style={{ width:"100%", fontSize:11, padding:"7px 0",
+                                  borderColor:`${acctColor}50`, color:acctColor,
+                                  background:`${acctColor}10` }}
+                                onClick={() => {
+                                  addRecommendedTicker({
+                                    ticker: s.ticker, name: s.name,
+                                    divYield: s.divYield ?? 0, thesis: s.thesis, bestFor: s.account,
+                                  }, s.account);
+                                }}>
+                                + Add to {s.account}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Suggestion cards */}
                 {ds?.suggestions?.length > 0 && (
                   <div>
-                  {ds.trims?.length > 0 && (
+                  {(ds.trims?.length > 0 || ds.crossPortfolioAdvice?.length > 0 || ds.scannerPicks?.length > 0) && (
                     <p style={{ fontSize:11, fontWeight:600, color:tealAccent, marginBottom:8,
                       display:"flex", alignItems:"center", gap:6 }}>
                       ✦ New Positions to Add

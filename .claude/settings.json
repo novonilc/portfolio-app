@@ -48,7 +48,8 @@
       "Bash(sed -n '6335,6345p' /home/nchoudhu/portfolio-app/src/App.jsx)",
       "Bash(sed -n '4755,4762p' /home/nchoudhu/portfolio-app/src/App.jsx)",
       "Bash(awk -F: '$2 >= 5475 && $2 <= 5700')",
-      "Bash(node /home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)"
+      "Bash(node /home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)",
+      "Bash(grep -n \"const gapList\\\\|const regime\\\\|const profCtx\\\\|const prompt = \\\\`You are a portfolio advisor for a Canadian investor with TFSA\" /home/nchoudhu/portfolio-app/src/App.jsx)"
     ],
     "additionalDirectories": [
       "/tmp"
