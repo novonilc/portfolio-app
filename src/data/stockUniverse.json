@@ -151,7 +151,7 @@
       "de": 3.63,
       "divYield": 1,
       "grossMargin": 66,
-      "fcfYield": -4.9,
+      "fcfYield": 1.5,
       "peg": 1.45
     },
     {
@@ -172,6 +172,25 @@
       "grossMargin": 53,
       "fcfYield": 0.9,
       "peg": 1.71
+    },
+    {
+      "ticker": "CRWV",
+      "name": "CoreWeave",
+      "sector": "Technology",
+      "market": "US",
+      "mktCap": "large",
+      "isBank": false,
+      "moat": "Exclusive GPU Cloud / NVIDIA Partner",
+      "price": 52.0,
+      "pe": null,
+      "fwdPe": 75,
+      "epsGrowth": 80,
+      "roe": -15,
+      "de": 3.8,
+      "divYield": 0,
+      "grossMargin": 73,
+      "fcfYield": -12,
+      "peg": null
     },
     {
       "ticker": "MU",

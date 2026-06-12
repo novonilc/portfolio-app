@@ -981,7 +981,7 @@ const SCAN_PRESET_FILTERS = {
   midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
   ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
   canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
-  retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:2.0, minDivY:0, minFcfY:2, minEpsG:12,minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },

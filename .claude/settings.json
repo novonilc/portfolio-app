@@ -47,7 +47,8 @@
       "Bash(sed -n '5409,5420p' /home/nchoudhu/portfolio-app/src/App.jsx)",
       "Bash(sed -n '6335,6345p' /home/nchoudhu/portfolio-app/src/App.jsx)",
       "Bash(sed -n '4755,4762p' /home/nchoudhu/portfolio-app/src/App.jsx)",
-      "Bash(awk -F: '$2 >= 5475 && $2 <= 5700')"
+      "Bash(awk -F: '$2 >= 5475 && $2 <= 5700')",
+      "Bash(node /home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)"
     ],
     "additionalDirectories": [
       "/tmp"
