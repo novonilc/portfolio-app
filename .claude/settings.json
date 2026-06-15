@@ -54,7 +54,8 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; print\\(f'Total stocks: {len\\(stocks\\)}'\\); [print\\(s.get\\('ticker','?'\\), s.get\\('name','?'\\)\\) for s in stocks[:10]]\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; print\\(json.dumps\\(stocks[0], indent=2\\)\\)\")",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; [print\\(s['ticker']\\) for s in stocks]\")",
-      "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)"
+      "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
+      "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/marketPulse.json)"
     ],
     "additionalDirectories": [
       "/tmp"
