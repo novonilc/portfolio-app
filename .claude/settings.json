@@ -49,7 +49,12 @@
       "Bash(sed -n '4755,4762p' /home/nchoudhu/portfolio-app/src/App.jsx)",
       "Bash(awk -F: '$2 >= 5475 && $2 <= 5700')",
       "Bash(node /home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)",
-      "Bash(grep -n \"const gapList\\\\|const regime\\\\|const profCtx\\\\|const prompt = \\\\`You are a portfolio advisor for a Canadian investor with TFSA\" /home/nchoudhu/portfolio-app/src/App.jsx)"
+      "Bash(grep -n \"const gapList\\\\|const regime\\\\|const profCtx\\\\|const prompt = \\\\`You are a portfolio advisor for a Canadian investor with TFSA\" /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(f'Total stocks: {len\\(d\\)}'\\); print\\('First 5 keys:', list\\(d.keys\\(\\)\\)[:5] if isinstance\\(d, dict\\) else 'array'\\); print\\(type\\(d\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; print\\(f'Total stocks: {len\\(stocks\\)}'\\); [print\\(s.get\\('ticker','?'\\), s.get\\('name','?'\\)\\) for s in stocks[:10]]\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; print\\(json.dumps\\(stocks[0], indent=2\\)\\)\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; [print\\(s['ticker']\\) for s in stocks]\")",
+      "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)"
     ],
     "additionalDirectories": [
       "/tmp"
