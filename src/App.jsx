@@ -8098,11 +8098,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           .sort((a, b) => b.valueCAD - a.valueCAD)
           .slice(0, 8);
 
-        // Combined sorted across both accounts
-        const allTop = [
-          ...tfsaH.map(h => ({ ...h, acct:"TFSA", valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
-          ...rrspH.map(h => ({ ...h, acct:"RRSP", valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) })),
-        ].filter(h => h.valueCAD > 0).sort((a, b) => b.valueCAD - a.valueCAD).slice(0, 12);
+        // Combined sorted across ALL portfolios
+        const allTop = portfolios.flatMap(p =>
+          (holdings[p] || []).map(h => ({ ...h, acct: p, valueCAD: toCAD(h.current, h.ticker, h.currencyOverride) }))
+        ).filter(h => h.valueCAD > 0).sort((a, b) => b.valueCAD - a.valueCAD).slice(0, 12);
 
         // Target alignment health
         const tfsaTargetSum = tfsaH.reduce((s, h) => s + (h.target || 0), 0);
@@ -9285,14 +9284,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div className="card" style={{ marginBottom:20 }}>
                 <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
                   color:"rgba(255,255,255,0.28)", fontWeight:600, marginBottom:14 }}>
-                  Combined Top Holdings — largest positions across both accounts
+                  Combined Top Holdings — largest positions across all accounts
                 </p>
                 <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
                   {allTop.map((h, i) => {
                     const isUSD = getTickerCurrency(h.ticker, h.currencyOverride) === "USD";
                     const barPct = (h.valueCAD / allMaxVal) * 100;
-                    const acctColor = h.acct === "TFSA" ? "#fbbf24" : "#22d3ee";
-                    const pct = combTotalCAD > 0 ? (h.valueCAD / combTotalCAD) * 100 : 0;
+                    const acctColorInfo = PORTFOLIO_COLORS[h.acct] ?? EXTRA_COLORS[Math.max(0, portfolios.indexOf(h.acct) - 2) % EXTRA_COLORS.length];
+                    const acctColor = acctColorInfo.accent;
+                    const pct = allPortfoliosTotal > 0 ? (h.valueCAD / allPortfoliosTotal) * 100 : 0;
                     const dispVal = isUSD ? `US$${fmt(h.current)}` : `C$${fmt(h.current)}`;
                     const livePrice = liveHoldingPrices[h.ticker];
                     const prevPrice = livePrevPrices[h.ticker];
@@ -9309,9 +9309,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           {h.ticker}
                         </span>
                         <span style={{ fontSize:9, padding:"1px 6px", borderRadius:3, minWidth:36, textAlign:"center",
-                          background: h.acct === "TFSA" ? "rgba(251,191,36,0.1)" : "rgba(34,211,238,0.1)",
+                          background: `rgba(${acctColorInfo.rgb},0.1)`,
                           color:acctColor,
-                          border:`1px solid ${h.acct === "TFSA" ? "rgba(251,191,36,0.22)" : "rgba(34,211,238,0.22)"}` }}>
+                          border:`1px solid rgba(${acctColorInfo.rgb},0.22)` }}>
                           {h.acct}
                         </span>
                         <div style={{ flex:1, height:6, background:"rgba(255,255,255,0.05)", borderRadius:3, overflow:"hidden" }}>
