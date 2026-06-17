@@ -1500,7 +1500,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/pulse-load");
+        const res = await fetch("/api/public-data?key=pulse");
         if (!res.ok) return; // no scheduled data yet — fall back to bundled JSON / localStorage
         const data = await res.json();
         if (!data.regime || !data.macroSignals) return;
@@ -1522,7 +1522,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/bnn-load");
+        const res = await fetch("/api/public-data?key=bnn");
         if (!res.ok) return; // no data yet — section stays hidden
         const data = await res.json();
         if (data.experts?.length) setBnnCalls(data);
@@ -1534,7 +1534,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/analyst-ratings-load");
+        const res = await fetch("/api/public-data?key=analyst-ratings");
         if (!res.ok) return;
         const data = await res.json();
         if (data.ratings) setAnalystRatings(data);
@@ -1546,7 +1546,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/options-signals-load");
+        const res = await fetch("/api/public-data?key=options-signals");
         if (!res.ok) return;
         const data = await res.json();
         if (data.signals?.length) setSpreadSignals(data);
@@ -1558,7 +1558,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/csp-cc-picks-load");
+        const res = await fetch("/api/public-data?key=csp-cc-picks");
         if (!res.ok) return;
         const data = await res.json();
         if (data.cspPicks?.length || data.ccPicks?.length) setCspCcPicks(data);
@@ -3061,7 +3061,7 @@ Return ONLY a valid JSON object, no markdown:
     setSpreadSignalsLoading(true);
     setSpreadSignalsError(null);
     try {
-      const res = await fetch("/api/options-signals-load");
+      const res = await fetch("/api/public-data?key=options-signals");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.signals?.length) setSpreadSignals(data);
@@ -3076,7 +3076,7 @@ Return ONLY a valid JSON object, no markdown:
   async function refreshCspCcPicks() {
     setCspCcPicksLoading(true);
     try {
-      const res = await fetch("/api/csp-cc-picks-load");
+      const res = await fetch("/api/public-data?key=csp-cc-picks");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.cspPicks?.length || data.ccPicks?.length) setCspCcPicks(data);
