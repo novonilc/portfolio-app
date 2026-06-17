@@ -1297,6 +1297,7 @@ export default function App() {
   });
   const [bnnCalls,            setBnnCalls]            = useState(null);
   const [bnnDayIndex,         setBnnDayIndex]         = useState(0);
+  const [analystRatings,      setAnalystRatings]      = useState(null);
   const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
   const [aiOptionsError,      setAiOptionsError]      = useState(null);
   const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
@@ -1526,6 +1527,18 @@ export default function App() {
         const data = await res.json();
         if (data.experts?.length) setBnnCalls(data);
       } catch { /* silently skip — BNN section stays hidden */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load Wall Street analyst ratings (FMP) on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/analyst-ratings-load");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.ratings) setAnalystRatings(data);
+      } catch { /* silently skip — ratings badges stay hidden */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -11782,6 +11795,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           });
         });
 
+        // ── Analyst ratings lookup map: ticker → { consensus, trend, actions[] } ─
+        const analystMap = analystRatings?.ratings || {};
+
         // ── Live result filters (instant, no re-scan needed) ─────────────────
         const filtered = scanned.filter(s => {
           if (scanSearch.trim()) {
@@ -12383,6 +12399,27 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                       </span>
                                     );
                                   })()}
+                                  {/* Analyst ratings badge */}
+                                  {(() => {
+                                    const ar = analystMap[s.ticker];
+                                    if (!ar?.actions?.length) return null;
+                                    const c = ar.consensus === "buy" ? "#22c55e" : ar.consensus === "sell" ? "#ef4444" : "#94a3b8";
+                                    const trendIcon = ar.trend === "upgrading" ? "▲" : ar.trend === "downgrading" ? "▼" : "–";
+                                    const trendColor = ar.trend === "upgrading" ? "#22c55e" : ar.trend === "downgrading" ? "#ef4444" : "#64748b";
+                                    const buys  = ar.votes?.buy  || 0;
+                                    const holds = ar.votes?.hold || 0;
+                                    const sells = ar.votes?.sell || 0;
+                                    return (
+                                      <span title={`Wall St: ${ar.consensus?.toUpperCase()} (${buys}B/${holds}H/${sells}S) · trend: ${ar.trend}`}
+                                        style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3,
+                                          background:`${c}12`, color:c, border:`1px solid ${c}40`,
+                                          letterSpacing:"0.04em", cursor:"default", display:"inline-flex", alignItems:"center", gap:2 }}>
+                                        <span style={{ color:trendColor, fontSize:8 }}>{trendIcon}</span>
+                                        {ar.consensus === "buy" ? "Buy" : ar.consensus === "sell" ? "Sell" : "Hold"}
+                                        <span style={{ fontSize:8, opacity:0.6 }}>{buys}/{holds}/{sells}</span>
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             </td>
@@ -12591,21 +12628,23 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                       </div>
                                     </div>
 
-                                    {/* ── BNN Bloomberg detail ── */}
-                                    <div>
-                                      {hasBnn ? (
-                                        <>
-                                          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
-                                            marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                                            📺 BNN Bloomberg
-                                          </div>
-                                          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                                    {/* ── BNN Bloomberg + Analyst Ratings ── */}
+                                    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+                                      {/* BNN Bloomberg */}
+                                      <div>
+                                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                          marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                          📺 BNN Bloomberg
+                                        </div>
+                                        {hasBnn ? (
+                                          <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
                                             {bnnPicks.map((bp, bpi) => {
                                               const bc = bp.action === "buy" ? "#22c55e" : bp.action === "sell" ? "#ef4444" : "#fbbf24";
                                               return (
-                                                <div key={bpi} style={{ padding:"9px 11px", borderRadius:7,
+                                                <div key={bpi} style={{ padding:"8px 10px", borderRadius:7,
                                                   background:`${bc}09`, border:`1px solid ${bc}30` }}>
-                                                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                                                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4, flexWrap:"wrap" }}>
                                                     <span style={{ fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:3,
                                                       background:`${bc}18`, color:bc, border:`1px solid ${bc}50`,
                                                       textTransform:"uppercase", letterSpacing:"0.05em" }}>
@@ -12634,15 +12673,86 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                               );
                                             })}
                                           </div>
-                                        </>
-                                      ) : (
-                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)", paddingTop:24 }}>
-                                          No recent BNN Bloomberg picks for {s.ticker}.
-                                          {!bnnSrc.length && (
-                                            <span> Load Market Call data from the Dashboard to enable this.</span>
-                                          )}
+                                        ) : (
+                                          <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                                            No recent BNN picks.
+                                            {!bnnSrc.length && <span> Load Market Call data from Dashboard first.</span>}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Wall Street Analyst Ratings (FMP) */}
+                                      <div>
+                                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                          marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                          🏦 Wall St. Analysts
                                         </div>
-                                      )}
+                                        {(() => {
+                                          const ar = analystMap[s.ticker];
+                                          if (!ar?.actions?.length) {
+                                            return (
+                                              <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                                                No analyst ratings yet.
+                                                {!analystRatings && <span> Trigger /api/refresh-analyst-ratings to populate.</span>}
+                                              </div>
+                                            );
+                                          }
+                                          const cc  = ar.consensus === "buy" ? "#22c55e" : ar.consensus === "sell" ? "#ef4444" : "#94a3b8";
+                                          const buys  = ar.votes?.buy  || 0;
+                                          const holds = ar.votes?.hold || 0;
+                                          const sells = ar.votes?.sell || 0;
+                                          const total = buys + holds + sells || 1;
+                                          return (
+                                            <div>
+                                              {/* Consensus bar */}
+                                              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                                                <span style={{ fontSize:11, fontWeight:800, color:cc,
+                                                  textTransform:"capitalize" }}>
+                                                  {ar.consensus}
+                                                </span>
+                                                <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                                                  {buys}B / {holds}H / {sells}S · last 90d
+                                                </span>
+                                              </div>
+                                              {/* Visual bar */}
+                                              <div style={{ display:"flex", height:6, borderRadius:3, overflow:"hidden", marginBottom:10 }}>
+                                                <div style={{ flex:buys, background:"#22c55e", opacity:0.7 }} />
+                                                <div style={{ flex:holds, background:"#64748b", opacity:0.5 }} />
+                                                <div style={{ flex:sells, background:"#ef4444", opacity:0.7 }} />
+                                              </div>
+                                              {/* Recent actions */}
+                                              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                                {ar.actions.slice(0, 5).map((a, ai) => {
+                                                  const ac = a.action === "upgrade" ? "#22c55e"
+                                                    : a.action === "downgrade" ? "#ef4444"
+                                                    : a.action === "initiated" ? "#a78bfa" : "#64748b";
+                                                  const ai_icon = a.action === "upgrade" ? "▲"
+                                                    : a.action === "downgrade" ? "▼"
+                                                    : a.action === "initiated" ? "★" : "→";
+                                                  return (
+                                                    <div key={ai} style={{ display:"flex", alignItems:"center",
+                                                      gap:5, fontSize:9, color:"rgba(255,255,255,0.5)" }}>
+                                                      <span style={{ color:ac, fontWeight:700, minWidth:8 }}>{ai_icon}</span>
+                                                      <span style={{ fontWeight:600, color:"rgba(255,255,255,0.65)",
+                                                        minWidth:80, overflow:"hidden", textOverflow:"ellipsis",
+                                                        whiteSpace:"nowrap" }}>{a.firm}</span>
+                                                      {a.fromGrade && a.toGrade && (
+                                                        <span style={{ color:"rgba(255,255,255,0.3)" }}>
+                                                          {a.fromGrade} → <span style={{ color:ac }}>{a.toGrade}</span>
+                                                        </span>
+                                                      )}
+                                                      <span style={{ marginLeft:"auto", fontFamily:"'JetBrains Mono',monospace",
+                                                        color:"rgba(255,255,255,0.2)", whiteSpace:"nowrap" }}>
+                                                        {a.date}
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
                                     </div>
 
                                     {/* ── Ideas thesis ── */}
