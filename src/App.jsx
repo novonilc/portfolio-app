@@ -996,12 +996,11 @@ const SCAN_PRESETS = [
   { key:"retire",     icon:"🏖️", label:"Retire in 10-15yr", desc:"High-growth compounders for a 45yr wealth plan" },
 ];
 function computeScanScore(s) {
-  // Null-safe: missing metrics score 0 rather than false-positives from JS null coercion
   let pts = 0;
-  // Use forward PEG (fwdPe ÷ epsGrowth) when available — the market prices on forward
-  // earnings, so forward PEG is a more accurate valuation signal than trailing PEG.
-  // Falls back to stored trailing peg if fwdPe is zero or missing.
-  const fwdPeg = (s.fwdPe > 0 && s.epsGrowth > 0) ? s.fwdPe / s.epsGrowth : null;
+  // PEG: fwdPe ÷ fwdEpsGrowth (best) → fwdPe ÷ epsGrowth → stored peg
+  // fwdEpsGrowth fixes cyclical distortion (e.g. MU 756% trailing vs 45% forward)
+  const pegGrowth = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : null);
+  const fwdPeg = (s.fwdPe > 0 && pegGrowth) ? s.fwdPe / pegGrowth : null;
   const p = fwdPeg ?? s.peg;
   pts += (p != null && p > 0) ? (p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0) : 0;
   const r = s.roe != null ? Math.min(s.roe, 100) : null;
@@ -1011,21 +1010,23 @@ function computeScanScore(s) {
   pts += f != null ? (f>=8?20:f>=6?16:f>=4?11:f>=2?6:1) : 0;
   const g = s.grossMargin;
   pts += g != null ? (g>=70?10:g>=50?8:g>=35?5:2) : 0;
-  const e = s.epsGrowth;
+  // Growth: epsGrowth for profitable companies; revGrowth fallback for pre-profitable
+  const e = s.epsGrowth > 0 ? s.epsGrowth : (s.revGrowth > 0 ? s.revGrowth : 0);
   pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
   return Math.min(100, pts);
 }
 // Retirement wealth-building score — weights EPS growth + quality over cheapness
 function computeRetireScore(s) {
   let pts = 0;
-  // EPS growth is the #1 driver of 10-15yr compounding (35 pts)
-  const e = s.epsGrowth;
+  // Forward EPS growth is the #1 driver of 10-15yr compounding (35 pts)
+  const e = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
   pts += e >= 25 ? 35 : e >= 18 ? 28 : e >= 12 ? 20 : e >= 8 ? 10 : e >= 3 ? 4 : 0;
   // ROE — quality of the business (25 pts)
   const r = s.roe != null ? Math.min(s.roe, 100) : null;
   pts += r != null ? (r >= 40 ? 25 : r >= 25 ? 20 : r >= 18 ? 14 : r >= 12 ? 7 : 2) : 0;
   // PEG — not overpaying for growth (20 pts)
-  const fwdPeg = (s.fwdPe > 0 && s.epsGrowth > 0) ? s.fwdPe / s.epsGrowth : null;
+  const pegGrowth = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : null);
+  const fwdPeg = (s.fwdPe > 0 && pegGrowth) ? s.fwdPe / pegGrowth : null;
   const p = fwdPeg ?? s.peg;
   pts += (p != null && p > 0) ? (p <= 1.0 ? 20 : p <= 1.5 ? 15 : p <= 2.0 ? 9 : p <= 2.5 ? 4 : 0) : 0;
   // Gross margin — pricing power / moat durability (12 pts)
@@ -1036,9 +1037,10 @@ function computeRetireScore(s) {
   pts += f != null ? (f >= 6 ? 8 : f >= 4 ? 6 : f >= 2 ? 3 : 1) : 0;
   return Math.min(100, pts);
 }
-// Estimate realistic long-run CAGR from EPS growth rate × quality factor
+// Estimate realistic long-run CAGR — uses forward EPS growth as primary signal
 function estimateRetireCagr(s) {
-  const g    = Math.min(Math.max(s.epsGrowth || 0, 3), 22);
+  const rawG = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
+  const g    = Math.min(Math.max(rawG, 3), 22);
   const roe  = s.roe   || 0;
   const gm   = s.grossMargin || 0;
   const highQ = (roe >= 25 && gm >= 50) || roe >= 60;
@@ -1064,7 +1066,10 @@ function computeScanFairPrice(s) {
   const fwdPe = s.fwdPe || s.pe;
   if (!s.price || s.price <= 0 || !fwdPe || fwdPe <= 0) return null;
   const fwdEps = s.price / fwdPe;
-  const g      = Math.max(1, Math.min(s.epsGrowth || 0, 50));
+  // fwdEpsGrowth is the forward consensus estimate — more accurate for fair value
+  // than trailing epsGrowth which can be distorted by one-time cycle moves (e.g. MU)
+  const growthInput = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
+  const g      = Math.max(1, Math.min(growthInput, 50));
   const div    = s.divYield     || 0;
   const roe    = s.roe          || 0;
   const gross  = s.grossMargin  || 0;

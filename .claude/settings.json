@@ -56,7 +56,8 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); stocks=d['stocks']; [print\\(s['ticker']\\) for s in stocks]\")",
       "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
       "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/marketPulse.json)",
-      "Bash(awk 'NR>=9283 && NR<=9352' /home/nchoudhu/portfolio-app/src/App.jsx)"
+      "Bash(awk 'NR>=9283 && NR<=9352' /home/nchoudhu/portfolio-app/src/App.jsx)",
+      "Bash(python3)"
     ],
     "additionalDirectories": [
       "/tmp"
