@@ -57,7 +57,14 @@
       "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
       "Bash(python3 -m json.tool /home/nchoudhu/portfolio-app/src/data/marketPulse.json)",
       "Bash(awk 'NR>=9283 && NR<=9352' /home/nchoudhu/portfolio-app/src/App.jsx)",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(sed -n '1345,1360p' /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
+      "Bash(sed -n '1535,1545p' /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
+      "Bash(sed -n '1752,1762p' /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
+      "Bash(sed -n '1883,1895p' /home/nchoudhu/portfolio-app/src/data/stockUniverse.json)",
+      "Bash(python3 /tmp/resolve_conflicts.py)",
+      "Bash(git -C /home/nchoudhu/portfolio-app diff --stat HEAD src/data/stockUniverse.json)",
+      "Bash(git -C /home/nchoudhu/portfolio-app status --short)"
     ],
     "additionalDirectories": [
       "/tmp"
