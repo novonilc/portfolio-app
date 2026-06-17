@@ -11745,6 +11745,43 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr };
         });
 
+        // ── Sector rank (computed across full universe, not just filtered) ────
+        const sectorScoreMap = {};
+        STOCKS.forEach(s => {
+          const sc = computeScanScore(s);
+          if (!sectorScoreMap[s.sector]) sectorScoreMap[s.sector] = [];
+          sectorScoreMap[s.sector].push({ ticker: s.ticker, score: sc });
+        });
+        // Sort each sector descending so index+1 = rank
+        Object.values(sectorScoreMap).forEach(arr => arr.sort((a, b) => b.score - a.score));
+        const sectorRankMap = {};  // ticker → { rank, size }
+        Object.entries(sectorScoreMap).forEach(([, arr]) => {
+          arr.forEach((item, idx) => {
+            sectorRankMap[item.ticker] = { rank: idx + 1, size: arr.length };
+          });
+        });
+        // Attach rank to scanned items
+        scanned.forEach(s => {
+          const r = sectorRankMap[s.ticker];
+          if (r) { s.sectorRank = r.rank; s.sectorSize = r.size; }
+        });
+
+        // ── BNN lookup map: ticker → latest pick(s) ──────────────────────────
+        const bnnSrc = bnnCalls?.days?.length ? bnnCalls.days : (bnnCalls?.experts ? [bnnCalls] : []);
+        const bnnPickMap = {};  // ticker → [{ guest, firm, action, rawAction, rationale, date }]
+        bnnSrc.forEach(day => {
+          (day.experts || []).forEach(exp => {
+            (exp.picks || []).forEach(pick => {
+              if (!pick.ticker) return;
+              const key = pick.ticker.toUpperCase().replace(/[.-].+$/, ""); // normalise TSX suffix
+              if (!bnnPickMap[key]) bnnPickMap[key] = [];
+              bnnPickMap[key].push({ guest: exp.guest, firm: exp.firm,
+                action: pick.action, rawAction: pick.rawAction,
+                rationale: pick.rationale, date: day.date });
+            });
+          });
+        });
+
         // ── Live result filters (instant, no re-scan needed) ─────────────────
         const filtered = scanned.filter(s => {
           if (scanSearch.trim()) {
@@ -12248,15 +12285,22 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </thead>
                   <tbody>
                     {sortedFiltered.map((s, i) => {
-                      const rec       = REC_MAP[s.ticker];
-                      const isExpanded= scanExpanded === s.ticker;
-                      const rowBg     = i%2===0 ? "transparent" : "rgba(255,255,255,0.013)";
+                      const rec        = REC_MAP[s.ticker];
+                      const bnnPicks   = bnnPickMap[s.ticker] || [];
+                      const isExpanded = scanExpanded === s.ticker;
+                      const rowBg      = i%2===0 ? "transparent" : "rgba(255,255,255,0.013)";
+                      const hasBnnBuy  = bnnPicks.some(p => p.action === "buy");
+                      const hasBnnSell = bnnPicks.some(p => p.action === "sell");
+                      const leftBorder = rec ? "2px solid rgba(251,191,36,0.4)"
+                        : hasBnnBuy    ? "2px solid rgba(34,197,94,0.4)"
+                        : hasBnnSell   ? "2px solid rgba(239,68,68,0.35)"
+                        : bnnPicks.length ? "2px solid rgba(251,191,36,0.25)"
+                        : "2px solid transparent";
                       return (
                         <React.Fragment key={s.ticker}>
-                          <tr style={{ background: rowBg, cursor: rec ? "pointer" : "default",
-                              transition:"background 0.12s",
-                              borderLeft: rec ? "2px solid rgba(251,191,36,0.4)" : "2px solid transparent" }}
-                            onClick={() => rec && setScanExpanded(isExpanded ? null : s.ticker)}
+                          <tr style={{ background: rowBg, cursor:"pointer",
+                              transition:"background 0.12s", borderLeft: leftBorder }}
+                            onClick={() => setScanExpanded(isExpanded ? null : s.ticker)}
                             onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"}
                             onMouseLeave={e=>e.currentTarget.style.background=rowBg}>
                             {/* Ticker cell */}
@@ -12304,9 +12348,43 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   </span>
                                 : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
-                            <td className="td">
-                              <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
-                                borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap" }}>{s.sector}</span>
+                            <td className="td" style={{ whiteSpace:"nowrap" }}>
+                              <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                                <span style={{ fontSize:10, color:"rgba(255,255,255,0.38)", background:"rgba(255,255,255,0.04)",
+                                  borderRadius:4, padding:"2px 7px", whiteSpace:"nowrap", display:"inline-block" }}>{s.sector}</span>
+                                <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+                                  {/* Sector rank badge */}
+                                  {s.sectorRank != null && (() => {
+                                    const rankColor = s.sectorRank === 1 ? "#fbbf24" : s.sectorRank <= 3 ? "#22c55e" : s.sectorRank <= Math.ceil(s.sectorSize / 2) ? "#94a3b8" : "#ef4444";
+                                    return (
+                                      <span title={`Ranks #${s.sectorRank} of ${s.sectorSize} in ${s.sector} by scan score`}
+                                        style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3,
+                                          background:`${rankColor}14`, color:rankColor, border:`1px solid ${rankColor}35`,
+                                          fontFamily:"'JetBrains Mono',monospace", cursor:"default" }}>
+                                        #{s.sectorRank}/{s.sectorSize}
+                                      </span>
+                                    );
+                                  })()}
+                                  {/* BNN pick badge */}
+                                  {(() => {
+                                    const picks = bnnPickMap[s.ticker];
+                                    if (!picks?.length) return null;
+                                    const hasBuy  = picks.some(p => p.action === "buy");
+                                    const hasSell = picks.some(p => p.action === "sell");
+                                    const bc = hasBuy ? "#22c55e" : hasSell ? "#ef4444" : "#fbbf24";
+                                    const label = hasBuy ? "BUY" : hasSell ? "SELL" : "HOLD";
+                                    const guestNames = [...new Set(picks.map(p => p.guest))].slice(0,2).join(", ");
+                                    return (
+                                      <span title={`BNN: ${label} — ${guestNames}`}
+                                        style={{ fontSize:9, fontWeight:800, padding:"1px 5px", borderRadius:3,
+                                          background:`${bc}14`, color:bc, border:`1px solid ${bc}45`,
+                                          letterSpacing:"0.04em", cursor:"default" }}>
+                                        📺 {label}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
                               {s.pe != null ? <ScanPill value={`${s.pe}×`} color={peC(s.pe)} />
@@ -12436,48 +12514,184 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             <td className="td" style={{ fontSize:10, color:"rgba(255,255,255,0.4)",
                               maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                               {s.moat}
-                              {rec && <span style={{ color:"rgba(255,255,255,0.2)", marginLeft:6 }}>▾ thesis</span>}
+                              <span style={{ color:"rgba(255,255,255,0.18)", marginLeft:6 }}>
+                                {isExpanded ? "▴" : "▾"}
+                              </span>
                             </td>
                           </tr>
 
-                          {/* Expanded thesis panel */}
-                          {isExpanded && rec && (
-                            <tr style={{ background:"rgba(251,191,36,0.04)", borderLeft:"2px solid rgba(251,191,36,0.4)" }}>
-                              <td colSpan={18} style={{ padding:"14px 20px 16px" }}>
-                                <div style={{ display:"grid", gridTemplateColumns:"1fr auto", gap:16, alignItems:"start" }}>
-                                  <div>
-                                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                                      <span style={{ fontSize:12, fontWeight:800, color:"#fbbf24" }}>💡 Ideas Thesis</span>
-                                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
-                                      <span style={{ fontSize:10, color:"rgba(255,255,255,0.45)" }}>{rec.role} · {rec.moat}</span>
-                                    </div>
-                                    <p style={{ fontSize:12, color:"#cbd5e1", lineHeight:1.75, margin:"0 0 10px" }}>
-                                      {rec.thesis}
-                                    </p>
-                                    {rec.risks && rec.risks.length > 0 && (
-                                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                                        {rec.risks.slice(0,3).map((r,ri) => (
-                                          <span key={ri} style={{ fontSize:10, background:"rgba(239,68,68,0.08)",
-                                            border:"1px solid rgba(239,68,68,0.2)", color:"#fca5a5",
-                                            borderRadius:5, padding:"2px 8px" }}>⚠ {r}</span>
-                                        ))}
+                          {/* Expanded detail panel — sector peers + BNN + Ideas thesis */}
+                          {isExpanded && (() => {
+                            // Sector peers: all STOCKS in same sector, sorted by score
+                            const peers = STOCKS
+                              .filter(p => p.sector === s.sector)
+                              .map(p => ({ ...p, sc: computeScanScore(p) }))
+                              .sort((a, b) => b.sc - a.sc);
+                            const hasBnn   = bnnPicks.length > 0;
+                            const bnnBuyPick  = bnnPicks.find(p => p.action === "buy");
+                            const bnnSellPick = bnnPicks.find(p => p.action === "sell");
+                            const bnnLead  = bnnBuyPick || bnnSellPick || bnnPicks[0];
+                            const bnnColor = hasBnnBuy ? "#22c55e" : hasBnnSell ? "#ef4444" : "#fbbf24";
+                            const bnnLabel = hasBnnBuy ? "BUY" : hasBnnSell ? "SELL" : "HOLD";
+                            const panelBorder = rec ? "2px solid rgba(251,191,36,0.4)"
+                              : hasBnn ? `2px solid ${bnnColor}55` : "2px solid rgba(255,255,255,0.07)";
+                            return (
+                              <tr style={{ background:"rgba(15,23,42,0.6)", borderLeft: panelBorder }}>
+                                <td colSpan={18} style={{ padding:"14px 20px 18px" }}>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, alignItems:"start" }}>
+
+                                    {/* ── Sector peers ── */}
+                                    <div>
+                                      <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                        marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                        {s.sector} · {peers.length} stocks
                                       </div>
-                                    )}
+                                      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                        {peers.map((p, pi) => {
+                                          const isSelf  = p.ticker === s.ticker;
+                                          const sc      = p.sc;
+                                          const scColor = sc >= 75 ? "#22c55e" : sc >= 55 ? "#fbbf24" : sc >= 35 ? "#fb923c" : "#ef4444";
+                                          const bnnP    = bnnPickMap[p.ticker];
+                                          const bnnAct  = bnnP?.find(x => x.action === "buy") ? "buy"
+                                            : bnnP?.find(x => x.action === "sell") ? "sell"
+                                            : bnnP?.length ? "hold" : null;
+                                          const bnnPc   = bnnAct === "buy" ? "#22c55e" : bnnAct === "sell" ? "#ef4444" : "#fbbf24";
+                                          return (
+                                            <div key={p.ticker} style={{ display:"flex", alignItems:"center", gap:6,
+                                              padding:"4px 7px", borderRadius:5,
+                                              background: isSelf ? "rgba(255,255,255,0.06)" : "transparent",
+                                              border: isSelf ? "1px solid rgba(255,255,255,0.1)" : "1px solid transparent" }}>
+                                              <span style={{ fontSize:9, fontWeight:700, color:"rgba(255,255,255,0.25)",
+                                                fontFamily:"'JetBrains Mono',monospace", minWidth:16, textAlign:"right" }}>
+                                                {pi+1}.
+                                              </span>
+                                              <span style={{ fontSize:10, fontWeight: isSelf ? 800 : 500,
+                                                color: isSelf ? accentColor : "rgba(255,255,255,0.55)",
+                                                fontFamily:"'JetBrains Mono',monospace", minWidth:52 }}>
+                                                {p.ticker}
+                                              </span>
+                                              {/* mini score bar */}
+                                              <div style={{ flex:1, height:4, borderRadius:2, background:"rgba(255,255,255,0.06)", overflow:"hidden" }}>
+                                                <div style={{ width:`${sc}%`, height:"100%", borderRadius:2, background:scColor, opacity:0.7 }} />
+                                              </div>
+                                              <span style={{ fontSize:10, fontWeight:700, color:scColor,
+                                                fontFamily:"'JetBrains Mono',monospace", minWidth:22, textAlign:"right" }}>
+                                                {sc}
+                                              </span>
+                                              {/* BNN badge inline */}
+                                              {bnnAct && (
+                                                <span style={{ fontSize:8, fontWeight:800, padding:"0 4px", borderRadius:3,
+                                                  background:`${bnnPc}14`, color:bnnPc, border:`1px solid ${bnnPc}40` }}>
+                                                  {bnnAct === "buy" ? "▲" : bnnAct === "sell" ? "▼" : "—"}
+                                                </span>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+
+                                    {/* ── BNN Bloomberg detail ── */}
+                                    <div>
+                                      {hasBnn ? (
+                                        <>
+                                          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                            marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                            📺 BNN Bloomberg
+                                          </div>
+                                          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                                            {bnnPicks.map((bp, bpi) => {
+                                              const bc = bp.action === "buy" ? "#22c55e" : bp.action === "sell" ? "#ef4444" : "#fbbf24";
+                                              return (
+                                                <div key={bpi} style={{ padding:"9px 11px", borderRadius:7,
+                                                  background:`${bc}09`, border:`1px solid ${bc}30` }}>
+                                                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                                                    <span style={{ fontSize:10, fontWeight:800, padding:"1px 7px", borderRadius:3,
+                                                      background:`${bc}18`, color:bc, border:`1px solid ${bc}50`,
+                                                      textTransform:"uppercase", letterSpacing:"0.05em" }}>
+                                                      {bp.rawAction || bp.action}
+                                                    </span>
+                                                    <span style={{ fontSize:10, fontWeight:600, color:"rgba(255,255,255,0.7)" }}>
+                                                      {bp.guest}
+                                                    </span>
+                                                    {bp.firm && (
+                                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>{bp.firm}</span>
+                                                    )}
+                                                    {bp.date && (
+                                                      <span style={{ fontSize:9, color:"rgba(255,255,255,0.22)",
+                                                        fontFamily:"'JetBrains Mono',monospace", marginLeft:"auto" }}>
+                                                        {bp.date}
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  {bp.rationale && (
+                                                    <p style={{ fontSize:10, color:"rgba(255,255,255,0.45)", lineHeight:1.5,
+                                                      margin:0, fontStyle:"italic" }}>
+                                                      "{bp.rationale}"
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)", paddingTop:24 }}>
+                                          No recent BNN Bloomberg picks for {s.ticker}.
+                                          {!bnnSrc.length && (
+                                            <span> Load Market Call data from the Dashboard to enable this.</span>
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* ── Ideas thesis ── */}
+                                    <div>
+                                      {rec ? (
+                                        <>
+                                          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                            marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                            💡 Ideas Thesis
+                                          </div>
+                                          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                                            <span style={{ fontSize:10, fontWeight:700, color:"#fbbf24" }}>{rec.conviction}</span>
+                                            <span style={{ fontSize:10, color:"rgba(255,255,255,0.3)" }}>·</span>
+                                            <span style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{rec.role}</span>
+                                          </div>
+                                          <p style={{ fontSize:11, color:"#cbd5e1", lineHeight:1.7, margin:"0 0 10px" }}>
+                                            {rec.thesis}
+                                          </p>
+                                          {rec.risks?.length > 0 && (
+                                            <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
+                                              {rec.risks.slice(0,3).map((r,ri) => (
+                                                <span key={ri} style={{ fontSize:9, background:"rgba(239,68,68,0.08)",
+                                                  border:"1px solid rgba(239,68,68,0.2)", color:"#fca5a5",
+                                                  borderRadius:4, padding:"2px 7px" }}>⚠ {r}</span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                                            {rec.tags?.map((t,ti) => (
+                                              <span key={ti} style={{ fontSize:9, background:"rgba(251,191,36,0.08)",
+                                                border:"1px solid rgba(251,191,36,0.2)", color:"#fbbf24",
+                                                borderRadius:4, padding:"2px 7px" }}>{t}</span>
+                                            ))}
+                                          </div>
+                                          <div style={{ fontSize:10, color:"#64748b", marginTop:8 }}>
+                                            Est. CAGR {rec.cagr}%/yr
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)", paddingTop:24 }}>
+                                          Not in curated Ideas list yet. Add to <code style={{fontSize:9,color:"rgba(255,255,255,0.25)"}}>RECOMMENDATIONS</code> to include a thesis.
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div style={{ display:"flex", flexDirection:"column", gap:6, minWidth:120, alignItems:"flex-end" }}>
-                                    {rec.tags && rec.tags.map((t,ti) => (
-                                      <span key={ti} style={{ fontSize:10, background:"rgba(251,191,36,0.08)",
-                                        border:"1px solid rgba(251,191,36,0.2)", color:"#fbbf24",
-                                        borderRadius:4, padding:"2px 8px", whiteSpace:"nowrap" }}>{t}</span>
-                                    ))}
-                                    <span style={{ fontSize:10, color:"#64748b", marginTop:4 }}>
-                                      Est. CAGR {rec.cagr}%/yr
-                                    </span>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
+                                </td>
+                              </tr>
+                            );
+                          })()}
                         </React.Fragment>
                       );
                     })}
