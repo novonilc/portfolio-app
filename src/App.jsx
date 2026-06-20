@@ -336,6 +336,52 @@ const RESEARCH_TEMPLATES = [
   },
 ];
 
+// ── Shared financial data utilities (used by Advisor, Research, and Search tabs) ─
+// Extracts the first ticker-like token from any string (e.g. "NVDA, AMD" → "NVDA")
+function extractFirstTicker(str) {
+  if (!str) return null;
+  const m = str.match(/\b([A-Z]{1,5}(?:\.TO)?)\b/);
+  return m ? m[1] : null;
+}
+
+// Converts raw FMP financials response into a concise text block for Claude prompts
+function buildFinancialsContext(fin) {
+  if (!fin || fin.error) return "";
+  const lines = [
+    `\n\n━━━ LIVE FINANCIAL DATA (FMP, fetched ${fin.fetchedAt}) ━━━`,
+    `Ticker: ${fin.ticker} | Latest Quarter: ${fin.latestPeriod} | Revenue Growth YoY: ${fin.revenueGrowthYoY || "n/a"}`,
+    "",
+    "QUARTERLY INCOME & CASH FLOW (most recent first):",
+    "Period | Revenue | Gross Margin | Op. Margin | Net Margin | EPS (diluted) | FCF",
+  ];
+  (fin.quarterlyFinancials || []).slice(0, 5).forEach(q => {
+    lines.push(
+      `${q.period || q.date} | ${q.revenue || "—"} | ${q.grossMargin || "—"} | ${q.operatingMargin || "—"} | ${q.netMargin || "—"} | ${q.epsDiluted || q.eps || "—"} | ${q.freeCF || "—"}`
+    );
+  });
+  if (fin.earningsSurprises?.length) {
+    lines.push("", "EARNINGS SURPRISES (most recent first):");
+    lines.push("Date | Actual EPS | Est. EPS | Surprise | Beat?");
+    fin.earningsSurprises.slice(0, 8).forEach(s => {
+      lines.push(`${s.date} | ${s.actualEPS || "—"} | ${s.estimatedEPS || "—"} | ${s.surprisePct || "—"} | ${s.beat === true ? "✓ Beat" : s.beat === false ? "✗ Miss" : "—"}`);
+    });
+  }
+  lines.push("━━━ END LIVE DATA ━━━\n");
+  return lines.join("\n");
+}
+
+// Fetches /api/financials for a ticker, returns { data | null, error | null }
+async function loadFinancials(ticker) {
+  try {
+    const r = await fetch(`/api/financials?ticker=${encodeURIComponent(ticker.trim().toUpperCase())}`);
+    const json = await r.json();
+    if (!r.ok) return { data: null, error: json.error || "Could not fetch financials" };
+    return { data: json, error: null };
+  } catch {
+    return { data: null, error: "Network error" };
+  }
+}
+
 // ── Monthly AI budget tracker ─────────────────────────────────────────────────
 const MONTHLY_AI_BUDGET = 10.00; // USD hard cap per calendar month
 
@@ -1278,6 +1324,8 @@ export default function App() {
   const [addPortfolioForm, setAddPortfolioForm]= useState(null);
   const [searchQuery,      setSearchQuery]     = useState("");
   const [searchResult,     setSearchResult]    = useState(null);
+  const [searchFinancials, setSearchFinancials]= useState(null);   // FMP data for searched ticker
+  const [searchFinLoading, setSearchFinLoading]= useState(false);
   const [contribPlan,      setContribPlan]     = useState({
     TFSA: { ...DEFAULT_CONTRIB_PLAN },
     RRSP: { ...DEFAULT_CONTRIB_PLAN },
@@ -1433,6 +1481,8 @@ export default function App() {
   const [advisorHistory,     setAdvisorHistory]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
   });
+  const [advisorFinancials,  setAdvisorFinancials]  = useState(null);   // FMP data for advisor ticker
+  const [advisorFinLoading,  setAdvisorFinLoading]  = useState(false);
 
   // ── Research tab state ─────────────────────────────────────────────────
   const [researchTemplateId, setResearchTemplateId] = useState(null);
@@ -1440,6 +1490,8 @@ export default function App() {
   const [researchResponse,   setResearchResponse]   = useState(null);
   const [researchLoading,    setResearchLoading]    = useState(false);
   const [researchError,      setResearchError]      = useState(null);
+  const [researchFinancials, setResearchFinancials] = useState(null);   // { data, ticker }
+  const [researchFinLoading, setResearchFinLoading] = useState(false);
   const [researchHistory,    setResearchHistory]    = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:researchHistory") || "[]"); } catch { return []; }
   });
@@ -6883,7 +6935,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 onKeyDown={e => {
                   if (e.key === "Enter") {
                     const q = searchQuery.trim();
-                    setSearchResult(q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null);
+                    const result = q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null;
+                    setSearchResult(result);
+                    setSearchFinancials(null);
+                    if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }
                   }
                 }}
                 placeholder="Type ticker and press Enter — e.g. NVDA, COST, BRK.B…"
@@ -6891,10 +6946,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               />
               <button className="btn btn-primary" onClick={() => {
                 const q = searchQuery.trim();
-                setSearchResult(q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null);
+                const result = q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null;
+                setSearchResult(result);
+                setSearchFinancials(null);
+                if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }
               }}>Search</button>
               {searchResult && (
-                <button className="btn" onClick={() => { setSearchResult(null); setSearchQuery(""); }}>✕ Clear</button>
+                <button className="btn" onClick={() => { setSearchResult(null); setSearchQuery(""); setSearchFinancials(null); }}>✕ Clear</button>
               )}
             </div>
             <div>
@@ -6902,7 +6960,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                 {RECOMMENDATIONS.slice(0, 16).map(r => (
                   <button key={r.ticker} className="btn"
-                    onClick={() => { setSearchQuery(r.ticker); setSearchResult(r); }}
+                    onClick={() => {
+                      setSearchQuery(r.ticker); setSearchResult(r);
+                      setSearchFinancials(null);
+                      setSearchFinLoading(true);
+                      loadFinancials(r.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); });
+                    }}
                     style={{ padding:"3px 10px", fontSize:11,
                       borderColor: r.bestFor==="TFSA" ? "rgba(251,191,36,0.25)" : "rgba(34,211,238,0.25)",
                       color: r.bestFor==="TFSA" ? "rgba(251,191,36,0.75)" : "rgba(34,211,238,0.75)" }}>
@@ -7054,6 +7117,145 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
           )}
 
+          {/* Live financials card — shown for any searched ticker */}
+          {searchResult && searchResult.ticker && (
+            <div className="card" style={{ maxWidth:760, marginTop:16 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                <span style={{ fontSize:13, fontWeight:700, color:"#34d399" }}>📈 Live Quarterly Financials</span>
+                <span style={{ fontSize:11, color:"rgba(255,255,255,0.3)" }}>{searchResult.ticker}</span>
+                {searchFinLoading && <span style={{ fontSize:10, color:"#fbbf24", animation:"pulse 1.5s infinite", marginLeft:"auto" }}>⏳ Loading…</span>}
+                {searchFinancials && !searchFinancials.error && !searchFinLoading && (
+                  <span style={{ fontSize:9, marginLeft:"auto", color:"rgba(255,255,255,0.25)" }}>
+                    via FMP · fetched {searchFinancials.fetchedAt}
+                  </span>
+                )}
+              </div>
+
+              {searchFinLoading && (
+                <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+                  {[80,65,75,60].map((w,i) => (
+                    <div key={i} style={{ height:10, borderRadius:5, background:"rgba(255,255,255,0.06)",
+                      width:`${w}%`, animation:"pulse 1.5s infinite", animationDelay:`${i*0.1}s` }}/>
+                  ))}
+                </div>
+              )}
+
+              {searchFinancials && searchFinancials.error && !searchFinLoading && (
+                <p style={{ fontSize:11, color:"rgba(148,163,184,0.6)", margin:0 }}>
+                  No FMP data available for {searchResult.ticker}. May be a Canadian/OTC ticker or not yet covered.
+                  <button onClick={() => { setSearchFinLoading(true); loadFinancials(searchResult.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }}
+                    style={{ marginLeft:8, fontSize:10, padding:"2px 8px", borderRadius:5, cursor:"pointer",
+                      background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                      color:"rgba(255,255,255,0.4)" }}>Retry</button>
+                </p>
+              )}
+
+              {searchFinancials && !searchFinancials.error && !searchFinLoading && (() => {
+                const fin = searchFinancials;
+                return (
+                  <>
+                    {/* Summary row */}
+                    <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:12 }}>
+                      {[
+                        { label:"Latest Quarter", val: fin.latestPeriod },
+                        { label:"Revenue YoY", val: fin.revenueGrowthYoY, good: fin.revenueGrowthYoY && !fin.revenueGrowthYoY.startsWith("-") },
+                        { label:"Latest Revenue", val: fin.quarterlyFinancials?.[0]?.revenue },
+                        { label:"Gross Margin", val: fin.quarterlyFinancials?.[0]?.grossMargin },
+                        { label:"Op. Margin", val: fin.quarterlyFinancials?.[0]?.operatingMargin },
+                        { label:"FCF", val: fin.quarterlyFinancials?.[0]?.freeCF },
+                      ].filter(s => s.val).map(stat => (
+                        <div key={stat.label} style={{ padding:"7px 12px", borderRadius:8,
+                          background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)",
+                          minWidth:90 }}>
+                          <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:3,
+                            letterSpacing:"0.08em", textTransform:"uppercase" }}>{stat.label}</p>
+                          <p style={{ fontSize:13, fontWeight:700,
+                            color: stat.good === true ? "#34d399" : stat.good === false ? "#f43f5e" : "#f1f5f9",
+                            fontFamily:"'JetBrains Mono',monospace" }}>{stat.val}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Quarterly table */}
+                    <div style={{ overflowX:"auto", marginBottom:14 }}>
+                      <table style={{ borderCollapse:"collapse", width:"100%", fontSize:11 }}>
+                        <thead>
+                          <tr>{["Period","Revenue","Gr. Margin","Op. Margin","Net Margin","EPS","FCF"].map(h => (
+                            <th key={h} style={{ padding:"5px 10px", textAlign:"left", fontWeight:700,
+                              color:"#34d399", background:"rgba(52,211,153,0.08)",
+                              borderBottom:"1px solid rgba(52,211,153,0.3)",
+                              borderRight:"1px solid rgba(255,255,255,0.04)", whiteSpace:"nowrap" }}>{h}</th>
+                          ))}</tr>
+                        </thead>
+                        <tbody>
+                          {(fin.quarterlyFinancials || []).slice(0,5).map((q,ri) => (
+                            <tr key={ri} style={{ background: ri%2===0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
+                              {[q.period||q.date, q.revenue||"—", q.grossMargin||"—", q.operatingMargin||"—", q.netMargin||"—", q.epsDiluted||q.eps||"—", q.freeCF||"—"].map((val,ci) => (
+                                <td key={ci} style={{ padding:"5px 10px", color:"rgba(255,255,255,0.78)",
+                                  borderBottom:"1px solid rgba(255,255,255,0.04)",
+                                  borderRight:"1px solid rgba(255,255,255,0.03)", fontFamily: ci===0 ? "inherit" : "'JetBrains Mono',monospace" }}>{val}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Earnings surprises */}
+                    {fin.earningsSurprises?.length > 0 && (
+                      <>
+                        <p style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)",
+                          letterSpacing:"0.09em", textTransform:"uppercase", marginBottom:8 }}>
+                          EPS Beat / Miss History
+                        </p>
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                          {fin.earningsSurprises.slice(0,8).map((s,i) => (
+                            <div key={i} style={{ padding:"5px 10px", borderRadius:7,
+                              background: s.beat === true ? "rgba(52,211,153,0.1)" : s.beat === false ? "rgba(244,63,94,0.1)" : "rgba(255,255,255,0.04)",
+                              border:`1px solid ${s.beat === true ? "rgba(52,211,153,0.3)" : s.beat === false ? "rgba(244,63,94,0.3)" : "rgba(255,255,255,0.07)"}`,
+                              minWidth:80, textAlign:"center" }}>
+                              <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)", marginBottom:3 }}>{s.date}</p>
+                              <p style={{ fontSize:11, fontWeight:700, fontFamily:"'JetBrains Mono',monospace",
+                                color: s.beat === true ? "#34d399" : s.beat === false ? "#f43f5e" : "#94a3b8" }}>
+                                {s.actualEPS || "—"}
+                              </p>
+                              <p style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>est {s.estimatedEPS || "—"}</p>
+                              {s.surprisePct && (
+                                <p style={{ fontSize:9, fontWeight:700,
+                                  color: s.beat ? "#34d399" : "#f43f5e" }}>{s.beat ? "+" : ""}{s.surprisePct}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <button onClick={() => { setTab("research"); setResearchTemplateId("report"); setResearchInputs({ticker: searchResult.ticker}); setResearchFinancials(fin); }}
+                        style={{ fontSize:10, padding:"5px 12px", borderRadius:6, cursor:"pointer",
+                          background:"rgba(52,211,153,0.1)", border:"1px solid rgba(52,211,153,0.3)",
+                          color:"#34d399", fontWeight:600 }}>
+                        🔬 Full Research Report
+                      </button>
+                      <button onClick={() => { setTab("research"); setResearchTemplateId("earnings"); setResearchInputs({ticker: searchResult.ticker}); setResearchFinancials(fin); }}
+                        style={{ fontSize:10, padding:"5px 12px", borderRadius:6, cursor:"pointer",
+                          background:"rgba(34,211,238,0.1)", border:"1px solid rgba(34,211,238,0.3)",
+                          color:"#22d3ee", fontWeight:600 }}>
+                        📊 Earnings Breakdown
+                      </button>
+                      <button onClick={() => { setTab("research"); setResearchTemplateId("redflags"); setResearchInputs({ticker: searchResult.ticker}); setResearchFinancials(fin); }}
+                        style={{ fontSize:10, padding:"5px 12px", borderRadius:6, cursor:"pointer",
+                          background:"rgba(244,63,94,0.1)", border:"1px solid rgba(244,63,94,0.3)",
+                          color:"#f43f5e", fontWeight:600 }}>
+                        🚩 Red Flag Scan
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Default: browse all curated tickers */}
           {!searchResult && (
             <>
@@ -7063,7 +7265,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:8 }}>
                 {RECOMMENDATIONS.map(rec => (
                   <button key={rec.ticker}
-                    onClick={() => { setSearchQuery(rec.ticker); setSearchResult(rec); }}
+                    onClick={() => {
+                      setSearchQuery(rec.ticker); setSearchResult(rec);
+                      setSearchFinancials(null);
+                      setSearchFinLoading(true);
+                      loadFinancials(rec.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); });
+                    }}
                     style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)",
                       borderRadius:10, padding:"12px 14px", cursor:"pointer", textAlign:"left",
                       display:"flex", alignItems:"center", gap:10, fontFamily:"inherit",
@@ -13072,6 +13279,30 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           ].filter(Boolean).join("\n");
         }
 
+        // ── Derive the primary ticker from whichever input field has one ──
+        function advisorPrimaryTicker() {
+          // Prefer fields named "company", "tickers", "focus" in that order
+          const order = ["company", "tickers", "focus"];
+          for (const key of order) {
+            const val = advisorInputs[key];
+            if (val) {
+              const t = extractFirstTicker(val);
+              if (t) return t;
+            }
+          }
+          return null;
+        }
+
+        // ── Fetch FMP financials for the advisor primary ticker ───────────
+        async function fetchAdvisorFinancials(ticker) {
+          if (!ticker) return;
+          setAdvisorFinLoading(true);
+          setAdvisorFinancials(null);
+          const { data, error } = await loadFinancials(ticker);
+          setAdvisorFinancials(error ? { error: true } : data);
+          setAdvisorFinLoading(false);
+        }
+
         async function runAdvisorQuery() {
           if (!selectedTpl) return;
           if (licenseTier === "basic") {
@@ -13086,7 +13317,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const fieldValues = Object.fromEntries(
               selectedTpl.fields.map(f => [f.key, advisorInputs[f.key] || ""])
             );
-            const prompt = selectedTpl.buildPrompt(fieldValues, ctx);
+            const finCtx = buildFinancialsContext(
+              advisorFinancials && !advisorFinancials.error ? advisorFinancials : null
+            );
+            const prompt = selectedTpl.buildPrompt(fieldValues, ctx) + finCtx;
             const res = await callClaude({
               model: "claude-sonnet-4-6",
               max_tokens: 4096,
@@ -13154,12 +13388,15 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setAdvisorResponse(null);
           setAdvisorError(null);
           setAdvisorIndustry([]);
+          setAdvisorFinancials(null);
           const defaults = {};
           tpl.fields.forEach(f => {
             defaults[f.key] = getFieldDefault(tpl.id, f.key);
           });
           setAdvisorInputs(defaults);
         }
+
+        const advisorTicker = advisorPrimaryTicker();
 
         const canRun = selectedTpl && selectedTpl.fields.every(f =>
           (advisorInputs[f.key] || "").trim().length > 0
@@ -13497,7 +13734,19 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             type="text"
                             value={advisorInputs[field.key] || ""}
                             placeholder={field.placeholder}
-                            onChange={e => setAdvisorInputs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setAdvisorInputs(prev => ({ ...prev, [field.key]: val }));
+                              // Clear stale financials when any input changes
+                              if (extractFirstTicker(val) !== (advisorFinancials && !advisorFinancials.error ? advisorFinancials.ticker : null)) {
+                                setAdvisorFinancials(null);
+                              }
+                            }}
+                            onBlur={e => {
+                              // Auto-fetch when a ticker-like value is entered
+                              const t = extractFirstTicker(e.target.value);
+                              if (t) fetchAdvisorFinancials(t);
+                            }}
                             style={{
                               width:"100%", boxSizing:"border-box",
                               padding:"9px 12px", borderRadius:8, fontSize:13,
@@ -13508,6 +13757,35 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           />
                         </div>
                       ))}
+                    </div>
+
+                    {/* Live financials status */}
+                    <div style={{ marginBottom:10, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      {advisorFinLoading && (
+                        <span style={{ fontSize:10, color:"#fbbf24", animation:"pulse 1.5s infinite" }}>
+                          ⏳ Fetching latest financials…
+                        </span>
+                      )}
+                      {advisorFinancials && !advisorFinancials.error && !advisorFinLoading && (
+                        <span style={{ fontSize:10, padding:"3px 9px", borderRadius:5,
+                          background:"rgba(52,211,153,0.12)", color:"#34d399",
+                          border:"1px solid rgba(52,211,153,0.3)", fontWeight:600 }}>
+                          ✓ Live data: {advisorFinancials.latestPeriod} · Revenue YoY {advisorFinancials.revenueGrowthYoY || "n/a"}
+                        </span>
+                      )}
+                      {advisorFinancials?.error && !advisorFinLoading && (
+                        <span style={{ fontSize:10, color:"rgba(244,63,94,0.7)" }}>
+                          ⚠ No live data — analysis uses training knowledge only
+                        </span>
+                      )}
+                      {!advisorFinancials && !advisorFinLoading && advisorTicker && (
+                        <button onClick={() => fetchAdvisorFinancials(advisorTicker)}
+                          style={{ fontSize:10, padding:"3px 10px", borderRadius:5, cursor:"pointer",
+                            background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)",
+                            color:"rgba(255,255,255,0.45)" }}>
+                          Fetch live financials for {advisorTicker}
+                        </button>
+                      )}
                     </div>
 
                     {/* Run button */}
@@ -13606,6 +13884,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const selectedTpl = researchTemplateId !== null
           ? RESEARCH_TEMPLATES.find(t => t.id === researchTemplateId) : null;
 
+        // ── Fetch financials for the current research ticker ─────────────
+        async function fetchFinancials(ticker) {
+          if (!ticker) return;
+          setResearchFinLoading(true);
+          setResearchFinancials(null);
+          const { data, error } = await loadFinancials(ticker);
+          setResearchFinancials(error ? { error: true } : data);
+          setResearchFinLoading(false);
+        }
+
         async function runResearchQuery() {
           if (!selectedTpl) return;
           if (licenseTier === "basic") {
@@ -13619,7 +13907,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const fieldValues = Object.fromEntries(
               selectedTpl.fields.map(f => [f.key, researchInputs[f.key] || ""])
             );
-            const prompt = selectedTpl.buildPrompt(fieldValues);
+            const finCtx = buildFinancialsContext(
+              researchFinancials && !researchFinancials.error ? researchFinancials : null
+            );
+            const prompt = selectedTpl.buildPrompt(fieldValues) + finCtx;
             const res = await callClaude({
               model: "claude-sonnet-4-6",
               max_tokens: 8192,
@@ -13657,8 +13948,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setResearchTemplateId(tpl.id);
           setResearchResponse(null);
           setResearchError(null);
+          setResearchFinancials(null);
           setResearchInputs({});
         }
+
+        const primaryTicker = (researchInputs["ticker"] || "").trim();
 
         const canRunResearch = selectedTpl && selectedTpl.fields.filter(f => !f.optional).every(f =>
           (researchInputs[f.key] || "").trim().length > 0
@@ -14005,7 +14299,20 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             type="text"
                             value={researchInputs[field.key] || ""}
                             placeholder={field.placeholder}
-                            onChange={e => setResearchInputs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setResearchInputs(prev => ({ ...prev, [field.key]: val }));
+                              // Clear old financials when the primary ticker changes
+                              if (field.key === "ticker") {
+                                setResearchFinancials(null);
+                              }
+                            }}
+                            onBlur={e => {
+                              // Auto-fetch financials when user leaves the ticker field
+                              if (field.key === "ticker" && e.target.value.trim()) {
+                                fetchFinancials(e.target.value.trim());
+                              }
+                            }}
                             style={{
                               width:"100%", boxSizing:"border-box",
                               padding:"9px 12px", borderRadius:8, fontSize:13,
@@ -14018,10 +14325,42 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       ))}
                     </div>
 
+                    {/* Live financials status badge */}
+                    <div style={{ marginBottom:10, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                      {researchFinLoading && (
+                        <span style={{ fontSize:10, color:"#fbbf24", animation:"pulse 1.5s infinite" }}>
+                          ⏳ Fetching latest financials…
+                        </span>
+                      )}
+                      {researchFinancials && !researchFinancials.error && !researchFinLoading && (
+                        <span style={{ fontSize:10, padding:"3px 9px", borderRadius:5,
+                          background:"rgba(52,211,153,0.12)", color:"#34d399",
+                          border:"1px solid rgba(52,211,153,0.3)", fontWeight:600 }}>
+                          ✓ Live data: {researchFinancials.latestPeriod} · Revenue YoY {researchFinancials.revenueGrowthYoY || "n/a"}
+                        </span>
+                      )}
+                      {researchFinancials?.error && !researchFinLoading && (
+                        <span style={{ fontSize:10, color:"rgba(244,63,94,0.7)" }}>
+                          ⚠ Could not fetch live financials — report will use training data only
+                        </span>
+                      )}
+                      {!researchFinancials && !researchFinLoading && primaryTicker && (
+                        <button onClick={() => fetchFinancials(primaryTicker)}
+                          style={{ fontSize:10, padding:"3px 10px", borderRadius:5, cursor:"pointer",
+                            background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.12)",
+                            color:"rgba(255,255,255,0.45)" }}>
+                          Fetch latest financials
+                        </button>
+                      )}
+                    </div>
+
                     <div style={{ marginBottom:14, padding:"8px 12px", borderRadius:8,
                       background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)",
                       fontSize:10, color:"rgba(255,255,255,0.3)", lineHeight:1.5 }}>
-                      ⚠ Reports use Claude's training knowledge (cutoff Aug 2025) plus your current date ({new Date().toLocaleDateString("en-CA",{month:"short",year:"numeric"})}). Always verify facts with current sources before making investment decisions.
+                      {researchFinancials && !researchFinancials.error
+                        ? `✓ Latest quarterly results (${researchFinancials.latestPeriod}) included. Report grounded in real FMP data.`
+                        : `⚠ Reports use Claude's training knowledge (cutoff Aug 2025). Tab out of the ticker field to load live quarterly data.`
+                      }
                     </div>
 
                     <button onClick={runResearchQuery} disabled={!canRunResearch || researchLoading}
