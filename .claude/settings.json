@@ -65,7 +65,10 @@
       "Bash(python3 /tmp/resolve_conflicts.py)",
       "Bash(git -C /home/nchoudhu/portfolio-app diff --stat HEAD src/data/stockUniverse.json)",
       "Bash(git -C /home/nchoudhu/portfolio-app status --short)",
-      "Bash(PATH=__TRACKED_VAR__:/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533 node /home/nchoudhu/portfolio-app/node_modules/.bin/vite build)"
+      "Bash(PATH=__TRACKED_VAR__:/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533 node /home/nchoudhu/portfolio-app/node_modules/.bin/vite build)",
+      "WebFetch(domain:www.joinautopilot.com)",
+      "Bash(/home/nchoudhu/.local/bin/node node_modules/.bin/vite build)",
+      "Bash(node node_modules/.bin/vite build)"
     ],
     "additionalDirectories": [
       "/tmp"

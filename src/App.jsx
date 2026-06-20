@@ -251,6 +251,91 @@ const ADVISOR_INDUSTRIES = [
   { id: "crypto",      label: "Crypto",      icon: "₿",  color: "#fbbf24" },
 ];
 
+// ── Deep Stock Research Report templates ──────────────────────────────────────
+const RESEARCH_TEMPLATES = [
+  {
+    id: "report", icon: "📋", color: "#34d399",
+    title: "Full Research Report",
+    desc: "Business model, revenue, competition, financials, valuation, risks & bull/bear cases",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, Apple, Shopify" }],
+    buildPrompt: (f) =>
+      `Act as a senior equity research analyst writing for a beginner investor. Create a comprehensive, beginner-friendly research report on ${f.ticker}. Structure the report with these numbered sections:\n\n1. Business Overview — what the company does, its history, and why it matters\n2. Revenue Streams — how it makes money, key products/services, % breakdown if known\n3. Industry & Market Trends — tailwinds, headwinds, market size, growth rate\n4. Competitive Landscape — top 3–5 competitors, market positioning, moat\n5. Financial Performance — revenue growth (3-year trend), margins (gross/operating/net), EPS, FCF\n6. Balance Sheet Health — cash, debt, debt/equity, interest coverage\n7. Valuation — P/E, forward P/E, EV/EBITDA, EV/Revenue vs. sector peers; cheap/fair/expensive verdict\n8. Growth Drivers — top 3 catalysts that could accelerate the business\n9. Key Risks — top 3–5 risks with likelihood and potential impact\n10. Bull Case — what has to go right; realistic upside scenario\n11. Base Case — most likely 12-month outcome\n12. Bear Case — what could go wrong; downside scenario\n13. Research Summary — 3-sentence plain-English conclusion\n\nUse recent public data (cite approximate dates where possible). Clearly separate known facts from analyst assumptions. Do NOT give a buy/sell recommendation. Keep language simple enough for a new investor.`,
+  },
+  {
+    id: "earnings", icon: "📊", color: "#22d3ee",
+    title: "Earnings Call Breakdown",
+    desc: "5 key takeaways, metrics table, guidance, management tone, surprises & what to watch",
+    fields: [
+      { key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, Apple, Shopify" },
+      { key: "context", label: "Recent Results", placeholder: "e.g. Q3 FY2025, EPS $0.89 vs $0.81 est, revenue $26B", optional: true },
+    ],
+    buildPrompt: (f) =>
+      `Act as a sell-side equity analyst summarising the latest earnings call for ${f.ticker}${f.context ? ` (known context: ${f.context})` : ""}. Structure your analysis as:\n\n1. Top 5 Takeaways — the most important things investors need to know from this call\n2. Revenue Analysis — reported vs. expected, year-over-year change, key segment breakdown\n3. Margin Trends — gross margin, operating margin, net margin vs. prior quarter and year-ago\n4. Guidance — next quarter and full-year guidance vs. consensus; raised/lowered/maintained\n5. Management Tone — language sentiment (confident/cautious/defensive), words used repeatedly, what they avoided saying\n6. Analyst Concerns — top 3 questions analysts pressed on and how management responded\n7. Positive Surprises — 2–3 things that beat expectations or were better than feared\n8. Negative Surprises — 2–3 things that missed or raised concerns\n9. Metrics Table — create a simple markdown table with columns: Metric | Latest Result | Prior Period | Change | Why It Matters (include Revenue, EPS adj., Gross Margin, Operating Margin, FCF, Guidance)\n10. What Investors Should Watch Next — 3 specific data points or events to monitor before next earnings`,
+  },
+  {
+    id: "redflags", icon: "🚩", color: "#f43f5e",
+    title: "Red Flag Detector",
+    desc: "Forensic analysis of revenue quality, cash flow, debt, dilution, insider activity & accounting",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, WeWork, Peloton" }],
+    buildPrompt: (f) =>
+      `Act as a skeptical forensic analyst reviewing ${f.ticker} for potential red flags. Investigate each of the following areas and assign a severity score (1=minor, 2=moderate, 3=serious) with evidence and explanation:\n\n1. Revenue Quality — are revenues sustainable, recurring, or one-time? Channel stuffing? Recognition issues?\n2. Margin Trends — are margins expanding or contracting? Any unusual sudden improvements?\n3. Cash Flow vs. Earnings — does FCF track net income or diverge? Large non-cash adjustments?\n4. Debt & Leverage — debt/equity ratio, interest coverage, refinancing risk, covenant risks\n5. Share Dilution — stock-based compensation as % of revenue, share count trend over 5 years\n6. Insider Activity — recent insider sales, RSU vesting patterns, 10b5-1 plan usage\n7. Customer Concentration — % of revenue from top 3 customers; single-customer dependency\n8. Accounting Concerns — changes in accounting methods, auditor changes, restatements\n9. Legal & Regulatory — pending lawsuits, SEC investigations, regulatory fines\n10. Management Language — use of vague forward-looking terms, excessive non-GAAP adjustments, deflection\n\nFor each concern found, cite specific evidence (with approximate dates). At the end, provide:\n- Overall Red Flag Score: X/10 (1=clean, 10=serious concerns)\n- Top 3 Red Flags Summary\n- Green Flags (2–3 positives that offset concerns)`,
+  },
+  {
+    id: "moat", icon: "🏰", color: "#a78bfa",
+    title: "Competitive Moat Analysis",
+    desc: "Score 10 moat dimensions, compare with peers, and assess if the moat is expanding or shrinking",
+    fields: [
+      { key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, COST, AAPL" },
+      { key: "peers",  label: "Competitors to Compare", placeholder: "e.g. AMD, Intel, Qualcomm" },
+    ],
+    buildPrompt: (f) =>
+      `Act as a competitive strategy analyst assessing the economic moat of ${f.ticker} vs. ${f.peers}. Score each dimension from 1 (weak) to 5 (exceptional) and explain your reasoning:\n\n1. Brand Strength — consumer/enterprise loyalty, pricing power, brand premium\n2. Network Effects — does value increase as more users join? Direct vs. indirect network effects\n3. Switching Costs — how hard/expensive is it for customers to leave? (1=easy, 5=near-impossible)\n4. Cost Advantages — structural cost advantages vs. peers (scale, geography, process)\n5. Scale & Distribution — supply chain, logistics, distribution reach\n6. Intellectual Property — patents, trade secrets, proprietary algorithms, data\n7. Regulatory Moat — licenses, permits, regulations that protect the business\n8. Data Moat — proprietary datasets that are difficult to replicate\n9. Customer Loyalty & Retention — NPS, churn rates, long-term contracts\n10. Ecosystem Lock-in — platform, marketplace, or ecosystem dependencies\n\nFor each dimension, compare ${f.ticker} vs. ${f.peers} with brief scores.\n\nThen provide:\n- Total Moat Score: X/50 with grade (Narrow / Wide / No Moat)\n- Strongest Moat Advantage (1–2 sentences)\n- Biggest Moat Threat\n- Moat Trajectory: Expanding / Stable / Shrinking — and why`,
+  },
+  {
+    id: "valuation", icon: "⚖️", color: "#fbbf24",
+    title: "Peer Valuation Comparison",
+    desc: "Multi-metric valuation vs. peers with cheap/fair/expensive verdict and re-rating catalysts",
+    fields: [
+      { key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA" },
+      { key: "peers",  label: "Peer Companies (2–4)", placeholder: "e.g. AMD, AVGO, QCOM, TSM" },
+    ],
+    buildPrompt: (f) =>
+      `Act as a sell-side equity analyst comparing the valuation of ${f.ticker} against ${f.peers}. Create a comprehensive valuation comparison covering:\n\n1. Valuation Metrics Table — markdown table with columns: Company | Market Cap | Rev Growth (YoY) | Gross Margin | Net Margin | P/E (TTM) | Fwd P/E | EV/Revenue | EV/EBITDA | Price/FCF — populate with approximate recent data\n2. Relative Valuation Verdict — is ${f.ticker} cheap, fairly valued, or expensive vs. the group? Explain the premium or discount\n3. Growth-Adjusted Comparison — which company offers the best value when adjusting for growth (PEG ratios)?\n4. Margin Quality Comparison — which business generates the highest-quality earnings?\n5. Bull Case for Multiple Expansion — what specific events/milestones could cause ${f.ticker}'s multiple to expand?\n6. Bear Case for Multiple Contraction — what risks could cause the multiple to compress?\n7. Key Valuation Assumptions — what revenue growth, margin, and FCF assumptions justify the current price?\n8. Summary Verdict — 2 sentences: is the stock worth owning at today's price relative to peers?`,
+  },
+  {
+    id: "dcf", icon: "🔢", color: "#fb923c",
+    title: "DCF Assumption Builder",
+    desc: "Bull/base/bear assumptions for revenue, margins, FCF, WACC, and terminal value sensitivity",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. MSFT, SHOP, LLY" }],
+    buildPrompt: (f) =>
+      `Act as an investment banker building a discounted cash flow (DCF) model for ${f.ticker}. Explain the DCF methodology simply for a beginner, then provide three scenario tables:\n\n1. DCF Primer — explain in 3 sentences what a DCF is and why it matters\n\n2. Scenario Assumptions Table — markdown table with rows for each assumption and columns Bear / Base / Bull:\n   - Revenue Growth Year 1–3\n   - Revenue Growth Year 4–7\n   - Revenue Growth Year 8–10\n   - Gross Margin (terminal)\n   - EBIT Margin (terminal)\n   - Tax Rate\n   - Capex as % of Revenue\n   - Working Capital Change\n   - Free Cash Flow Margin\n   - Discount Rate (WACC)\n   - Terminal Growth Rate\n\n3. Implied Valuation Table — markdown table showing estimated intrinsic value per share under each scenario\n\n4. Sensitivity Table — markdown table: rows = discount rates (8%, 10%, 12%), columns = terminal growth rates (2%, 3%, 4%), cells = implied value per share for the base case\n\n5. Key Assumption Justifications — explain the reasoning behind each assumption in the base case\n6. Biggest Value Driver — which single assumption has the most impact on the final value?\n7. Red Flags in Assumptions — are any assumptions aggressive or unrealistic? Flag them`,
+  },
+  {
+    id: "catalysts", icon: "📅", color: "#60a5fa",
+    title: "Catalyst Calendar",
+    desc: "3/6/12-month calendar of earnings, product launches, regulatory events, macro triggers & more",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, LLY, TSLA" }],
+    buildPrompt: (f) =>
+      `Act as a research analyst building a catalyst calendar for ${f.ticker}. Create a forward-looking event calendar covering the next 3, 6, and 12 months. For each catalyst, include: Event | Timing | Type | Upside Risk | Downside Risk | Confidence Level | Source/Notes.\n\nOrganize the calendar into three time horizons:\n\n1. Near-Term (0–3 months) — upcoming earnings, product launches, management comments, macro events\n2. Medium-Term (3–6 months) — industry conferences, regulatory decisions, product cycles, analyst day events\n3. Longer-Term (6–12 months) — strategic milestones, market expansion, competitive dynamics, macro tailwinds/headwinds\n\nFor each catalyst type, include:\n- Earnings Calendar — expected date, street consensus, key metrics to watch\n- Product/Service Launches — expected announcements, market impact estimate\n- Regulatory / Legal Events — pending approvals, lawsuits, investigations\n- Macro Events — interest rate decisions, economic releases that matter for this company\n- Management / Governance — CEO/CFO changes, investor day, shareholder votes\n- Capital Allocation — buyback programs, dividend announcements, M&A rumors\n- Industry Events — major conferences, competitor launches\n\nEnd with: Top 3 Highest-Impact Catalysts to watch and why they matter most.`,
+  },
+  {
+    id: "management", icon: "👔", color: "#e879f9",
+    title: "Management Quality Review",
+    desc: "Score CEO/CFO track record, guidance accuracy, capital allocation, and insider alignment",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. NVDA, BRK.B, AAPL" }],
+    buildPrompt: (f) =>
+      `Act as a governance analyst evaluating the leadership team of ${f.ticker}. Score each area from 1 (poor) to 5 (excellent) with a brief explanation. Structure the analysis as:\n\n1. CEO Track Record — tenure, prior successes/failures, vision credibility (Score: X/5)\n2. CFO Credibility — financial discipline, forecasting accuracy, capital markets communication (Score: X/5)\n3. Guidance Accuracy — how often does management meet/beat its own guidance? (Score: X/5)\n4. Transparency & Communication — candor in earnings calls, acknowledging mistakes, handling bad news (Score: X/5)\n5. Capital Allocation — ROIC trend, dividend policy, buyback history (timing, price paid), acquisition record (Score: X/5)\n6. Dilution Discipline — SBC as % of revenue, share count trend, dilution vs. peers (Score: X/5)\n7. Insider Ownership & Alignment — % of shares owned, recent purchases/sales, compensation structure (Score: X/5)\n8. Board Quality — independence, relevant expertise, audit committee, conflicts of interest (Score: X/5)\n9. Communication Style — plain language vs. jargon, accessibility to investors, Glassdoor sentiment (Score: X/5)\n10. Long-Term Thinking — multi-year strategic consistency, R&D investment, employee culture signals (Score: X/5)\n\nAt the end:\n- Total Management Score: X/50 (grade: Excellent / Good / Average / Poor)\n- Biggest Strength\n- Biggest Concern\n- Overall: do they act like long-term owners or short-term rent-seekers?`,
+  },
+  {
+    id: "debate", icon: "🥊", color: "#f97316",
+    title: "Bull vs. Bear Debate",
+    desc: "Investment committee simulation with bull analyst, bear analyst, and a neutral judge summary",
+    fields: [{ key: "ticker", label: "Company / Ticker", placeholder: "e.g. TSLA, PLTR, NVDA" }],
+    buildPrompt: (f) =>
+      `Simulate a structured investment committee debate on ${f.ticker}. Cast three roles:\n\n**BULL ANALYST** — argues the bull case with specific evidence. Cover:\n1. Growth Thesis — why revenue will accelerate\n2. Competitive Advantage — why the moat is durable\n3. Valuation Defense — why the current multiple is justified or cheap\n4. Upcoming Catalysts — 2–3 events that could drive the stock higher\n5. Financial Quality — strongest metrics that support ownership\n\n**BEAR ANALYST** — argues the bear case with specific counterevidence. Cover:\n1. Growth Concerns — why consensus estimates are too optimistic\n2. Competitive Threats — who is eating their lunch and why it matters\n3. Valuation Warning — why the stock is expensive and what could compress the multiple\n4. Upcoming Risks — 2–3 events that could disappoint\n5. Financial Red Flags — weaknesses in the numbers\n\n**NEUTRAL JUDGE** — gives a balanced verdict. Cover:\n1. Which side has stronger evidence as of today?\n2. The 2–3 key uncertainties that are genuinely unknowable right now\n3. What specific data points investors should verify before deciding\n4. What would make the bull wrong? What would make the bear wrong?\n5. Final Verdict: one sentence — what the evidence favours at current price\n\nUse a structured dialogue format with clear **BULL:**, **BEAR:**, **JUDGE:** labels.`,
+  },
+];
+
 // ── Monthly AI budget tracker ─────────────────────────────────────────────────
 const MONTHLY_AI_BUDGET = 10.00; // USD hard cap per calendar month
 
@@ -1347,6 +1432,16 @@ export default function App() {
   const [aiBudgetDismissed,  setAiBudgetDismissed]  = useState(false);
   const [advisorHistory,     setAdvisorHistory]     = useState(() => {
     try { return JSON.parse(localStorage.getItem("portfolio:advisorHistory") || "[]"); } catch { return []; }
+  });
+
+  // ── Research tab state ─────────────────────────────────────────────────
+  const [researchTemplateId, setResearchTemplateId] = useState(null);
+  const [researchInputs,     setResearchInputs]     = useState({});
+  const [researchResponse,   setResearchResponse]   = useState(null);
+  const [researchLoading,    setResearchLoading]    = useState(false);
+  const [researchError,      setResearchError]      = useState(null);
+  const [researchHistory,    setResearchHistory]    = useState(() => {
+    try { return JSON.parse(localStorage.getItem("portfolio:researchHistory") || "[]"); } catch { return []; }
   });
 
   // ── Load from localStorage ─────────────────────────────────────────────
@@ -4551,7 +4646,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
       <div style={{ padding:"20px 28px 0", borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:0 }}>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
           {[["dashboard","📊 Dashboard"],["rebalance","⚖️ Rebalance"],["dca","📅 DCA Plan"],["targets","🎯 Edit Targets"],
-            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["advisor","🧠 AI Advisor"],["help","📖 Help"]].map(([v,l]) => {
+            ["recommend","💡 Ideas"],["search","🔍 Search"],["pulse","📡 Market Pulse"],["scanner","🔎 Scanner"],["options","⚡ Options"],["advisor","🧠 AI Advisor"],["research","🔬 Research"],["help","📖 Help"]].map(([v,l]) => {
             const locked = !helpUnlocked && v !== "help";
             return (
               <button key={v} className={`tab-btn ${tab===v?"on":""}`}
@@ -13487,6 +13582,520 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             Consult a licensed financial advisor before investing.
                           </p>
                           <button onClick={runAdvisorQuery}
+                            style={{ fontSize:10, padding:"4px 12px", borderRadius:6,
+                              cursor:"pointer", background:`${selectedTpl.color}15`,
+                              border:`1px solid ${selectedTpl.color}35`,
+                              color: selectedTpl.color }}>
+                            Regenerate ↺
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ════════════════════════════════════════════════════════════════════
+          TAB: RESEARCH
+      ════════════════════════════════════════════════════════════════════ */}
+      {tab === "research" && (() => {
+        const selectedTpl = researchTemplateId !== null
+          ? RESEARCH_TEMPLATES.find(t => t.id === researchTemplateId) : null;
+
+        async function runResearchQuery() {
+          if (!selectedTpl) return;
+          if (licenseTier === "basic") {
+            setResearchError("Deep Research requires the Pro plan.");
+            return;
+          }
+          setResearchLoading(true);
+          setResearchError(null);
+          setResearchResponse(null);
+          try {
+            const fieldValues = Object.fromEntries(
+              selectedTpl.fields.map(f => [f.key, researchInputs[f.key] || ""])
+            );
+            const prompt = selectedTpl.buildPrompt(fieldValues);
+            const res = await callClaude({
+              model: "claude-sonnet-4-6",
+              max_tokens: 8192,
+              messages: [{ role: "user", content: prompt }],
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error?.message || `API error ${res.status}`);
+            }
+            const data = await res.json();
+            const text = (data.content?.[0]?.text || "").trim();
+            setResearchResponse(text);
+            const entry = {
+              id: Date.now(),
+              templateId: selectedTpl.id,
+              title: selectedTpl.title,
+              icon: selectedTpl.icon,
+              inputs: { ...fieldValues },
+              response: text,
+              ts: new Date().toISOString(),
+            };
+            setResearchHistory(prev => {
+              const next = [entry, ...prev].slice(0, 20);
+              try { localStorage.setItem("portfolio:researchHistory", JSON.stringify(next)); } catch {}
+              return next;
+            });
+          } catch (e) {
+            setResearchError(e.message || "Research failed. Try again.");
+          } finally {
+            setResearchLoading(false);
+          }
+        }
+
+        function selectResearchTemplate(tpl) {
+          setResearchTemplateId(tpl.id);
+          setResearchResponse(null);
+          setResearchError(null);
+          setResearchInputs({});
+        }
+
+        const canRunResearch = selectedTpl && selectedTpl.fields.filter(f => !f.optional).every(f =>
+          (researchInputs[f.key] || "").trim().length > 0
+        );
+
+        // Enhanced renderer with table support
+        function renderResearchResponse(text, accentColor) {
+          const VERDICT_STYLES = {
+            "Expanding": { bg: "#34d399", text: "#052e16" },
+            "Shrinking": { bg: "#f43f5e", text: "#fff1f2" },
+            "Stable":    { bg: "#fbbf24", text: "#1c1700" },
+            "Cheap":     { bg: "#34d399", text: "#052e16" },
+            "Expensive": { bg: "#f43f5e", text: "#fff1f2" },
+            "Fair":      { bg: "#fbbf24", text: "#1c1700" },
+            "Wide Moat": { bg: "#34d399", text: "#052e16" },
+            "No Moat":   { bg: "#f43f5e", text: "#fff1f2" },
+            "Narrow Moat":{ bg: "#fbbf24", text: "#1c1700" },
+            "Excellent": { bg: "#34d399", text: "#052e16" },
+            "Poor":      { bg: "#f43f5e", text: "#fff1f2" },
+            "Good":      { bg: "#60a5fa", text: "#0c1a2e" },
+            "Average":   { bg: "#94a3b8", text: "#0f172a" },
+          };
+          const VERDICT_RE = /\b(Expanding|Shrinking|Stable|Cheap|Expensive|Wide Moat|No Moat|Narrow Moat|Excellent|Poor|Good|Average)\b/g;
+          const BOLD_LABELS = /\*\*(BULL:|BEAR:|JUDGE:|BULL ANALYST:|BEAR ANALYST:|NEUTRAL JUDGE:)\*\*/g;
+
+          function renderInline(str, keyPfx) {
+            const parts = str.split(/(\*\*[^*]+\*\*)/);
+            return parts.flatMap((part, pi) => {
+              if (part.startsWith("**") && part.endsWith("**")) {
+                const inner = part.slice(2, -2);
+                const isRole = /^(BULL:|BEAR:|JUDGE:|BULL ANALYST:|BEAR ANALYST:|NEUTRAL JUDGE:)$/.test(inner);
+                const roleColors = { "BULL:": "#34d399", "BEAR:": "#f43f5e", "JUDGE:": "#fbbf24",
+                  "BULL ANALYST:": "#34d399", "BEAR ANALYST:": "#f43f5e", "NEUTRAL JUDGE:": "#fbbf24" };
+                if (isRole) {
+                  return [<span key={`${keyPfx}-r${pi}`} style={{
+                    display:"inline-block", padding:"2px 9px", borderRadius:5,
+                    fontSize:"0.82em", fontWeight:800, marginRight:6,
+                    background: `${roleColors[inner] || accentColor}25`,
+                    color: roleColors[inner] || accentColor,
+                    border: `1px solid ${roleColors[inner] || accentColor}50`,
+                  }}>{inner.replace(":","")}</span>];
+                }
+                return [<strong key={`${keyPfx}-b${pi}`} style={{ color:"#f1f5f9", fontWeight:700 }}>{inner}</strong>];
+              }
+              const segments = part.split(VERDICT_RE);
+              return segments.map((seg, si) => {
+                const vs = VERDICT_STYLES[seg];
+                if (vs) {
+                  return <span key={`${keyPfx}-v${pi}-${si}`} style={{
+                    display:"inline-block", padding:"1px 7px", borderRadius:4,
+                    fontSize:"0.82em", fontWeight:700, margin:"0 2px", verticalAlign:"middle",
+                    background: vs.bg, color: vs.text,
+                  }}>{seg}</span>;
+                }
+                return seg;
+              });
+            });
+          }
+
+          function renderTable(lines, startIdx) {
+            // Collect contiguous pipe lines
+            const tableLines = [];
+            let i = startIdx;
+            while (i < lines.length && lines[i].trim().includes("|")) {
+              tableLines.push(lines[i].trim());
+              i++;
+            }
+            if (tableLines.length < 2) return { el: null, nextIdx: startIdx + 1 };
+            // First line = headers, second line = separator, rest = rows
+            const headers = tableLines[0].split("|").map(c => c.trim()).filter(Boolean);
+            const rows = tableLines.slice(2).map(row =>
+              row.split("|").map(c => c.trim()).filter(Boolean)
+            ).filter(r => r.length > 0);
+            return {
+              nextIdx: i,
+              el: (
+                <div style={{ overflowX:"auto", margin:"10px 0" }}>
+                  <table style={{ borderCollapse:"collapse", width:"100%", fontSize:11.5 }}>
+                    <thead>
+                      <tr>{headers.map((h, hi) => (
+                        <th key={hi} style={{
+                          padding:"6px 10px", textAlign:"left", fontWeight:700,
+                          color: accentColor, background:`${accentColor}12`,
+                          borderBottom:`1px solid ${accentColor}40`,
+                          borderRight:"1px solid rgba(255,255,255,0.05)",
+                          whiteSpace:"nowrap",
+                        }}>{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row, ri) => (
+                        <tr key={ri} style={{ background: ri%2===0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} style={{
+                              padding:"5px 10px", fontSize:11.5,
+                              color:"rgba(255,255,255,0.78)",
+                              borderBottom:"1px solid rgba(255,255,255,0.04)",
+                              borderRight:"1px solid rgba(255,255,255,0.04)",
+                            }}>{renderInline(cell, `tc${ri}-${ci}`)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ),
+            };
+          }
+
+          const lines = text.split("\n");
+          const elements = [];
+          let sectionIdx = 0;
+          let li = 0;
+
+          while (li < lines.length) {
+            const line = lines[li];
+            const t = line.trim();
+
+            if (!t) { elements.push(<div key={`g${li}`} style={{ height:6 }} />); li++; continue; }
+
+            // Markdown table
+            if (t.startsWith("|") && t.endsWith("|")) {
+              const { el, nextIdx } = renderTable(lines, li);
+              if (el) { elements.push(<div key={`tbl${li}`}>{el}</div>); li = nextIdx; continue; }
+            }
+
+            // Section header: numbered
+            const secM = t.match(/^(?:\*\*)?(?:\((\d+)\)|(\d+)[\.:\)]\s)(.+?)(?:\*\*)?$/);
+            if (secM && !t.startsWith("-") && !t.startsWith("•")) {
+              const num = secM[1] || secM[2];
+              const title = secM[3].replace(/\*\*/g, "");
+              if (num && parseInt(num) <= 15) {
+                sectionIdx++;
+                elements.push(
+                  <div key={`sec${li}`} style={{
+                    display:"flex", alignItems:"center", gap:10,
+                    margin: sectionIdx > 1 ? "20px 0 8px" : "4px 0 8px",
+                    paddingBottom:6, borderBottom:`1px solid ${accentColor}22`,
+                  }}>
+                    <span style={{
+                      flexShrink:0, width:22, height:22, borderRadius:"50%",
+                      background:`${accentColor}20`, border:`1px solid ${accentColor}55`,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      fontSize:10, fontWeight:800, color:accentColor,
+                    }}>{num}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:accentColor }}>
+                      {renderInline(title, `sh${li}`)}
+                    </span>
+                  </div>
+                );
+                li++; continue;
+              }
+            }
+
+            // Horizontal rule
+            if (/^[-*_]{3,}$/.test(t)) {
+              elements.push(<hr key={`hr${li}`} style={{ border:"none", borderTop:`1px solid rgba(255,255,255,0.08)`, margin:"14px 0" }} />);
+              li++; continue;
+            }
+
+            // Bold role label lines (BULL:, BEAR:, JUDGE:)
+            if (/^\*\*(BULL|BEAR|JUDGE|BULL ANALYST|BEAR ANALYST|NEUTRAL JUDGE):?\*\*/.test(t)) {
+              elements.push(
+                <div key={`role${li}`} style={{ marginTop:14, marginBottom:4 }}>
+                  {renderInline(t, `ri${li}`)}
+                </div>
+              );
+              li++; continue;
+            }
+
+            // Bullet
+            if (/^[-•*]\s/.test(t) || /^•/.test(t)) {
+              const content = t.replace(/^[-•*•]\s*/, "");
+              elements.push(
+                <div key={`bl${li}`} style={{ display:"flex", gap:8, marginBottom:4, paddingLeft:10 }}>
+                  <span style={{ flexShrink:0, color:accentColor, marginTop:3, fontSize:9 }}>▸</span>
+                  <span style={{ fontSize:13, color:"rgba(255,255,255,0.78)", lineHeight:1.65 }}>
+                    {renderInline(content, `bi${li}`)}
+                  </span>
+                </div>
+              );
+              li++; continue;
+            }
+
+            // Regular paragraph
+            elements.push(
+              <p key={`p${li}`} style={{ margin:"0 0 5px", fontSize:13, color:"rgba(255,255,255,0.78)", lineHeight:1.7 }}>
+                {renderInline(t, `pi${li}`)}
+              </p>
+            );
+            li++;
+          }
+
+          return <div>{elements}</div>;
+        }
+
+        return (
+          <div style={{ padding:"22px 28px", display:"flex", gap:20, alignItems:"flex-start", flexWrap:"wrap" }}>
+
+            {/* Left column: template library + history */}
+            <div style={{ flex:"0 0 260px", minWidth:220, display:"flex", flexDirection:"column", gap:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+                <span style={{ fontSize:18 }}>🔬</span>
+                <span style={{ fontSize:14, fontWeight:800, color:"#f1f5f9" }}>Deep Research</span>
+                <span style={{ marginLeft:"auto", fontSize:9, padding:"2px 7px", borderRadius:4,
+                  background:"rgba(52,211,153,0.15)", color:"#34d399",
+                  border:"1px solid rgba(52,211,153,0.3)", fontWeight:600, letterSpacing:"0.1em" }}>
+                  PRO
+                </span>
+              </div>
+              <p style={{ fontSize:11, color:"rgba(255,255,255,0.35)", margin:"0 0 8px", lineHeight:1.5 }}>
+                9 institutional-grade research templates. Enter a ticker to generate a full analyst report.
+              </p>
+
+              {RESEARCH_TEMPLATES.map(tpl => {
+                const isActive = researchTemplateId === tpl.id;
+                return (
+                  <button key={tpl.id} onClick={() => selectResearchTemplate(tpl)}
+                    style={{
+                      width:"100%", textAlign:"left", cursor:"pointer", borderRadius:10,
+                      padding:"11px 13px",
+                      background: isActive ? `${tpl.color}18` : "rgba(255,255,255,0.03)",
+                      border:`1px solid ${isActive ? tpl.color + "55" : "rgba(255,255,255,0.08)"}`,
+                      transition:"all 0.15s",
+                    }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <span style={{ fontSize:15 }}>{tpl.icon}</span>
+                      <span style={{ fontSize:12, fontWeight:700,
+                        color: isActive ? tpl.color : "#e2e8f0" }}>{tpl.title}</span>
+                    </div>
+                    <p style={{ margin:0, fontSize:10, color:"rgba(255,255,255,0.38)", lineHeight:1.4 }}>
+                      {tpl.desc}
+                    </p>
+                  </button>
+                );
+              })}
+
+              {researchHistory.length > 0 && (
+                <div style={{ marginTop:8 }}>
+                  <p style={{ fontSize:9, letterSpacing:"0.12em", textTransform:"uppercase",
+                    color:"rgba(255,255,255,0.25)", fontWeight:600, marginBottom:8 }}>
+                    Recent Reports
+                  </p>
+                  {researchHistory.slice(0, 5).map(h => (
+                    <button key={h.id} onClick={() => {
+                      const tpl = RESEARCH_TEMPLATES.find(t => t.id === h.templateId);
+                      if (tpl) {
+                        setResearchTemplateId(tpl.id);
+                        setResearchInputs(h.inputs || {});
+                        setResearchResponse(h.response);
+                        setResearchError(null);
+                      }
+                    }} style={{
+                      width:"100%", textAlign:"left", cursor:"pointer", padding:"7px 10px",
+                      background:"transparent", border:"none", borderRadius:7,
+                      borderBottom:"1px solid rgba(255,255,255,0.04)", display:"block",
+                    }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:12 }}>{h.icon}</span>
+                        <span style={{ fontSize:11, color:"rgba(255,255,255,0.5)", flex:1,
+                          overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {h.title}
+                        </span>
+                        <span style={{ fontSize:9, color:"rgba(255,255,255,0.2)", flexShrink:0 }}>
+                          {new Date(h.ts).toLocaleDateString("en-CA",{month:"short",day:"numeric"})}
+                        </span>
+                      </div>
+                      {h.inputs && Object.values(h.inputs).filter(Boolean).length > 0 && (
+                        <p style={{ margin:"3px 0 0 18px", fontSize:9,
+                          color:"rgba(255,255,255,0.25)", overflow:"hidden",
+                          textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                          {Object.values(h.inputs).filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </button>
+                  ))}
+                  {researchHistory.length > 5 && (
+                    <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", textAlign:"center", marginTop:4 }}>
+                      +{researchHistory.length - 5} more in history
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right column: builder + response */}
+            <div style={{ flex:"1 1 480px", minWidth:300, display:"flex", flexDirection:"column", gap:16 }}>
+              {!selectedTpl ? (
+                <div className="card" style={{ textAlign:"center", padding:"56px 32px" }}>
+                  <div style={{ fontSize:48, marginBottom:16 }}>🔬</div>
+                  <p style={{ fontSize:18, fontWeight:800, color:"#f1f5f9", marginBottom:8 }}>
+                    Deep Stock Research
+                  </p>
+                  <p style={{ fontSize:13, color:"rgba(255,255,255,0.4)", maxWidth:460,
+                    margin:"0 auto 24px", lineHeight:1.6 }}>
+                    9 institutional-grade research templates powered by Claude. Enter any ticker to generate
+                    a full analyst report, earnings breakdown, red flag scan, moat analysis, and more.
+                  </p>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(130px, 1fr))",
+                    gap:10, maxWidth:560, margin:"0 auto" }}>
+                    {RESEARCH_TEMPLATES.map(tpl => (
+                      <button key={tpl.id} onClick={() => selectResearchTemplate(tpl)}
+                        style={{ padding:"14px 10px", borderRadius:10, cursor:"pointer",
+                          background:`${tpl.color}10`, border:`1px solid ${tpl.color}30`,
+                          display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:22 }}>{tpl.icon}</span>
+                        <span style={{ fontSize:10, fontWeight:700, color: tpl.color,
+                          textAlign:"center" }}>{tpl.title}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Prompt builder card */}
+                  <div className="card" style={{ padding:"20px 22px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16 }}>
+                      <span style={{ fontSize:22 }}>{selectedTpl.icon}</span>
+                      <div style={{ flex:1 }}>
+                        <p style={{ margin:0, fontSize:15, fontWeight:800, color: selectedTpl.color }}>
+                          {selectedTpl.title}
+                        </p>
+                        <p style={{ margin:0, fontSize:11, color:"rgba(255,255,255,0.4)" }}>
+                          {selectedTpl.desc}
+                        </p>
+                      </div>
+                      <button onClick={() => { setResearchTemplateId(null); setResearchResponse(null); }}
+                        style={{ fontSize:11, padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                          color:"rgba(255,255,255,0.35)" }}>
+                        ← Back
+                      </button>
+                    </div>
+
+                    {/* Input fields */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:16 }}>
+                      {selectedTpl.fields.map(field => (
+                        <div key={field.key}>
+                          <label style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.6)",
+                            display:"block", marginBottom:5 }}>
+                            {field.label}{field.optional && <span style={{ opacity:0.5, fontWeight:400 }}> (optional)</span>}
+                          </label>
+                          <input
+                            type="text"
+                            value={researchInputs[field.key] || ""}
+                            placeholder={field.placeholder}
+                            onChange={e => setResearchInputs(prev => ({ ...prev, [field.key]: e.target.value }))}
+                            style={{
+                              width:"100%", boxSizing:"border-box",
+                              padding:"9px 12px", borderRadius:8, fontSize:13,
+                              background:"rgba(255,255,255,0.05)",
+                              border:`1px solid ${selectedTpl.color}40`,
+                              color:"#f1f5f9", outline:"none",
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginBottom:14, padding:"8px 12px", borderRadius:8,
+                      background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)",
+                      fontSize:10, color:"rgba(255,255,255,0.3)", lineHeight:1.5 }}>
+                      ⚠ Reports use Claude's training knowledge (cutoff Aug 2025) plus your current date ({new Date().toLocaleDateString("en-CA",{month:"short",year:"numeric"})}). Always verify facts with current sources before making investment decisions.
+                    </div>
+
+                    <button onClick={runResearchQuery} disabled={!canRunResearch || researchLoading}
+                      style={{
+                        width:"100%", padding:"12px", borderRadius:9,
+                        cursor: canRunResearch && !researchLoading ? "pointer" : "not-allowed",
+                        background: canRunResearch && !researchLoading ? `${selectedTpl.color}22` : "rgba(255,255,255,0.04)",
+                        border:`1px solid ${canRunResearch && !researchLoading ? selectedTpl.color + "55" : "rgba(255,255,255,0.08)"}`,
+                        color: canRunResearch && !researchLoading ? selectedTpl.color : "rgba(255,255,255,0.2)",
+                        fontWeight:700, fontSize:13, transition:"all 0.15s",
+                      }}>
+                      {researchLoading ? "⏳ Generating report…" : `${selectedTpl.icon} Generate Report`}
+                    </button>
+
+                    {researchError && (
+                      <p style={{ margin:"10px 0 0", fontSize:12, color:"#f43f5e" }}>
+                        ⚠ {researchError}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Response card */}
+                  {(researchResponse || researchLoading) && (
+                    <div className="card" style={{ padding:"20px 22px" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                        <span style={{ fontSize:14 }}>{selectedTpl.icon}</span>
+                        <span style={{ fontSize:13, fontWeight:700, color: selectedTpl.color }}>
+                          {selectedTpl.title}
+                        </span>
+                        {researchLoading && (
+                          <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)",
+                            animation:"pulse 1.5s infinite" }}>
+                            generating…
+                          </span>
+                        )}
+                        {researchResponse && !researchLoading && (
+                          <button onClick={() => {
+                            navigator.clipboard?.writeText(researchResponse).catch(() => {});
+                          }} style={{
+                            marginLeft:"auto", fontSize:10, padding:"3px 9px", borderRadius:6,
+                            cursor:"pointer", background:"rgba(255,255,255,0.05)",
+                            border:"1px solid rgba(255,255,255,0.1)", color:"rgba(255,255,255,0.4)",
+                          }}>
+                            Copy
+                          </button>
+                        )}
+                      </div>
+
+                      {researchLoading ? (
+                        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                          {[95, 80, 90, 65, 75, 88, 70, 85].map((w, i) => (
+                            <div key={i} style={{
+                              height:12, borderRadius:6, background:"rgba(255,255,255,0.06)",
+                              width:`${w}%`, animation:"pulse 1.5s infinite",
+                              animationDelay:`${i * 0.12}s`,
+                            }}/>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ wordBreak:"break-word" }}>
+                          {renderResearchResponse(researchResponse, selectedTpl.color)}
+                        </div>
+                      )}
+
+                      {researchResponse && !researchLoading && (
+                        <div style={{ marginTop:18, paddingTop:14,
+                          borderTop:"1px solid rgba(255,255,255,0.06)",
+                          display:"flex", alignItems:"center", justifyContent:"space-between",
+                          flexWrap:"wrap", gap:10 }}>
+                          <p style={{ margin:0, fontSize:9, color:"rgba(255,255,255,0.2)" }}>
+                            ⚠ Not financial advice. For educational purposes only.
+                            Consult a licensed financial advisor before investing.
+                          </p>
+                          <button onClick={runResearchQuery}
                             style={{ fontSize:10, padding:"4px 12px", borderRadius:6,
                               cursor:"pointer", background:`${selectedTpl.color}15`,
                               border:`1px solid ${selectedTpl.color}35`,
