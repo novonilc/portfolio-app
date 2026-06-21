@@ -12175,9 +12175,26 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </span>
                 </p>
               </div>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.15)", textAlign:"right", lineHeight:1.6 }}>
-                Updated {stockUniverseData.lastUpdated}<br/>Not financial advice
-              </div>
+              {(() => {
+                const luDate = new Date(stockUniverseData.lastUpdated);
+                const daysOld = isNaN(luDate) ? null : Math.floor((Date.now() - luDate) / 86400000);
+                const stale = daysOld !== null && daysOld > 7;
+                return (
+                  <div style={{ textAlign:"right", lineHeight:1.8 }}>
+                    {stale && (
+                      <div style={{ fontSize:10, fontWeight:700, color:"#f59e0b",
+                        background:"rgba(245,158,11,0.12)", border:"1px solid rgba(245,158,11,0.3)",
+                        borderRadius:6, padding:"2px 8px", marginBottom:4 }}>
+                        ⚠ Fundamentals {daysOld}d old — P/E, EPS, ROE may be stale
+                      </div>
+                    )}
+                    <div style={{ fontSize:10, color: stale ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.15)" }}>
+                      Updated {stockUniverseData.lastUpdated}
+                    </div>
+                    <div style={{ fontSize:10, color:"rgba(255,255,255,0.15)" }}>Not financial advice</div>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Metric explainer mini-cards */}

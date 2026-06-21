@@ -311,10 +311,9 @@ async function main() {
   }
 
   const now = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const output = {
-    lastUpdated: `${months[now.getUTCMonth()]} ${now.getUTCFullYear()}`,
+    lastUpdated: now.toISOString().slice(0, 10),  // "YYYY-MM-DD" — parseable for staleness checks
     note: 'Live data from Yahoo Finance. Moats are manually curated.',
     stocks,
   };
