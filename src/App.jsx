@@ -1103,21 +1103,23 @@ function SortTh({ col, label, sort, onSort, style, className }) {
 
 // ─── Stock Scanner ────────────────────────────────────────────────────────────
 const SCAN_PRESET_FILTERS = {
-  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,minGrossMargin:40, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, minGrossMargin:40, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
-  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
-  ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
-  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
-  retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  all:        { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  buffett:    { maxPe:22,  maxPeg:5,   minRoe:15, maxDe:1.0, minDivY:0, minFcfY:0, minEpsG:5, minGrossMargin:30, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  garp:       { maxPe:55,  maxPeg:1.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:15,minGrossMargin:40, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  income:     { maxPe:22,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:3, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  deep:       { maxPe:13,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:5, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  compounder: { maxPe:45,  maxPeg:5,   minRoe:25, maxDe:0.7, minDivY:0, minFcfY:0, minEpsG:8, minGrossMargin:40, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  rule40:     { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:80, market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  midsmall:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"mid-small", ideasOnly:false },
+  ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
+  canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
+  retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
   { key:"buffett",    icon:"🏛️", label:"Buffett Zone",   desc:"Quality at fair price — Berkshire style" },
   { key:"garp",       icon:"📈", label:"GARP",           desc:"Growth at a reasonable price (PEG < 1.5)" },
+  { key:"rule40",     icon:"🔟", label:"Rule of 40",     desc:"High growth + strong margins — R40 score ≥ 80" },
   { key:"income",     icon:"💰", label:"Income Quality", desc:"High yield from durable businesses"  },
   { key:"deep",       icon:"🔎", label:"Deep Value",     desc:"Very cheap on P/E & free cash flow"  },
   { key:"compounder", icon:"🚀", label:"Compounders",    desc:"High ROE + low debt = decades of gains" },
@@ -1167,6 +1169,14 @@ function computeRetireScore(s) {
   const f = s.fcfYield;
   pts += f != null ? (f >= 6 ? 8 : f >= 4 ? 6 : f >= 2 ? 3 : 1) : 0;
   return Math.min(100, pts);
+}
+// Rule of 40 proxy: capped EPS Growth (≤50%) + Gross Margin
+// Standard R40 = Revenue Growth + Net/FCF Margin; we use available data as proxies.
+// Banks excluded (gross margin not applicable). Null when grossMargin missing.
+function computeR40(s) {
+  if (s.isBank || s.grossMargin == null) return null;
+  const eg = Math.min(Math.max(s.epsGrowth || 0, 0), 50);
+  return Math.round(eg + s.grossMargin);
 }
 // Estimate realistic long-run CAGR — uses forward EPS growth as primary signal
 function estimateRetireCagr(s) {
@@ -12041,6 +12051,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (f.minFcfY > 0 && (s.fcfYield == null || s.fcfYield < f.minFcfY)) return false;
           if (f.minEpsG > 0 && s.epsGrowth < f.minEpsG) return false;
           if ((f.minGrossMargin || 0) > 0 && (s.grossMargin == null || s.grossMargin < f.minGrossMargin)) return false;
+          if ((f.minR40 || 0) > 0 && (computeR40(s) ?? 0) < f.minR40) return false;
           if (f.market !== "all" && s.market !== f.market) return false;
           if (f.sector !== "all" && s.sector !== f.sector) return false;
           if (f.mktCap === "mid-small" && !["mid","small"].includes(s.mktCap)) return false;
@@ -12057,7 +12068,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const holdPct     = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
           const retireScore = computeRetireScore(s);
           const estCagr     = estimateRetireCagr(s);
-          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr };
+          const r40         = computeR40(s);
+          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40 };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12139,6 +12151,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const deC   = v => v<0.3?"#22c55e":v<0.7?"#86efac":v<1.2?"#fbbf24":v<2.0?"#fb923c":"#ef4444";
         const fcfC  = v => v>=7?"#22c55e":v>=4?"#86efac":v>=2?"#fbbf24":v>=0.5?"#fb923c":"#ef4444";
         const sC    = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
+        const r40C  = v => v>=100?"#22c55e":v>=80?"#86efac":v>=60?"#fbbf24":v>=40?"#fb923c":"#64748b";
 
         const METRIC_INFO = [
           { icon:"💵", label:"P/E Ratio",    good:"< 15",   color:"#22d3ee",
@@ -12149,6 +12162,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             why:"How efficiently the company uses shareholders' money. ROE > 15–20% is the signature of a business with a durable competitive moat." },
           { icon:"💰", label:"FCF Yield",    good:"> 4%",   color:"#fbbf24",
             why:"Free cash flow ÷ price. Unlike P/E, FCF is hard to fake. A 5%+ yield means the business generates real cash you can trust." },
+          { icon:"🔟", label:"R40 Score",    good:"≥ 80",   color:"#86efac",
+            why:"Rule of 40 proxy: EPS Growth (capped 50%) + Gross Margin. A score ≥ 80 means the business either grows fast, has high-quality margins, or both — the hallmark of elite tech and compounders. Banks excluded." },
         ];
 
         const QUALITY_RULES = [
@@ -12158,6 +12173,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           { icon:"💸", title:"FCF Beats Reported EPS", desc:"EPS can be smoothed via accounting. FCF cannot. FCF yield > 5% = genuinely cheap, regardless of P/E." },
           { icon:"📉", title:"Beware Value Traps", desc:"Low P/E + declining EPS = the ratio gets more expensive every quarter. Check EPS growth first." },
           { icon:"🔁", title:"Compounders Compound", desc:"ROE 25% + retained earnings = equity doubles every ~3 years. Time — not timing — is the edge." },
+          { icon:"🔟", title:"Rule of 40", desc:"Great growth companies score ≥ 80 on R40 (EPS growth + gross margin). Below 40 = either shrinking fast or margins are too thin to sustain the business." },
         ];
 
         return (
@@ -12198,7 +12214,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             </div>
 
             {/* Metric explainer mini-cards */}
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:12, marginBottom:26 }}>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:12, marginBottom:26 }}>
               {METRIC_INFO.map(m => (
                 <div key={m.label} className="card" style={{ borderColor:`${m.color}20`, background:`${m.color}05` }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
@@ -12442,6 +12458,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   { key:"minFcfY",        label:"Min FCF Yield",      min:0,  max:12,  step:0.5, fmt: v => v<=0?"Any":`${v}%` },
                   { key:"minEpsG",        label:"Min EPS Growth",     min:0,  max:50,  step:1,   fmt: v => v<=0?"Any":`${v}%` },
                   { key:"minGrossMargin", label:"Min Gross Margin",   min:0,  max:90,  step:5,   fmt: v => v<=0?"Any":`${v}%` },
+                  { key:"minR40",         label:"Min R40 Score",      min:0,  max:150, step:5,   fmt: v => v<=0?"Any":`${v}` },
                 ].map(({ key, label, min, max, step, fmt }) => {
                   const val = Math.min(Math.max(scanFilters[key] ?? 0, min), max);
                   return (
@@ -12609,6 +12626,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("fcfYield","FCF Yld")}
                       {th("divYield","Div %")}
                       {th("epsGrowth","EPS Grw")}
+                      {th("r40","R40")}
                       {th("score","Score")}
                       {th("retireScore","Retire")}
                       {th("estCagr","Est. CAGR")}
@@ -12787,6 +12805,17 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               color: s.epsGrowth==null?"#334155":s.epsGrowth>=20?"#22c55e":s.epsGrowth>=10?"#fbbf24":s.epsGrowth>=3?"#94a3b8":"#ef4444",
                               fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
                               {s.epsGrowth!=null?(s.epsGrowth>0?`+${s.epsGrowth}%`:`${s.epsGrowth}%`):"—"}
+                            </td>
+                            {/* R40 column */}
+                            <td className="td" style={{ textAlign:"right" }}>
+                              {s.r40 != null ? (
+                                <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                                  <ScanPill value={String(s.r40)} color={r40C(s.r40)} />
+                                  <span style={{ fontSize:8, color:r40C(s.r40), fontWeight:700, opacity:0.7 }}>
+                                    {s.r40>=100?"Elite":s.r40>=80?"Strong":s.r40>=60?"Good":s.r40>=40?"OK":"Weak"}
+                                  </span>
+                                </div>
+                              ) : <span style={{ fontSize:10, color:"#334155", fontStyle:"italic" }}>Bank</span>}
                             </td>
                             <td className="td" style={{ textAlign:"center" }}>
                               <div style={{ width:38, height:38, borderRadius:"50%",
