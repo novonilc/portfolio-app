@@ -71,7 +71,9 @@
       "Bash(node node_modules/.bin/vite build)",
       "Bash(awk -F: '$1>255 && $1<400 {print; exit}')",
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\('keys:', list\\(d.keys\\(\\)\\)\\); print\\('generatedAt:', d.get\\('generatedAt','MISSING'\\)\\); print\\('lastUpdated:', d.get\\('lastUpdated','MISSING'\\)\\); print\\('stock count:', len\\(d.get\\('stocks',[]\\)\\)\\); print\\('first stock:', list\\(d.get\\('stocks',[]\\)[0].keys\\(\\)\\) if d.get\\('stocks'\\) else 'none'\\)\")",
-      "Bash(git -C /home/nchoudhu/portfolio-app log --oneline -5 -- src/data/stockUniverse.json)"
+      "Bash(git -C /home/nchoudhu/portfolio-app log --oneline -5 -- src/data/stockUniverse.json)",
+      "WebSearch",
+      "Bash(env)"
     ],
     "additionalDirectories": [
       "/tmp"
