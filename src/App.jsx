@@ -12007,7 +12007,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
               <div style={{ fontSize:12, color:"#94a3b8", maxWidth:480, margin:"0 auto" }}>
                 The daily data refresh wrote an empty file — Yahoo Finance likely blocked the run.
-                Re-deploy or re-run <code style={{ color:"rgba(255,255,255,0.4)" }}>scripts/rebuild-universe.mjs</code> to restore the 97-stock baseline.
+                Re-deploy or re-run <code style={{ color:"rgba(255,255,255,0.4)" }}>scripts/rebuild-universe.mjs</code> to restore the 98-stock baseline.
               </div>
             </div>
           );

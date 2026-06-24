@@ -117,6 +117,8 @@ const STOCKS = [
   { ticker:'CNR.TO',name:'Canadian National Railway',  sector:'Industrials',           market:'CA', mktCap:'large', isBank:false, pe:20,  fwdPe:17, epsGrowth:10, roe:28,  de:0.8, divYield:2.0, fcfYield:5.0, grossMargin:55, peg:2.00, price:118,  moat:'North American Rail Duopoly' },
   { ticker:'TFII',  name:'TFI International',          sector:'Industrials',           market:'CA', mktCap:'mid',   isBank:false, pe:18,  fwdPe:15, epsGrowth:14, roe:22,  de:0.9, divYield:1.5, fcfYield:5.5, grossMargin:30, peg:1.29, price:111,  moat:'Trucking + Last Mile Scale' },
   { ticker:'WSP.TO',name:'WSP Global',                 sector:'Industrials',           market:'CA', mktCap:'mid',   isBank:false, pe:35,  fwdPe:28, epsGrowth:15, roe:12,  de:0.5, divYield:1.0, fcfYield:3.5, grossMargin:35, peg:2.33, price:170,  moat:'Global Engineering Consulting' },
+  // ── ETFs (1) ─────────────────────────────────────────────────────────────────
+  { ticker:'SPCX',  name:'Harvest S&P 500 Covered Call ETF', sector:'ETF',           market:'CA', mktCap:'large', isBank:false, pe:22,  fwdPe:20, epsGrowth:8,  roe:null, de:0.0, divYield:12.0, fcfYield:null, grossMargin:null, peg:2.75, price:19,   moat:'Covered Call Premium Income on S&P 500' },
 ];
 
 // Auto-correct PEG = PE / epsGrowth if stored value is off by more than 0.05
@@ -130,7 +132,7 @@ for (const s of STOCKS) {
 
 const output = {
   lastUpdated: 'Jun 2026',
-  note: 'Curated 97-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
+  note: 'Curated 98-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
   stocks: STOCKS,
 };
 

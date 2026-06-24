@@ -1825,6 +1825,25 @@
       "grossMargin": 21,
       "fcfYield": 7.3,
       "peg": 0
+    },
+    {
+      "ticker": "SPCX",
+      "name": "Harvest S&P 500 Covered Call ETF",
+      "sector": "ETF",
+      "market": "CA",
+      "mktCap": "large",
+      "isBank": false,
+      "moat": "Covered Call Premium Income on S&P 500",
+      "price": 19.0,
+      "pe": 22.0,
+      "fwdPe": 20.0,
+      "epsGrowth": 8,
+      "roe": null,
+      "de": 0.0,
+      "divYield": 12.0,
+      "grossMargin": null,
+      "fcfYield": null,
+      "peg": 2.75
     }
   ]
 }

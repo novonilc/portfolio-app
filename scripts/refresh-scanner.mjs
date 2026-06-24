@@ -141,6 +141,7 @@ const CA_STOCKS = [
   { ticker:'CNR.TO', name:'Canadian National Railway',    sector:'Industrials',     market:'CA', mktCap:'large' },
   { ticker:'TFII',   name:'TFI International',            sector:'Industrials',     market:'CA', mktCap:'mid'   },
   { ticker:'WSP.TO', name:'WSP Global',                   sector:'Industrials',     market:'CA', mktCap:'mid'   },
+  { ticker:'SPCX',   name:'Harvest S&P 500 Covered Call ETF', sector:'ETF',         market:'CA', mktCap:'large' },
 ];
 
 // ── Manually curated moat descriptions ───────────────────────────────────────
@@ -194,6 +195,7 @@ const CURATED_MOATS = {
   'CP.TO':'North American Rail Duopoly', 'CNR.TO':'North American Rail Duopoly',
   CNQ:'Low-Cost Oil Sands',             'SU.TO':'$45/bbl Break-Even Advantage',
   TFII:'Trucking + Last Mile Scale',    'WSP.TO':'Global Engineering Consulting',
+  SPCX:'Covered Call Premium Income on S&P 500',
 };
 
 // ── Banks / insurers — D/E excluded from scoring ─────────────────────────────
