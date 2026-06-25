@@ -120,6 +120,11 @@ const US_STOCKS = [
   // Utilities (2)
   { ticker:'NEE',   name:'NextEra Energy',          sector:'Utilities',             mktCap:'large' },
   { ticker:'AEP',   name:'American Electric Power', sector:'Utilities',             mktCap:'large' },
+  // AI Power (4)
+  { ticker:'VST',   name:'Vistra Energy',           sector:'AI Power',              mktCap:'large' },
+  { ticker:'CEG',   name:'Constellation Energy',    sector:'AI Power',              mktCap:'large' },
+  { ticker:'GEV',   name:'GE Vernova',              sector:'AI Power',              mktCap:'large' },
+  { ticker:'PWR',   name:'Quanta Services',         sector:'AI Power',              mktCap:'large' },
 ];
 
 const CA_STOCKS = [
@@ -186,6 +191,10 @@ const CURATED_MOATS = {
   SHW:'Architectural Coatings Leader',  AMT:'Cell Tower Real Estate',
   PLD:'Logistics Real Estate Scale',    NEE:'Renewable Energy + Regulated Grid',
   AEP:'Regulated Electric Utility',
+  VST:'Nuclear + Gas Fleet for AI Data Centers',
+  CEG:'Largest US Nuclear Fleet + Clean Power Contracts',
+  GEV:'Gas Turbine + Grid Equipment Duopoly',
+  PWR:'Electric Grid Infrastructure Build-out',
   ENB:'Regulated Pipeline Monopoly',    TRP:'Regulated Canadian Pipeline',
   TD:'Canadian Banking Oligopoly',      RY:'Canadian Banking Oligopoly',
   BNS:'LatAm Banking Franchise',        BMO:'Canadian Banking Oligopoly',

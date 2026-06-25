@@ -98,6 +98,11 @@ const STOCKS = [
   // ── Utilities (2) ────────────────────────────────────────────────────────────
   { ticker:'NEE',   name:'NextEra Energy',            sector:'Utilities',              market:'US', mktCap:'large', isBank:false, pe:20,  fwdPe:18, epsGrowth:8,  roe:12,  de:1.8, divYield:3.2, fcfYield:2.5, grossMargin:40, peg:2.50, price:73,   moat:'Renewable Energy + Regulated Grid' },
   { ticker:'AEP',   name:'American Electric Power',   sector:'Utilities',              market:'US', mktCap:'large', isBank:false, pe:18,  fwdPe:16, epsGrowth:7,  roe:10,  de:2.0, divYield:4.2, fcfYield:2.0, grossMargin:35, peg:2.57, price:104,  moat:'Regulated Electric Utility' },
+  // ── AI Power (4) ─────────────────────────────────────────────────────────────
+  { ticker:'VST',   name:'Vistra Energy',             sector:'AI Power',               market:'US', mktCap:'large', isBank:false, pe:20,  fwdPe:16, epsGrowth:40, roe:45,  de:2.0, divYield:0.5, fcfYield:3.5, grossMargin:35, peg:0.50, price:170,  moat:'Nuclear + Gas Fleet for AI Data Centers' },
+  { ticker:'CEG',   name:'Constellation Energy',      sector:'AI Power',               market:'US', mktCap:'large', isBank:false, pe:35,  fwdPe:28, epsGrowth:25, roe:20,  de:0.8, divYield:0.8, fcfYield:2.0, grossMargin:30, peg:1.40, price:280,  moat:'Largest US Nuclear Fleet + Clean Power Contracts' },
+  { ticker:'GEV',   name:'GE Vernova',                sector:'AI Power',               market:'US', mktCap:'large', isBank:false, pe:55,  fwdPe:40, epsGrowth:30, roe:20,  de:0.2, divYield:0.3, fcfYield:2.0, grossMargin:15, peg:1.83, price:420,  moat:'Gas Turbine + Grid Equipment Duopoly' },
+  { ticker:'PWR',   name:'Quanta Services',           sector:'AI Power',               market:'US', mktCap:'large', isBank:false, pe:35,  fwdPe:28, epsGrowth:15, roe:15,  de:0.5, divYield:0.2, fcfYield:3.0, grossMargin:18, peg:2.33, price:320,  moat:'Electric Grid Infrastructure Build-out' },
   // ── Canadian (18) ────────────────────────────────────────────────────────────
   { ticker:'ENB',   name:'Enbridge',                  sector:'Energy Infra',           market:'CA', mktCap:'large', isBank:false, pe:18,  fwdPe:16, epsGrowth:3,  roe:14,  de:1.2, divYield:6.8, fcfYield:5.5, grossMargin:35, peg:6.00, price:39,   moat:'Regulated Pipeline Monopoly' },
   { ticker:'CNQ',   name:'Canadian Natural Resources', sector:'Energy',               market:'CA', mktCap:'large', isBank:false, pe:13,  fwdPe:12, epsGrowth:10, roe:25,  de:0.3, divYield:4.5, fcfYield:8.0, grossMargin:55, peg:1.30, price:32,   moat:'Low-Cost Oil Sands' },
@@ -132,7 +137,7 @@ for (const s of STOCKS) {
 
 const output = {
   lastUpdated: 'Jun 2026',
-  note: 'Curated 98-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
+  note: 'Curated 102-stock universe. Live fundamentals refreshed daily at 6AM Vancouver via GitHub Actions. Moats are manually curated.',
   stocks: STOCKS,
 };
 

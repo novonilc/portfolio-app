@@ -474,6 +474,8 @@ const SPREAD_SCAN_TICKERS = [
   "RIVN","F","GM",
   // High-beta / speculative
   "SOFI","COIN","MARA",
+  // AI Power
+  "VST","CEG","GEV","PWR",
   // ETFs (most liquid spread vehicles)
   "SPY","QQQ","IWM","XLF","XLE","XLK","GLD","XBI",
 ];
@@ -12007,7 +12009,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
               <div style={{ fontSize:12, color:"#94a3b8", maxWidth:480, margin:"0 auto" }}>
                 The daily data refresh wrote an empty file — Yahoo Finance likely blocked the run.
-                Re-deploy or re-run <code style={{ color:"rgba(255,255,255,0.4)" }}>scripts/rebuild-universe.mjs</code> to restore the 98-stock baseline.
+                Re-deploy or re-run <code style={{ color:"rgba(255,255,255,0.4)" }}>scripts/rebuild-universe.mjs</code> to restore the 102-stock baseline.
               </div>
             </div>
           );
