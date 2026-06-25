@@ -42,17 +42,17 @@ function getLicenseTier() {
 // INITIAL PORTFOLIO DATA
 // ═══════════════════════════════════════════════════════════════════════════
 const INITIAL_TFSA = [
-  { ticker:"NVDA", name:"Nvidia",                  current:4947, target:14, divYield:0,   locked:"✅ Keep", notes:"No dividend — pure growth compounder. Perfect in TFSA." },
-  { ticker:"AMZN", name:"Amazon",                  current:1388, target:10, divYield:0,   locked:"✅ Keep", notes:"No dividend — 100% tax-free growth in TFSA." },
-  { ticker:"NOW",  name:"ServiceNow",              current:3971, target:10, divYield:0,   locked:"✅ Keep", notes:"No dividend — AI enterprise software leader." },
-  { ticker:"GOOG", name:"Alphabet",                current:3144, target:7,  divYield:0.5, locked:"✅ Keep", notes:"Tiny dividend (acceptable drag). AI + Search moat." },
-  { ticker:"PLTR", name:"Palantir",                current:1425, target:8,  divYield:0,   locked:"✅ Keep", notes:"No dividend — high-conviction AI defense play." },
-  { ticker:"MU",   name:"Micron Technology",       current:2803, target:8,  divYield:0.5, locked:"✅ Keep", notes:"Tiny dividend. AI memory monopoly." },
-  { ticker:"CNQ",  name:"Cdn Natural Resources",   current:3174, target:10, divYield:4.5, locked:"✅ Keep", notes:"Canadian dividend — full tax credit in TFSA." },
-  { ticker:"XIU",  name:"iShares S&P/TSX 60",      current:1885, target:8,  divYield:2.8, locked:"✅ Keep", notes:"Canadian ETF — no WHT. Core Canadian exposure." },
-  { ticker:"BTCC", name:"Purpose Bitcoin ETF",     current:1387, target:5,  divYield:0,   locked:"✅ Keep", notes:"CAD-listed, crypto exposure capped at 5%." },
-  { ticker:"GOLD", name:"Physically Backed Gold",  current:1308, target:5,  divYield:0,   locked:"✅ Keep", notes:"Inflation hedge. CAD-denominated." },
-  { ticker:"VFV.TO",name:"Vanguard S&P 500 (CAD)", current:0,   target:15, divYield:1.3, locked:"🆕 NEW",  notes:"NEW. Replaces MSFT/AAPL/META/TSM/ADI/THE moved to RRSP." },
+  { ticker:"NVDA", name:"Nvidia",                  current:4947, target:14, divYield:0,   locked:"✅ Keep", notes:"No dividend — pure growth compounder. B200 Blackwell ramp is the largest earnings catalyst in the market. Trim only above 20%." },
+  { ticker:"AMZN", name:"Amazon",                  current:1388, target:12, divYield:0,   locked:"✅ Keep", notes:"No dividend — 100% tax-free growth in TFSA. AWS re-accelerating in Q2; $40B AI infra plan locked in. Best large-cap risk/reward — add on 4–6% dips." },
+  { ticker:"NOW",  name:"ServiceNow",              current:3971, target:9,  divYield:0,   locked:"✅ Keep", notes:"No dividend — AI enterprise workflow lock-in. Trimmed 1% to fund AMZN overweight." },
+  { ticker:"GOOG", name:"Alphabet",                current:3144, target:7,  divYield:0.5, locked:"✅ Keep", notes:"Tiny dividend (acceptable drag). AI + Search moat; AI Overviews monetization accelerating." },
+  { ticker:"PLTR", name:"Palantir",                current:1425, target:8,  divYield:0,   locked:"✅ Keep", notes:"No dividend — high-conviction AI defense/gov platform. AIP bootcamps expanding commercial pipeline." },
+  { ticker:"MU",   name:"Micron Technology",       current:2803, target:7,  divYield:0.5, locked:"✅ Keep", notes:"Tiny dividend. HBM3e AI memory — trimmed 1% given macro uncertainty at Buffett Indicator 185%. Thesis intact." },
+  { ticker:"CNQ",  name:"Cdn Natural Resources",   current:3174, target:9,  divYield:4.5, locked:"✅ Keep", notes:"Canadian dividend — full tax credit in TFSA. Trimmed 1% on Iran deal oil headwind ($82 WTI). Long-run $45/bbl cost advantage intact." },
+  { ticker:"XIU",  name:"iShares S&P/TSX 60",      current:1885, target:8,  divYield:2.8, locked:"✅ Keep", notes:"Canadian ETF — no WHT. BoC July/Sept cut is live base-case; TSX outperforming EM YTD on bank re-rating." },
+  { ticker:"BTCC", name:"Purpose Bitcoin ETF",     current:1387, target:5,  divYield:0,   locked:"✅ Keep", notes:"CAD-listed, crypto exposure capped at 5%. Risk appetite improving but don't add — trim if exceeds 5% on any rally." },
+  { ticker:"GOLD", name:"Physically Backed Gold",  current:1308, target:5,  divYield:0,   locked:"✅ Keep", notes:"Inflation hedge. CAD-denominated. Geopolitical floor from central bank buying intact — hold at 5% while Iran deal uncertain." },
+  { ticker:"VFV.TO",name:"Vanguard S&P 500 (CAD)", current:0,   target:16, divYield:1.3, locked:"🆕 NEW",  notes:"S&P 500 breakout above 7,500 + AI earnings broadening to small/mid-cap. Increased 1% — September rate cut re-rates the growth multiple." },
   { ticker:"MSFT", name:"Microsoft",               current:4260, target:0,  divYield:0.8, locked:"❌ SELL", notes:"MOVE TO RRSP — 0.8% dividend leaks 15% WHT." },
   { ticker:"AAPL", name:"Apple",                   current:3636, target:0,  divYield:0.5, locked:"❌ SELL", notes:"MOVE TO RRSP — save withholding on dividends." },
   { ticker:"META", name:"Meta Platforms",          current:2224, target:0,  divYield:0.4, locked:"❌ SELL", notes:"MOVE TO RRSP — dividend growing." },
@@ -62,17 +62,18 @@ const INITIAL_TFSA = [
 ];
 
 const INITIAL_RRSP = [
-  { ticker:"QQQM", name:"Invesco Nasdaq 100 ETF",  current:500,  target:15, divYield:0.6, locked:"✅ Keep",        notes:"Keep existing. U.S.-listed = 0% WHT." },
+  { ticker:"QQQM", name:"Invesco Nasdaq 100 ETF",  current:500,  target:12, divYield:0.6, locked:"✅ Keep",        notes:"U.S.-listed = 0% WHT. Trimmed 3% to fund ZAG.TO — Nasdaq exposure maintained via MSFT/META/AVGO individual positions." },
   { ticker:"SPDR", name:"SPDR S&P 500 (VOO)",      current:300,  target:0,  divYield:1.3, locked:"❌ SELL",        notes:"Consolidate into VTI for broader exposure." },
-  { ticker:"VXUS", name:"Vanguard Total Intl",     current:200,  target:5,  divYield:3.0, locked:"✅ Keep",        notes:"Keep existing. International diversification." },
-  { ticker:"VTI",  name:"Vanguard Total US Market",current:0,    target:30, divYield:1.3, locked:"🆕 NEW",         notes:"NEW core ETF. 0% WHT in RRSP. MER 0.03%." },
-  { ticker:"MSFT", name:"Microsoft",               current:0,    target:8,  divYield:0.8, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA. No WHT here." },
-  { ticker:"AAPL", name:"Apple",                   current:0,    target:6,  divYield:0.5, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA." },
-  { ticker:"TSM",  name:"Taiwan Semiconductor",    current:0,    target:7,  divYield:1.5, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA — biggest WHT saver." },
-  { ticker:"META", name:"Meta Platforms",          current:0,    target:5,  divYield:0.4, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA." },
-  { ticker:"ADI",  name:"Analog Devices",          current:0,    target:4,  divYield:1.8, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA." },
-  { ticker:"LLY",  name:"Eli Lilly",               current:0,    target:10, divYield:0.7, locked:"🆕 NEW",         notes:"NEW. GLP-1 + Alzheimer's. 20-year healthcare play." },
-  { ticker:"AVGO", name:"Broadcom",                current:0,    target:10, divYield:1.2, locked:"🆕 NEW",         notes:"NEW. Custom AI chips. Revenue doubling YoY." },
+  { ticker:"VXUS", name:"Vanguard Total Intl",     current:200,  target:5,  divYield:3.0, locked:"✅ Keep",        notes:"Keep existing. International diversification. BoC cut + weaker CAD supports international holdings." },
+  { ticker:"VTI",  name:"Vanguard Total US Market",current:0,    target:26, divYield:1.3, locked:"🆕 NEW",         notes:"Core broad US ETF. 0% WHT in RRSP. MER 0.03%. Trimmed 4% to fund ZAG.TO — bond allocation improves risk-adjusted return ahead of rate cuts." },
+  { ticker:"ZAG.TO",name:"BMO Agg Bond ETF (CAD)", current:0,    target:8,  divYield:3.8, locked:"🆕 NEW",         notes:"NEW — High priority. BoC July cut is live base-case (Canada CPI 2.1%). Duration rallies as curve steepens. CAD-denominated, no WHT, interest tax-deferred in RRSP." },
+  { ticker:"MSFT", name:"Microsoft",               current:0,    target:8,  divYield:0.8, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA. No WHT here. $70B AI capex plan directly feeds NVDA/AVGO revenue — cloud + AI platform moat intact." },
+  { ticker:"AAPL", name:"Apple",                   current:0,    target:6,  divYield:0.5, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA. AI integration into iOS (Apple Intelligence) + services flywheel accelerating." },
+  { ticker:"TSM",  name:"Taiwan Semiconductor",    current:0,    target:7,  divYield:1.5, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA — biggest WHT saver. Advanced node foundry monopoly; NVDA, Apple, AMD all dependent." },
+  { ticker:"META", name:"Meta Platforms",          current:0,    target:5,  divYield:0.4, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA. AI-driven ad targeting + Llama open-source moat. Dividend growing — correct to shelter WHT here." },
+  { ticker:"ADI",  name:"Analog Devices",          current:0,    target:3,  divYield:1.8, locked:"🆕 FROM TFSA",   notes:"Transfer from TFSA. Trimmed 1% — lowest conviction relative to peers. Industrial analog semi cycle lagging AI infra build-out." },
+  { ticker:"LLY",  name:"Eli Lilly",               current:0,    target:10, divYield:0.7, locked:"🆕 NEW",         notes:"GLP-1 IP pipeline + Alzheimer's (donanemab FDA approval). 20-year structural healthcare play. September rate cut re-rates the growth multiple." },
+  { ticker:"AVGO", name:"Broadcom",                current:0,    target:10, divYield:1.2, locked:"🆕 NEW",         notes:"Custom AI ASIC demand from Apple, MSFT, Meta doubling. Dividend grows 15%+ annually. Add on pullbacks — RRSP placement eliminates WHT drag." },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
