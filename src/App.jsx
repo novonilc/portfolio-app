@@ -574,21 +574,31 @@ function _ssHVRank(closes, period = 20) {
   const rank = (history[history.length - 1] - hvLow) / (hvHigh - hvLow) * 100;
   return parseFloat(Math.max(0, Math.min(100, rank)).toFixed(1));
 }
-// Morning Star: 3-candle bullish reversal — bearish D1, doji-like D2, bullish D3 above D1 midpoint
-function detectMorningStar(opens, highs, lows, closes) {
-  if (closes.length < 3) return false;
+// Morning Star star-quality scorer (0 = no pattern, 1–5 = pattern quality)
+// ★      1 — base pattern: D1 bearish ≥0.5%, D2 small star (<35% of D1), D3 bullish above D1 midpoint
+// ★★     2 — + D1 body ≥1% (meaningful selloff before reversal)
+// ★★★    3 — + D2 near-doji (body ≤10% of D1 — maximum indecision)
+// ★★★★   4 — + D3 closes in upper 60% of D1's body range (strong recovery)
+// ★★★★★  5 — + D3 closes above D1 open (complete bull recovery / engulfing)
+function scoreMorningStar(opens, highs, lows, closes) {
+  if (closes.length < 3) return 0;
   const n = closes.length;
   const [o1, c1] = [opens[n - 3], closes[n - 3]];
   const [o2, c2] = [opens[n - 2], closes[n - 2]];
   const [o3, c3] = [opens[n - 1], closes[n - 1]];
-  if ([o1, c1, o2, c2, o3, c3].some(v => v == null)) return false;
+  if ([o1, c1, o2, c2, o3, c3].some(v => v == null)) return 0;
   const d1Body = o1 - c1;
-  if (d1Body < o1 * 0.005) return false;           // D1 must be bearish with meaningful body
+  if (d1Body < o1 * 0.005) return 0;
   const d2Body = Math.abs(o2 - c2);
-  if (d2Body >= d1Body * 0.35) return false;        // D2 must be a small star
-  if (c3 <= o3) return false;                        // D3 must be bullish
-  if (c3 <= (o1 + c1) / 2) return false;            // D3 must close above D1 midpoint
-  return true;
+  if (d2Body >= d1Body * 0.35) return 0;
+  if (c3 <= o3) return 0;
+  if (c3 <= (o1 + c1) / 2) return 0;
+  let stars = 1;
+  if (d1Body >= o1 * 0.01) stars++;
+  if (d2Body <= d1Body * 0.10) stars++;
+  if (c3 >= c1 + (o1 - c1) * 0.60) stars++;
+  if (c3 >= o1) stars++;
+  return stars;
 }
 function _ssCspScore({ rsi, macd, price, sma50, sma200, vwap, volumeRatio, atrPct, hvPct, hvRank, bbPos }) {
   let score = 35; const signals = [];
@@ -1341,7 +1351,7 @@ export default function App() {
   const [scanMinUpside,     setScanMinUpside]     = useState(-100);
   const [scanMinScore,      setScanMinScore]      = useState(0);
   const [scanSigFilter,     setScanSigFilter]     = useState("all");
-  const [scanMornStarOnly,  setScanMornStarOnly]  = useState(false);
+  const [scanMornStarMin,   setScanMornStarMin]   = useState(0); // 0 = off, 1-5 = min stars required
   const [stockScanResults,  setStockScanResults]  = useState(null);
   const [stockScanProgress, setStockScanProgress] = useState(null);
   const [stockScanError,    setStockScanError]    = useState(null);
@@ -3471,9 +3481,9 @@ Return ONLY a valid JSON object, no markdown:
           const highs  = q.high  || [];
           const lows   = q.low   || [];
           const closes = rawCloses;
-          const morningStar = detectMorningStar(opens, highs, lows, closes);
+          const morningStarScore = scoreMorningStar(opens, highs, lows, closes);
           // Key result by original ticker so liveMap merge works correctly
-          return { ticker: orig, price: parseFloat(price.toFixed(2)), morningStar };
+          return { ticker: orig, price: parseFloat(price.toFixed(2)), morningStarScore };
         })
       );
 
@@ -12044,9 +12054,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const liveMap = stockScanResults
           ? Object.fromEntries(stockScanResults.stocks.map(r => [r.ticker, r.price]))
           : {};
-        const morningStarSet = stockScanResults
-          ? new Set(stockScanResults.stocks.filter(r => r.morningStar).map(r => r.ticker))
-          : new Set();
+        const morningStarMap = stockScanResults
+          ? Object.fromEntries(stockScanResults.stocks.filter(r => r.morningStarScore > 0).map(r => [r.ticker, r.morningStarScore]))
+          : {};
         const STOCKS = stockUniverseData.stocks.map(s =>
           liveMap[s.ticker] != null ? { ...s, price: liveMap[s.ticker] } : s
         );
@@ -12099,8 +12109,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const retireScore = computeRetireScore(s);
           const estCagr     = estimateRetireCagr(s);
           const r40         = computeR40(s);
-          const morningStar = morningStarSet.has(s.ticker);
-          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStar };
+          const morningStarScore = morningStarMap[s.ticker] ?? 0;
+          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12152,7 +12162,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (scanMinUpside > -100 && (s.upside == null || s.upside < scanMinUpside)) return false;
           if (scanMinScore  > 0    && (s.score  == null || s.score  < scanMinScore))  return false;
           if (scanSigFilter !== "all" && (!s.signal || s.signal.label !== scanSigFilter)) return false;
-          if (scanMornStarOnly && !s.morningStar) return false;
+          if (scanMornStarMin > 0 && (s.morningStarScore ?? 0) < scanMornStarMin) return false;
           return true;
         });
 
@@ -12621,19 +12631,30 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </button>
                 ))}
               </div>
-              {/* Morning Star pattern filter — only available after a live scan */}
-              {morningStarSet.size > 0 && (
+              {/* Morning Star star filter — only available after a live scan */}
+              {Object.keys(morningStarMap).length > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Pattern</span>
-                  <button
-                    onClick={() => setScanMornStarOnly(v => !v)}
-                    style={{ padding:"4px 10px", borderRadius:6, whiteSpace:"nowrap", cursor:"pointer",
-                      fontFamily:"inherit", fontSize:11, fontWeight:700,
-                      border:`1px solid ${scanMornStarOnly?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
-                      background: scanMornStarOnly?"rgba(251,191,36,0.12)":"rgba(255,255,255,0.04)",
-                      color: scanMornStarOnly?"#fbbf24":"#94a3b8" }}>
-                    ☀ Morning Star ({morningStarSet.size})
-                  </button>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Morning Star</span>
+                  {[0, 1, 2, 3, 4, 5].map(v => {
+                    const count = v === 0
+                      ? 0
+                      : Object.values(morningStarMap).filter(sc => sc >= v).length;
+                    const active = scanMornStarMin === v;
+                    const label = v === 0 ? "All" : "★".repeat(v);
+                    return (
+                      <button key={v}
+                        onClick={() => setScanMornStarMin(v)}
+                        title={v === 0 ? "Show all stocks" : `${v}★+ Morning Star (${count} stocks)`}
+                        style={{ padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          fontFamily:"inherit", fontSize:v === 0 ? 11 : 10, fontWeight:700,
+                          whiteSpace:"nowrap",
+                          border:`1px solid ${active?"rgba(251,191,36,0.5)":"rgba(255,255,255,0.1)"}`,
+                          background: active?"rgba(251,191,36,0.12)":"rgba(255,255,255,0.04)",
+                          color: active?"#fbbf24": v > 0 ? "#a16207" : "#94a3b8" }}>
+                        {label}{v > 0 ? ` (${count})` : ""}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -12734,11 +12755,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   color: rec.bestFor==="TFSA"?"#fbbf24":"#22d3ee",
                                   borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle" }}>{rec.bestFor}</span>
                               )}
-                              {s.morningStar && (
-                                <span title="Morning Star — 3-candle bullish reversal detected on latest daily bars"
-                                  style={{ fontSize:9, background:"rgba(251,191,36,0.13)", border:"1px solid rgba(251,191,36,0.42)",
+                              {s.morningStarScore > 0 && (
+                                <span title={`Morning Star ${s.morningStarScore}★ — 3-candle bullish reversal (${s.morningStarScore === 5 ? "perfect pattern" : s.morningStarScore >= 3 ? "strong pattern" : "basic pattern"})`}
+                                  style={{ fontSize:9,
+                                    background: s.morningStarScore === 5 ? "rgba(251,191,36,0.18)" : s.morningStarScore >= 3 ? "rgba(251,191,36,0.10)" : "rgba(251,191,36,0.06)",
+                                    border: `1px solid ${s.morningStarScore === 5 ? "rgba(251,191,36,0.55)" : "rgba(251,191,36,0.3)"}`,
                                     color:"#fbbf24", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle",
-                                    fontWeight:700 }}>☀ Morning★</span>
+                                    fontWeight:700 }}>☀{"★".repeat(s.morningStarScore)}</span>
                               )}
                             </td>
                             <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
