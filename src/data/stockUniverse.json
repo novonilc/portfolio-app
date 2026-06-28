@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-06-27",
+  "lastUpdated": "2026-06-28",
   "note": "Live data from Yahoo Finance. Moats are manually curated.",
   "stocks": [
     {
@@ -353,7 +353,7 @@
       "isBank": false,
       "moat": "Cybersecurity Platform",
       "price": 304.2,
-      "pe": 266.8,
+      "pe": 262.2,
       "fwdPe": 73.9,
       "epsGrowth": 0,
       "roe": 5,
@@ -1855,7 +1855,7 @@
       "moat": "North American Rail Duopoly",
       "price": 171,
       "pe": 22.5,
-      "fwdPe": 19.5,
+      "fwdPe": 19.4,
       "epsGrowth": 1,
       "roe": 22,
       "de": 1.06,
@@ -1912,7 +1912,7 @@
       "moat": "Covered Call Premium Income on S&P 500",
       "price": 153.23,
       "pe": 0,
-      "fwdPe": 1393,
+      "fwdPe": 779.1,
       "epsGrowth": 0,
       "roe": 0,
       "de": 0.74,
