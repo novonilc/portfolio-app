@@ -12095,6 +12095,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           });
         });
 
+        // Lookup maps needed inside the scan .map() callback — must be declared before scanned
+        const insiderMap  = insiderSignals?.signals  || {};
+
         // ── Main scan pass (uses committed filters) ──────────────────────────
         const scanned = STOCKS.filter(s => {
           if (f.ideasOnly && !REC_MAP[s.ticker]) return false;
@@ -12170,9 +12173,6 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
         // ── Analyst ratings lookup map: ticker → { consensus, trend, actions[] } ─
         const analystMap = analystRatings?.ratings || {};
-
-        // ── Insider signals lookup map: ticker → { signal, score, transactions[] } ─
-        const insiderMap = insiderSignals?.signals || {};
 
         // ── Live result filters (instant, no re-scan needed) ─────────────────
         const filtered = scanned.filter(s => {
