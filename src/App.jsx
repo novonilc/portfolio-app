@@ -1143,6 +1143,7 @@ const SCAN_PRESET_FILTERS = {
   ideas:      { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:true  },
   canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
   retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  insider:    { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
@@ -1156,6 +1157,7 @@ const SCAN_PRESETS = [
   { key:"ideas",      icon:"💡", label:"Ideas Picks",    desc:"Stocks curated in the Ideas tab"     },
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
   { key:"retire",     icon:"🏖️", label:"Retire in 10-15yr", desc:"High-growth compounders for a 45yr wealth plan" },
+  { key:"insider",    icon:"🕵️", label:"Insider Buying",  desc:"Stocks where insiders are net buyers of their own shares (Form 4)" },
 ];
 function computeScanScore(s) {
   let pts = 0;
@@ -1352,6 +1354,7 @@ export default function App() {
   const [scanMinScore,      setScanMinScore]      = useState(0);
   const [scanSigFilter,     setScanSigFilter]     = useState("all");
   const [scanMornStarMin,   setScanMornStarMin]   = useState(0); // 0 = off, 1-5 = min stars required
+  const [scanInsiderFilter, setScanInsiderFilter] = useState("all"); // "all" | "buying" | "distributing"
   const [stockScanResults,  setStockScanResults]  = useState(null);
   const [stockScanProgress, setStockScanProgress] = useState(null);
   const [stockScanError,    setStockScanError]    = useState(null);
@@ -1471,6 +1474,7 @@ export default function App() {
   const [bnnCalls,            setBnnCalls]            = useState(null);
   const [bnnDayIndex,         setBnnDayIndex]         = useState(0);
   const [analystRatings,      setAnalystRatings]      = useState(null);
+  const [insiderSignals,      setInsiderSignals]      = useState(null);
   const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
   const [aiOptionsError,      setAiOptionsError]      = useState(null);
   const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
@@ -1726,6 +1730,18 @@ export default function App() {
         const data = await res.json();
         if (data.ratings) setAnalystRatings(data);
       } catch { /* silently skip — ratings badges stay hidden */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load insider trading signals (SEC Form 4 via FMP) on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/public-data?key=insider-signals");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.signals) setInsiderSignals(data);
+      } catch { /* silently skip — insider badges stay hidden */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -12110,7 +12126,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const estCagr     = estimateRetireCagr(s);
           const r40         = computeR40(s);
           const morningStarScore = morningStarMap[s.ticker] ?? 0;
-          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore };
+          const insiderData      = insiderMap[s.ticker];
+          const insiderScore     = insiderData?.score ?? 50;
+          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12153,6 +12171,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         // ── Analyst ratings lookup map: ticker → { consensus, trend, actions[] } ─
         const analystMap = analystRatings?.ratings || {};
 
+        // ── Insider signals lookup map: ticker → { signal, score, transactions[] } ─
+        const insiderMap = insiderSignals?.signals || {};
+
         // ── Live result filters (instant, no re-scan needed) ─────────────────
         const filtered = scanned.filter(s => {
           if (scanSearch.trim()) {
@@ -12163,6 +12184,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (scanMinScore  > 0    && (s.score  == null || s.score  < scanMinScore))  return false;
           if (scanSigFilter !== "all" && (!s.signal || s.signal.label !== scanSigFilter)) return false;
           if (scanMornStarMin > 0 && (s.morningStarScore ?? 0) < scanMornStarMin) return false;
+          if (scanInsiderFilter === "buying"      && (s.insiderScore ?? 50) < 65)  return false;
+          if (scanInsiderFilter === "distributing" && (s.insiderScore ?? 50) > 35) return false;
           return true;
         });
 
@@ -12458,6 +12481,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       setScanFilters(pf);
                       setScanCommitted(pf);
                       setScanDirty(false);
+                      setScanInsiderFilter(key === "insider" ? "buying" : "all");
                     }}
                     style={{ fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:6 }}>
                     <span>{icon}</span>
@@ -12484,6 +12508,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     setScanFilters(def);
                     setScanCommitted(def);
                     setScanDirty(false);
+                    setScanInsiderFilter("all");
                   }}
                   style={{ marginLeft:"auto", fontSize:11, color:"#64748b", background:"none",
                     border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"3px 10px", cursor:"pointer" }}>
@@ -12631,6 +12656,34 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   </button>
                 ))}
               </div>
+              {/* Insider signal filter — only shown when data is loaded */}
+              {Object.keys(insiderMap).length > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Insider</span>
+                  {[
+                    { v:"all",          label:"All",            color:"#94a3b8" },
+                    { v:"buying",       label:"▲ Accumulating", color:"#22c55e" },
+                    { v:"distributing", label:"▼ Distributing", color:"#ef4444" },
+                  ].map(({ v, label, color }) => {
+                    const active = scanInsiderFilter === v;
+                    const count  = v === "all" ? null
+                      : v === "buying" ? Object.values(insiderMap).filter(x => x.score >= 65).length
+                      : Object.values(insiderMap).filter(x => x.score <= 35).length;
+                    return (
+                      <button key={v}
+                        onClick={() => setScanInsiderFilter(v)}
+                        style={{ padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          fontFamily:"inherit", fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                          border:`1px solid ${active ? `${color}80` : "rgba(255,255,255,0.1)"}`,
+                          background: active ? `${color}18` : "rgba(255,255,255,0.04)",
+                          color: active ? color : "#94a3b8" }}>
+                        {label}{count !== null ? ` (${count})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Morning Star star filter — only available after a live scan */}
               {Object.keys(morningStarMap).length > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -12762,6 +12815,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                     border: `1px solid ${s.morningStarScore === 5 ? "rgba(251,191,36,0.55)" : "rgba(251,191,36,0.3)"}`,
                                     color:"#fbbf24", borderRadius:4, padding:"0 5px", marginLeft:3, verticalAlign:"middle",
                                     fontWeight:700 }}>☀{"★".repeat(s.morningStarScore)}</span>
+                              )}
+                              {s.insiderData && s.insiderData.signal !== "Neutral" && (
+                                <span title={`Insider ${s.insiderData.signal} — score ${s.insiderScore}/100 · net ${s.insiderData.netBuyM >= 0 ? "+" : ""}$${s.insiderData.netBuyM}M · ${s.insiderData.clusterBuy ? "cluster buying" : `${s.insiderData.buyerCount} buyer${s.insiderData.buyerCount !== 1 ? "s" : ""}`} in 90d`}
+                                  style={{ fontSize:9, fontWeight:800, padding:"0 5px", borderRadius:4, marginLeft:3,
+                                    verticalAlign:"middle", display:"inline-block",
+                                    background: s.insiderData.signal === "Accumulating" ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.12)",
+                                    border: `1px solid ${s.insiderData.signal === "Accumulating" ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
+                                    color: s.insiderData.signal === "Accumulating" ? "#22c55e" : "#ef4444" }}>
+                                  {s.insiderData.signal === "Accumulating" ? "▲ INS" : "▼ INS"}
+                                </span>
                               )}
                             </td>
                             <td className="td" style={{ maxWidth:150, overflow:"hidden", textOverflow:"ellipsis",
@@ -12999,7 +13062,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             return (
                               <tr style={{ background:"rgba(15,23,42,0.6)", borderLeft: panelBorder }}>
                                 <td colSpan={18} style={{ padding:"14px 20px 18px" }}>
-                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:16, alignItems:"start" }}>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:16, alignItems:"start" }}>
 
                                     {/* ── Sector peers ── */}
                                     <div>
@@ -13177,6 +13240,90 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                           );
                                         })()}
                                       </div>
+                                    </div>
+
+                                    {/* ── Insider Trading (SEC Form 4) ── */}
+                                    <div>
+                                      <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                        marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                        🕵️ Insider Transactions
+                                      </div>
+                                      {(() => {
+                                        const ins = insiderMap[s.ticker];
+                                        if (!ins) {
+                                          return (
+                                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                                              No insider data yet.
+                                              {!insiderSignals && <span> Trigger /api/refresh-insider-signals to populate.</span>}
+                                            </div>
+                                          );
+                                        }
+                                        const sc = ins.signal === "Accumulating" ? "#22c55e"
+                                          : ins.signal === "Distributing" ? "#ef4444" : "#64748b";
+                                        return (
+                                          <div>
+                                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+                                              <span style={{ fontSize:11, fontWeight:800, color:sc }}>{ins.signal}</span>
+                                              <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                                                score {ins.score}/100 · 90d
+                                              </span>
+                                              {ins.clusterBuy && (
+                                                <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3,
+                                                  background:"rgba(34,197,94,0.12)", color:"#22c55e",
+                                                  border:"1px solid rgba(34,197,94,0.3)" }}>
+                                                  Cluster
+                                                </span>
+                                              )}
+                                            </div>
+                                            {(ins.totalBuyM > 0 || ins.totalSellM > 0) && (
+                                              <div style={{ marginBottom:8 }}>
+                                                <div style={{ display:"flex", height:5, borderRadius:3, overflow:"hidden", marginBottom:4 }}>
+                                                  <div style={{ flex: ins.totalBuyM || 0,  background:"#22c55e", opacity:0.7 }} />
+                                                  <div style={{ flex: ins.totalSellM || 0, background:"#ef4444", opacity:0.5 }} />
+                                                </div>
+                                                <div style={{ display:"flex", gap:8, fontSize:9, color:"rgba(255,255,255,0.3)", flexWrap:"wrap" }}>
+                                                  <span style={{ color:"#22c55e" }}>▲ ${ins.totalBuyM}M</span>
+                                                  <span style={{ color:"#ef4444" }}>▼ ${ins.totalSellM}M</span>
+                                                  <span style={{ color: ins.netBuyM >= 0 ? "#22c55e" : "#ef4444" }}>
+                                                    Net {ins.netBuyM >= 0 ? "+" : ""}${ins.netBuyM}M
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            )}
+                                            {ins.transactions?.length > 0 ? (
+                                              <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                                {ins.transactions.slice(0, 5).map((tx, ti) => {
+                                                  const tc = tx.type === "buy" ? "#22c55e" : "#ef4444";
+                                                  return (
+                                                    <div key={ti} style={{ display:"flex", alignItems:"center",
+                                                      gap:5, fontSize:9, color:"rgba(255,255,255,0.5)" }}>
+                                                      <span style={{ color:tc, fontWeight:700 }}>
+                                                        {tx.type === "buy" ? "▲" : "▼"}
+                                                      </span>
+                                                      <span style={{ fontWeight:600, color:"rgba(255,255,255,0.65)",
+                                                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                                                        maxWidth:80 }}>{tx.name}</span>
+                                                      <span style={{ color:"rgba(255,255,255,0.3)", fontSize:8 }}>{tx.role}</span>
+                                                      <span style={{ marginLeft:"auto", fontFamily:"'JetBrains Mono',monospace",
+                                                        color:tc, whiteSpace:"nowrap" }}>
+                                                        ${tx.valueM}M
+                                                      </span>
+                                                      <span style={{ fontFamily:"'JetBrains Mono',monospace",
+                                                        color:"rgba(255,255,255,0.2)", whiteSpace:"nowrap" }}>
+                                                        {tx.date}
+                                                      </span>
+                                                    </div>
+                                                  );
+                                                })}
+                                              </div>
+                                            ) : (
+                                              <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                                                No open-market transactions in 90d.
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
 
                                     {/* ── Ideas thesis ── */}
