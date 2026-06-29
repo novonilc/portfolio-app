@@ -1170,8 +1170,11 @@ function computeScanScore(s) {
   const r = s.roe != null ? Math.min(s.roe, 100) : null;
   pts += r != null ? (r>=40?20:r>=25?16:r>=18?12:r>=12?7:2) : 0;
   if (s.isBank) { pts += 8; } else { const d=s.de; pts += d != null ? (d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?5:d<2.5?2:0) : 0; }
-  const f = s.fcfYield;
-  pts += f != null ? (f>=8?20:f>=6?16:f>=4?11:f>=2?6:1) : 0;
+  // FCF: use forward FCF yield (estimated) when EPS growth is available — more predictive
+  const fcfGrowth    = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
+  const fwdFcfYield  = (s.fcfYield > 0 && fcfGrowth > 0) ? s.fcfYield * (1 + fcfGrowth / 100) : s.fcfYield;
+  const f = fwdFcfYield;
+  pts += f != null && f > 0 ? (f>=8?20:f>=6?16:f>=4?11:f>=2?6:1) : 0;
   const g = s.grossMargin;
   pts += g != null ? (g>=70?10:g>=50?8:g>=35?5:2) : 0;
   // Growth: epsGrowth for profitable companies; revGrowth fallback for pre-profitable
@@ -1228,6 +1231,19 @@ function ScanPill({ value, color }) {
     </span>
   );
 }
+// Forward P/FCF ─────────────────────────────────────────────────────────────────
+// Yahoo Finance doesn't expose forward FCF directly, so we proxy it:
+//   forward FCF ≈ trailing FCF × (1 + consensus EPS growth%)
+// which gives:  fwdPFcf = (100/fcfYield) / (1 + epsGrowth/100)
+// When no growth estimate is available, returns the trailing P/FCF.
+function computeFwdPFcf(s) {
+  if (!s.fcfYield || s.fcfYield <= 0) return null;
+  const trailingPFcf = 100 / s.fcfYield;
+  const growthPct    = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
+  const result = growthPct > 0 ? trailingPFcf / (1 + growthPct / 100) : trailingPFcf;
+  return Math.round(result * 10) / 10;
+}
+
 // Fair-price engine ─────────────────────────────────────────────────────────────
 // Returns estimated intrinsic value using two methods:
 //   Growth stocks  (epsGrowth ≥ 5) : Lynch PEG — Fair PE = growth × targetPEG
@@ -12131,7 +12147,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const morningStarScore = morningStarMap[s.ticker] ?? 0;
           const insiderData      = insiderMap[s.ticker];
           const insiderScore     = insiderData?.score ?? 50;
-          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData };
+          const fwdPFcf          = computeFwdPFcf(s);
+          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12210,13 +12227,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           );
         }
 
-        const peC   = v => v<=12?"#22c55e":v<=18?"#86efac":v<=25?"#fbbf24":v<=35?"#fb923c":"#ef4444";
-        const pegC  = v => v<=1.0?"#22c55e":v<=1.5?"#86efac":v<=2.0?"#fbbf24":v<=3.0?"#fb923c":"#ef4444";
-        const roeC  = v => { const r=Math.min(v,100); return r>=40?"#22c55e":r>=25?"#86efac":r>=15?"#fbbf24":r>=10?"#fb923c":"#ef4444"; };
-        const deC   = v => v<0.3?"#22c55e":v<0.7?"#86efac":v<1.2?"#fbbf24":v<2.0?"#fb923c":"#ef4444";
-        const fcfC  = v => v>=7?"#22c55e":v>=4?"#86efac":v>=2?"#fbbf24":v>=0.5?"#fb923c":"#ef4444";
-        const sC    = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
-        const r40C  = v => v>=100?"#22c55e":v>=80?"#86efac":v>=60?"#fbbf24":v>=40?"#fb923c":"#64748b";
+        const peC    = v => v<=12?"#22c55e":v<=18?"#86efac":v<=25?"#fbbf24":v<=35?"#fb923c":"#ef4444";
+        const pegC   = v => v<=1.0?"#22c55e":v<=1.5?"#86efac":v<=2.0?"#fbbf24":v<=3.0?"#fb923c":"#ef4444";
+        const roeC   = v => { const r=Math.min(v,100); return r>=40?"#22c55e":r>=25?"#86efac":r>=15?"#fbbf24":r>=10?"#fb923c":"#ef4444"; };
+        const deC    = v => v<0.3?"#22c55e":v<0.7?"#86efac":v<1.2?"#fbbf24":v<2.0?"#fb923c":"#ef4444";
+        const fcfC   = v => v>=7?"#22c55e":v>=4?"#86efac":v>=2?"#fbbf24":v>=0.5?"#fb923c":"#ef4444";
+        const pfcfC  = v => v<=15?"#22c55e":v<=22?"#86efac":v<=30?"#fbbf24":v<=40?"#fb923c":"#ef4444";
+        const sC     = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
+        const r40C   = v => v>=100?"#22c55e":v>=80?"#86efac":v>=60?"#fbbf24":v>=40?"#fb923c":"#64748b";
 
         const METRIC_INFO = [
           { icon:"💵", label:"P/E Ratio",    good:"< 15",   color:"#22d3ee",
@@ -12227,6 +12245,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             why:"How efficiently the company uses shareholders' money. ROE > 15–20% is the signature of a business with a durable competitive moat." },
           { icon:"💰", label:"FCF Yield",    good:"> 4%",   color:"#fbbf24",
             why:"Free cash flow ÷ price. Unlike P/E, FCF is hard to fake. A 5%+ yield means the business generates real cash you can trust." },
+          { icon:"🔮", label:"Fwd P/FCF",   good:"< 22×",  color:"#a78bfa",
+            why:"Forward Price-to-Free-Cash-Flow. Estimated by applying consensus EPS growth to trailing FCF — a more predictive valuation than trailing P/FCF since it prices in the cash the business should generate next year. Under 22× is well-priced; over 40× is expensive relative to cash generation." },
           { icon:"🔟", label:"R40 Score",    good:"≥ 80",   color:"#86efac",
             why:"Rule of 40 proxy: EPS Growth (capped 50%) + Gross Margin. A score ≥ 80 means the business either grows fast, has high-quality margins, or both — the hallmark of elite tech and compounders. Banks excluded." },
         ];
@@ -12236,6 +12256,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           { icon:"📊", title:"P/E is Context-Dependent", desc:"P/E 15 on a 20% grower (PEG 0.75) is cheap. P/E 15 on a 0% grower is still expensive." },
           { icon:"🏦", title:"Debt Amplifies Risk", desc:"D/E > 1.5× for non-banks means the company cuts dividends first and fails worst in recessions." },
           { icon:"💸", title:"FCF Beats Reported EPS", desc:"EPS can be smoothed via accounting. FCF cannot. FCF yield > 5% = genuinely cheap, regardless of P/E." },
+          { icon:"🔮", title:"Forward P/FCF Catches Cheap Growers", desc:"A stock with trailing P/FCF 40× but 30% FCF growth has a forward P/FCF of ~31× — that's a very different picture. The scanner uses forward FCF yield (estimated) in the quality score." },
           { icon:"📉", title:"Beware Value Traps", desc:"Low P/E + declining EPS = the ratio gets more expensive every quarter. Check EPS growth first." },
           { icon:"🔁", title:"Compounders Compound", desc:"ROE 25% + retained earnings = equity doubles every ~3 years. Time — not timing — is the edge." },
           { icon:"🔟", title:"Rule of 40", desc:"Great growth companies score ≥ 80 on R40 (EPS growth + gross margin). Below 40 = either shrinking fast or margins are too thin to sustain the business." },
@@ -12733,7 +12754,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             ) : (
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1320 }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1430 }}>
                   <thead>
                     <tr>
                       {th("ticker","Ticker")}
@@ -12745,6 +12766,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("roe","ROE %")}
                       {th("de","D/E")}
                       {th("fcfYield","FCF Yld")}
+                      {th("fwdPFcf","Fwd P/FCF")}
                       {th("divYield","Div %")}
                       {th("epsGrowth","EPS Grw")}
                       {th("r40","R40")}
@@ -12935,6 +12957,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               {s.fcfYield != null ? <ScanPill value={`${s.fcfYield}%`} color={fcfC(s.fcfYield)} />
                                 : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
+                            {/* Forward P/FCF */}
+                            <td className="td" style={{ textAlign:"right" }}>
+                              {s.fwdPFcf != null ? (
+                                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:1 }}>
+                                  <ScanPill value={`${s.fwdPFcf}×`} color={pfcfC(s.fwdPFcf)} />
+                                  <span style={{ fontSize:8, color:"rgba(255,255,255,0.22)",
+                                    fontFamily:"'JetBrains Mono',monospace" }}>
+                                    {s.epsGrowth > 0 ? "fwd est" : "trailing"}
+                                  </span>
+                                </div>
+                              ) : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
+                            </td>
                             <td className="td" style={{ textAlign:"right",
                               color: (s.divYield??0)>=4?"#22c55e":(s.divYield??0)>=2?"#fbbf24":(s.divYield??0)>0?"#94a3b8":"#334155",
                               fontFamily:"'JetBrains Mono',monospace", fontSize:12 }}>
@@ -13061,7 +13095,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               : hasBnn ? `2px solid ${bnnColor}55` : "2px solid rgba(255,255,255,0.07)";
                             return (
                               <tr style={{ background:"rgba(15,23,42,0.6)", borderLeft: panelBorder }}>
-                                <td colSpan={18} style={{ padding:"14px 20px 18px" }}>
+                                <td colSpan={19} style={{ padding:"14px 20px 18px" }}>
                                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:16, alignItems:"start" }}>
 
                                     {/* ── Sector peers ── */}
