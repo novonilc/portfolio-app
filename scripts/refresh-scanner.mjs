@@ -65,6 +65,7 @@ const US_STOCKS = [
   { ticker:'BLK',   name:'BlackRock',               sector:'Financials',            mktCap:'large' },
   { ticker:'MSCI',  name:'MSCI Inc',                sector:'Financials',            mktCap:'large' },
   { ticker:'PYPL',  name:'PayPal',                  sector:'Fintech',               mktCap:'large' },
+  { ticker:'HOOD',  name:'Robinhood Markets',        sector:'Fintech',               mktCap:'mid'   },
   { ticker:'KKR',   name:'KKR & Co',                sector:'Financials',            mktCap:'large' },
   // Healthcare (10)
   { ticker:'LLY',   name:'Eli Lilly',               sector:'Healthcare',            mktCap:'mega'  },
@@ -167,7 +168,8 @@ const CURATED_MOATS = {
   MA:'Global Payment Network',         AXP:'Premium Brand / Network',
   'BRK.B':'Diversified Conglomerate',  SCHW:'Brokerage Scale',
   BLK:'Asset Management Scale',        MSCI:'Index Licensing Oligopoly',
-  PYPL:'Digital Payments Network',     KKR:'Alternative Asset Management',
+  PYPL:'Digital Payments Network',     HOOD:'Retail Brokerage + Crypto Platform',
+  KKR:'Alternative Asset Management',
   LLY:'GLP-1 IP Pipeline',            JNJ:'Diversified Pharma / MedTech',
   ABBV:'Immunology IP',               UNH:'MCO Scale & Data Advantage',
   ISRG:'Robotic Surgery Platform',     NVO:'GLP-1 Dual IP Estate',
