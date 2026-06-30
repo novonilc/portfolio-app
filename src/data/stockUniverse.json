@@ -326,6 +326,25 @@
       "peg": 0
     },
     {
+      "ticker": "ALAB",
+      "name": "Astera Labs",
+      "sector": "Technology",
+      "market": "US",
+      "mktCap": "mid",
+      "isBank": false,
+      "moat": "AI Data Center Connectivity Chips",
+      "price": 85.0,
+      "pe": 120,
+      "fwdPe": 55,
+      "epsGrowth": 200,
+      "roe": 20,
+      "de": 0.05,
+      "divYield": 0,
+      "grossMargin": 63,
+      "fcfYield": 0.5,
+      "peg": 0.6
+    },
+    {
       "ticker": "ANET",
       "name": "Arista Networks",
       "sector": "Technology",

@@ -19,7 +19,7 @@ const BATCH_DELAY_MS = 400;  // pause between batches (FMP rate limit buffer)
 // All tickers from stockUniverse.json — keep in sync when universe grows.
 const UNIVERSE_TICKERS = [
   "AAPL","MSFT","NVDA","GOOGL","META","AMZN","AVGO","ORCL","AMD","MU","QCOM",
-  "TSM","ARM","NOW","CRWD","PLTR","MRVL","ANET","PANW","FICO","INTC","ADBE",
+  "TSM","ARM","NOW","CRWD","PLTR","MRVL","ALAB","ANET","PANW","FICO","INTC","ADBE",
   "CRM","ASML","JPM","BAC","GS","V","MA","AXP","BRK.B","SCHW","BLK","MSCI",
   "PYPL","HOOD","KKR","LLY","JNJ","ABBV","UNH","ISRG","NVO","MRK","AMGN","IDXX",
   "HIMS","KO","PG","COST","WMT","MNST","HD","NFLX","TSLA","NKE","MCD","SBUX",

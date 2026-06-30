@@ -13,7 +13,7 @@ const SCAN_TICKERS = [
   // Cloud / SaaS
   "SNOW", "DDOG", "CRWD", "ZS", "NET", "MDB", "TEAM",
   // Semiconductors
-  "AVGO", "QCOM", "MU", "SMCI", "AMAT", "LRCX",
+  "AVGO", "QCOM", "MU", "SMCI", "AMAT", "LRCX", "ALAB",
   // Financials
   "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C",
   // Healthcare & Pharma
