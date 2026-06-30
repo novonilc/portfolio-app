@@ -2785,11 +2785,31 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         return s + (cur === "USD" ? h.current * fxRate : h.current);
       }, 0);
 
+      const insiderMap  = insiderSignals?.signals  || {};
+      const analystMap  = analystRatings?.ratings  || {};
+
       const lines = snap.map(h => {
         const cur    = getTickerCurrency(h.ticker, h.currencyOverride);
         const cadVal = cur === "USD" ? h.current * fxRate : h.current;
         const pct    = totalCAD > 0 ? ((cadVal / totalCAD) * 100).toFixed(1) : "0.0";
-        return `${h.ticker} | ${h.name} | ${cur} | C$${Math.round(cadVal).toLocaleString()} (${pct}% of portfolio) | divYield:${h.divYield ?? 0}% | currentTarget:${h.target}%`;
+
+        const uni        = stockUniverseData.stocks.find(s => s.ticker === h.ticker);
+        const scanScore  = uni ? computeScanScore(uni) : null;
+
+        const insider    = insiderMap[h.ticker];
+        const insiderLbl = insider?.signal ?? null;
+
+        const analyst    = analystMap[h.ticker];
+        const analystLbl = analyst?.consensus ?? null;
+        const analystTrend = analyst?.trend ?? null;
+
+        const extras = [
+          scanScore != null ? `scanScore:${scanScore}/100` : null,
+          insiderLbl         ? `insider:${insiderLbl}`      : null,
+          analystLbl         ? `analyst:${analystLbl}${analystTrend ? `(${analystTrend})` : ""}` : null,
+        ].filter(Boolean).join(" | ");
+
+        return `${h.ticker} | ${h.name} | ${cur} | C$${Math.round(cadVal).toLocaleString()} (${pct}% of portfolio) | divYield:${h.divYield ?? 0}% | currentTarget:${h.target}%${extras ? ` | ${extras}` : ""}`;
       }).join("\n");
 
       const regime      = marketPulse?.regime?.label    || "Unknown";
@@ -2816,15 +2836,21 @@ USD/CAD: ${fxRate}
 Account-specific rule:
 ${acctRules[account] || "Optimise for long-term growth."}
 
-Current holdings (ticker | name | currency | CAD value | divYield | currentTarget):
+Current holdings (ticker | name | currency | CAD value | divYield | currentTarget | scanner signals):
 ${lines}
+
+Scanner signal key (when present):
+- scanScore/100: fundamental quality score (PEG, ROE, D/E, FCF yield, gross margin, EPS growth) — higher = stronger
+- insider: Accumulating (insiders net buying) / Distributing (net selling) / Neutral
+- analyst: analyst consensus (buy/hold/sell) with recent trend (upgrading/downgrading/stable)
+Weight scanner signals alongside account-type rules — prefer higher-scoring stocks for larger targets; treat "Distributing" or "downgrading" as a reason to trim.
 
 Instructions:
 - Assign a "target" integer % to each ticker — they must sum to EXACTLY 100
 - Maximum 25% for any single equity position
 - Set target to 0 only if you have a strong reason to exit the position
 - Also provide updated "cagr" (5-yr estimate, integer 5-25) and "divYield" (%, one decimal) per ticker
-- "rationale": one sharp sentence — what drives the target change
+- "rationale": one sharp sentence — what drives the target change (reference scanner signals when they influenced the decision)
 
 Return ONLY a JSON array, no markdown:
 [{"ticker":"NVDA","target":18,"cagr":18,"divYield":0.0,"rationale":"AI compute moat; TFSA-optimal growth with minimal WHT drag"}]`;
