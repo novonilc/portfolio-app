@@ -224,7 +224,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchFundamentals(ticker, crumb, cookies) {
   const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(ticker)}` +
-              `?modules=summaryDetail,financialData,defaultKeyStatistics&crumb=${encodeURIComponent(crumb)}`;
+              `?modules=summaryDetail,financialData,defaultKeyStatistics,earningsTrend&crumb=${encodeURIComponent(crumb)}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': UA, 'Cookie': cookies },
     signal: AbortSignal.timeout(12000),
@@ -237,6 +237,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const sd = result.summaryDetail          || {};
   const fd = result.financialData          || {};
   const ks = result.defaultKeyStatistics   || {};
+  const et = result.earningsTrend          || {};
 
   const r1 = v => Math.round(v * 10) / 10;
   const r2 = v => Math.round(v * 100) / 100;
@@ -251,10 +252,17 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const rawFcf   = fd.freeCashflow?.raw;
   const rawMcap  = sd.marketCap?.raw;
   const rawPrice = fd.currentPrice?.raw ?? sd.regularMarketPrice?.raw ?? sd.previousClose?.raw;
+  // Forward EPS growth (next fiscal year consensus) — far less distorted by one-time
+  // GAAP items (SBC, M&A integration costs, buyback timing) than trailing earningsGrowth.
+  // Falls back through +1y → 0y → +5y trend entries; whichever the analyst panel covers.
+  const trend    = et.trend || [];
+  const fwdTrend = trend.find(t => t.period === '+1y') || trend.find(t => t.period === '0y') || trend.find(t => t.period === '+5y');
+  const rawFwdEpsG = fwdTrend?.growth?.raw;
 
   const pe          = rawPe    != null ? r1(rawPe)               : null;
   const fwdPe       = rawFwdPe != null ? r1(rawFwdPe)            : null;
   const epsGrowth   = rawEpsG  != null ? Math.round(rawEpsG*100) : null;
+  const fwdEpsGrowth= rawFwdEpsG != null ? Math.round(rawFwdEpsG*100) : null;
   const roe         = rawRoe   != null ? Math.round(rawRoe*100)  : null;
   const de          = rawDe    != null ? r2(rawDe / 100)         : null;
   const divYield    = rawDivY  != null ? r1(rawDivY * 100)       : null;
@@ -265,7 +273,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
                       ? r2(pe / epsGrowth) : null;
   const price       = rawPrice != null ? r2(rawPrice)            : null;
 
-  return { pe, fwdPe, epsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
+  return { pe, fwdPe, epsGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
 }
 
 async function main() {
@@ -298,6 +306,7 @@ async function main() {
         pe:          live.pe          ?? 0,
         fwdPe:       live.fwdPe       ?? 0,
         epsGrowth:   live.epsGrowth   ?? 0,
+        fwdEpsGrowth:live.fwdEpsGrowth?? 0,
         roe:         live.roe         ?? 0,
         de:          live.de          ?? 0,
         divYield:    live.divYield    ?? 0,
