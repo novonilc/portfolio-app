@@ -1599,6 +1599,25 @@
       "peg": 1.92
     },
     {
+      "ticker": "DRAM",
+      "name": "Roundhill Memory ETF",
+      "sector": "ETF",
+      "market": "US",
+      "mktCap": "large",
+      "isBank": false,
+      "moat": "Pure-Play Memory Chip Basket (Samsung, SK Hynix, Micron)",
+      "price": 73.46,
+      "pe": 0,
+      "fwdPe": 0,
+      "epsGrowth": 0,
+      "roe": 0,
+      "de": 0,
+      "divYield": 0.15,
+      "grossMargin": 0,
+      "fcfYield": 0,
+      "peg": 0
+    },
+    {
       "ticker": "ENB",
       "name": "Enbridge",
       "sector": "Energy Infra",

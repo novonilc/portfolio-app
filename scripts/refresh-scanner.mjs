@@ -126,6 +126,8 @@ const US_STOCKS = [
   { ticker:'CEG',   name:'Constellation Energy',    sector:'AI Power',              mktCap:'large' },
   { ticker:'GEV',   name:'GE Vernova',              sector:'AI Power',              mktCap:'large' },
   { ticker:'PWR',   name:'Quanta Services',         sector:'AI Power',              mktCap:'large' },
+  // ETFs (1)
+  { ticker:'DRAM',  name:'Roundhill Memory ETF',    sector:'ETF',                   mktCap:'large' },
 ];
 
 const CA_STOCKS = [
@@ -198,6 +200,7 @@ const CURATED_MOATS = {
   CEG:'Largest US Nuclear Fleet + Clean Power Contracts',
   GEV:'Gas Turbine + Grid Equipment Duopoly',
   PWR:'Electric Grid Infrastructure Build-out',
+  DRAM:'Pure-Play Memory Chip Basket (Samsung, SK Hynix, Micron)',
   ENB:'Regulated Pipeline Monopoly',    TRP:'Regulated Canadian Pipeline',
   TD:'Canadian Banking Oligopoly',      RY:'Canadian Banking Oligopoly',
   BNS:'LatAm Banking Franchise',        BMO:'Canadian Banking Oligopoly',

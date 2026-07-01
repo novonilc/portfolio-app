@@ -272,6 +272,22 @@
       "risks": ["Consumer spending slowdown reduces traffic and royalty revenue directly", "Reputational risk from decentralised franchisee operations (food safety, labour disputes)", "Currency headwinds on international revenue repatriation to USD"],
       "tags": ["Franchise", "Consumer Defensive", "Dividend", "Global", "Recession-Resistant"],
       "fills": ["consumer", "international-franchise"]
+    },
+    {
+      "ticker": "DRAM",
+      "name": "Roundhill Memory ETF",
+      "type": "etf",
+      "role": "growth",
+      "sector": "ETF",
+      "bestFor": "TFSA",
+      "conviction": "Medium",
+      "divYield": 0.15,
+      "cagr": 12,
+      "moat": "First-Mover Pure-Play Memory Basket",
+      "thesis": "The first ETF built entirely around DRAM, HBM, and NAND memory suppliers — a direct, concentrated bet on the AI infrastructure buildout's most cyclically explosive layer. Holds Samsung (~25%), SK Hynix (~24%), and Micron (~24%) across just 15 positions, becoming the fastest ETF in history to reach $10B AUM (43 days after its April 2, 2026 launch) as HBM demand for AI accelerators outstripped supply. Near-zero 0.15% yield means WHT drag is immaterial — TFSA lets the (likely volatile) capital gains compound tax-free, which is the entire point of holding this rather than the underlying names individually.",
+      "risks": ["73% of the fund sits in just three names (Samsung, SK Hynix, Micron) — this is a concentrated 3-stock bet dressed as a diversified ETF", "Memory chips are a notoriously boom-bust commodity cycle; the fund's 134% YTD run reflects an unusually strong up-cycle that has historically mean-reverted hard", "Only 3 months of trading history at time of writing, and a 2x-leveraged sibling product (RAM) signals this is being marketed as a momentum vehicle, not a core holding — size accordingly", "0.65% expense ratio is high relative to broad semiconductor index ETFs"],
+      "tags": ["ETF", "AI Infrastructure", "Memory Chips", "Thematic", "High Volatility"],
+      "fills": ["ai-infra", "semis"]
     }
   ]
 }
