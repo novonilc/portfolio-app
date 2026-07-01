@@ -13,11 +13,12 @@ import { list } from "@vercel/blob";
 const MAX_BNN_DAYS = 5;
 
 const CONFIG = {
-  pulse:              { prefix: "market-pulse/latest",    maxAge: 3600  },
-  "options-signals":  { prefix: "options-signals/latest", maxAge: 3600  },
-  "csp-cc-picks":     { prefix: "csp-cc-picks/latest",   maxAge: 3600  },
-  "analyst-ratings":  { prefix: "analyst-ratings/latest", maxAge: 21600 },
-  "insider-signals":  { prefix: "insider-signals/latest", maxAge: 43200 },
+  pulse:                    { prefix: "market-pulse/latest",           maxAge: 3600  },
+  "options-signals":        { prefix: "options-signals/latest",        maxAge: 3600  },
+  "csp-cc-picks":           { prefix: "csp-cc-picks/latest",          maxAge: 3600  },
+  "analyst-ratings":        { prefix: "analyst-ratings/latest",        maxAge: 21600 },
+  "insider-signals":        { prefix: "insider-signals/latest",        maxAge: 43200 },
+  "recommendations-context":{ prefix: "recommendations-context/latest",maxAge: 21600 },
 };
 
 async function handleBnn(res) {
@@ -63,7 +64,7 @@ export default async function handler(req, res) {
   try {
     if (key === "bnn")       return await handleBnn(res);
     if (CONFIG[key])         return await handleSimple(key, CONFIG[key], res);
-    return res.status(400).json({ error: `Unknown key '${key}'. Valid: bnn, pulse, options-signals, csp-cc-picks, analyst-ratings, insider-signals` });
+    return res.status(400).json({ error: `Unknown key '${key}'. Valid: bnn, pulse, options-signals, csp-cc-picks, analyst-ratings, insider-signals, recommendations-context` });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

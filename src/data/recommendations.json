@@ -1,20 +1,20 @@
 {
-  "lastUpdated": "2026-05-07",
+  "lastUpdated": "2026-06-30",
   "marketContext": {
-    "period": "May 2026",
-    "conflictAlert": "CEASEFIRE SIGNALS — Middle East pivot in progress",
+    "period": "June 2026",
+    "conflictAlert": "FRAGILE CEASEFIRE — 60-day US-Iran MOU signed June 18, already tested June 22",
     "conflictInsights": [
       {
         "label": "Defense backlogs are irrevocable",
-        "desc": "Multi-year RTX, LMT, NOC contracts signed during the conflict cannot be cancelled — backlog strength persists regardless of ceasefire outcome"
+        "desc": "Multi-year RTX, LMT, NOC contracts signed during the active conflict cannot be cancelled — backlog strength persists regardless of ceasefire outcome"
       },
       {
-        "label": "Oil direction is the key variable",
-        "desc": "WTI pulled back from $118 to ~$91 on ceasefire signals — a confirmed deal pushes oil to $70–75; a collapse returns it to $110+. Position sizing in energy should reflect this binary"
+        "label": "Oil direction is still binary",
+        "desc": "WTI spiked to $84–88 during active conflict, then fell to ~$70.56 on the June 18 US-Iran ceasefire MOU — but a June 22 Trump strike threat already cracked the truce once. A re-escalation returns oil to $95–100+; a durable deal keeps it near $65–72"
       },
       {
-        "label": "Gold floor established",
-        "desc": "Central banks accelerating gold purchases as geopolitical norms shift — structural buyer base independent of any single conflict outcome"
+        "label": "Gold is losing to the rates trade, for now",
+        "desc": "Down 11% in June and 14% QTD to ~$4,020/oz as rising real yields overwhelm safe-haven demand — the structural central-bank buyer base is intact, but a hawkish Fed is the dominant near-term force"
       },
       {
         "label": "NATO mandate is permanent",
@@ -22,14 +22,14 @@
       }
     ],
     "themes": [
-      { "icon": "🕊️", "label": "Geopolitical pivot",   "color": "#fbbf24", "desc": "Iran ceasefire signals de-escalating conflict — oil pulling back from $118 peak, but defense backlogs and gold floor are permanent shifts" },
-      { "icon": "🛡️", "label": "Defense supercycle",   "color": "#f97316", "desc": "NATO 2% GDP mandate + locked-in multi-year backlogs make RTX a structural compounder independent of any ceasefire" },
-      { "icon": "🥇", "label": "Gold at all-time highs","color": "#fbbf24", "desc": "~$3,310/oz — central bank buying + geopolitical uncertainty providing a structural floor well above historical norms" },
-      { "icon": "🤖", "label": "AI capex intact",       "color": "#a78bfa", "desc": "NVDA, META, AMZN, GOOG reported strong Q1 — enterprise AI infrastructure spend is disconnected from geopolitical headlines" },
-      { "icon": "💊", "label": "Healthcare secular",    "color": "#34d399", "desc": "GLP-1 + aging demographics = multi-decade demand runway for NVO, ISRG, LLY regardless of macro cycle" },
-      { "icon": "🏦", "label": "Fed frozen",            "color": "#64748b", "desc": "Fed held for 3rd meeting — 8-4 hawkish split; near-zero chance of cuts in 2026 as CPI stays sticky at 3.3%. Rate-cut thesis is on hold" },
-      { "icon": "🍁", "label": "TSX resilience",        "color": "#22d3ee", "desc": "Canadian equities outperforming on energy + financials strength; BoC on hold at 2.25% but domestic economy more insulated than US" },
-      { "icon": "🛢️", "label": "Oil uncertainty",      "color": "#94a3b8", "desc": "Ceasefire scenario = oil to $70–75 (bearish for energy names); collapse scenario = back to $110+ (bullish). Position sizing matters more than direction" }
+      { "icon": "🕊️", "label": "Fragile ceasefire",     "color": "#fbbf24", "desc": "60-day US-Iran MOU (June 18) reopening the Strait of Hormuz already cracked once on a June 22 strike threat — oil risk is live in both directions" },
+      { "icon": "🏛️", "label": "Fed turns hawkish",      "color": "#ef4444", "desc": "New Chair Kevin Warsh's first FOMC (June 17) flipped the dot plot to show 2026 rates ending higher, not lower — ~62% market odds of a September hike" },
+      { "icon": "😨", "label": "Fear despite records",   "color": "#ef4444", "desc": "CNN Fear & Greed at 27 (Fear) even as the S&P and TSX hit record highs — a rare divergence signaling narrow, unconfirmed breadth" },
+      { "icon": "🤖", "label": "AI capex intact",        "color": "#a78bfa", "desc": "MSFT $120B+, AMZN $200B, GOOGL $175-185B, META $135B, NVDA ~$500B secured through 2026 — the one genuinely load-bearing bull case, and self-funding regardless of Fed path" },
+      { "icon": "💊", "label": "Healthcare secular",     "color": "#34d399", "desc": "GLP-1 + aging demographics = multi-decade demand runway for NVO, ISRG, LLY regardless of macro cycle" },
+      { "icon": "🔥", "label": "Inflation re-accelerating","color": "#ef4444", "desc": "May CPI hit 4.2% YoY (core 2.9%) on the Iran-war energy shock — the disinflation narrative from earlier in 2026 has stalled; June print due July 14" },
+      { "icon": "🍁", "label": "TSX at records",         "color": "#22d3ee", "desc": "Canadian equities at all-time highs on gold miners, Shopify, energy and financials; BoC held at 2.25% for a 4th straight meeting on weak domestic growth" },
+      { "icon": "🥇", "label": "Copper at records",      "color": "#f97316", "desc": "~$6.19/lb, up 22.6% YoY on AI data-center and electrification demand — the cleanest corroborating signal for the capex theme" }
     ]
   },
   "recommendations": [

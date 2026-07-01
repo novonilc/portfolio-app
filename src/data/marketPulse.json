@@ -1,453 +1,223 @@
 {
-  "lastUpdated": "2026-06-15",
+  "lastUpdated": "2026-06-30",
   "period": "June 2026",
   "regime": {
-    "label": "Soft-Landing Window",
-    "sublabel": "Iran Framework Deal + FOMC Hold Open Rate-Cut Path",
-    "color": "#22c55e",
-    "description": "Markets entered a constructive window in June as two major overhangs began to clear. An Iran nuclear framework agreement (June 9) sent WTI crude from ~$91 to ~$82 — the first sustained move below $85 since Q1 2026 — which in turn pulled US CPI expectations lower and opened a credible path for a September Fed cut. The June 12 FOMC held rates at 3.50–3.75% but updated the dot plot to show a median of 1 cut in 2026, validating the September window. The S&P 500 has responded with a breakout above 7,500, the yield curve's 2s10s is approaching -20 bps (closest to positive since 2022), and the Fear & Greed Index has climbed to 62 (Greed). The principal remaining risks are: Iran deal ratification falling apart, US core services PCE staying above 3%, and a Fed Chair confirmation process that markets perceive as politically motivated.",
-    "score": 62
+    "label": "Hawkish Melt-Up",
+    "sublabel": "Record S&P/TSX Highs vs. Warsh Fed Pivot + Hot Inflation + Fear & Greed at 27",
+    "color": "#fbbf24",
+    "description": "The S&P 500 closed at a record 7,440 (+9% YTD) on June 29 and the TSX cleared 35,600 intraday — but the rally is narrow and unconfirmed by sentiment: the Nasdaq actually fell ~3.4% in June and the CNN Fear & Greed Index sits at 27 (Fear), a rare divergence from a record tape. The driver is almost entirely an AI capex supercycle (MSFT, AMZN, GOOGL, META, NVDA collectively committing $600B+ for 2026) running against a genuinely hostile macro backdrop: new Fed Chair Kevin Warsh's first FOMC (June 17) flipped the dot plot hawkish — median 2026 year-end rate now higher, not lower, with markets pricing ~62% odds of a September hike — while May CPI accelerated to 4.2% YoY on an Iran-war energy shock. A fragile 60-day US-Iran ceasefire MOU (June 18) already cracked once on a June 22 strike threat.",
+    "score": 48
   },
   "riskMeter": {
     "score": 58,
-    "label": "Cautiously Optimistic",
-    "sublabel": "Iran framework + FOMC dot plot upgrade have shifted the balance; rate-cut path is narrow but real. Stay selective — valuation remains stretched at 21× forward.",
-    "color": "#22c55e"
+    "label": "Melt-Up, Not Confirmation",
+    "sublabel": "AI capex is real and self-funding, but a hawkish Fed pivot, 4.2% CPI, and Fear & Greed at 27 mean this rally has far less macro support than the index level suggests. Stay concentrated in the capex winners; don't chase the rest.",
+    "color": "#fbbf24"
   },
   "yieldCurve": {
-    "shapeLabel": "Dis-inverting / Bear-Flattening",
-    "shapeColor": "#fbbf24",
+    "shapeLabel": "Normal / Dis-Inverted",
+    "shapeColor": "#22c55e",
     "currentYields": [
-      { "maturity": "3M",  "yield": 5.12 },
-      { "maturity": "2Y",  "yield": 4.58 },
-      { "maturity": "5Y",  "yield": 4.28 },
-      { "maturity": "10Y", "yield": 4.18 },
-      { "maturity": "30Y", "yield": 4.42 }
+      { "maturity": "3M",  "yield": 3.68 },
+      { "maturity": "2Y",  "yield": 3.85 },
+      { "maturity": "5Y",  "yield": 4.05 },
+      { "maturity": "10Y", "yield": 4.39 },
+      { "maturity": "30Y", "yield": 4.58 }
     ],
     "spreads": [
       {
         "label": "3M–10Y",
         "description": "NY Fed recession predictor",
-        "bps": -94,
-        "status": "inverted",
-        "note": "Still inverted but narrowing from -140 bps in March; oil-driven CPI improvement and rate-cut pricing are pulling short-end yields lower faster than long end."
+        "bps": 71,
+        "status": "normal",
+        "note": "Fully un-inverted for the first time this cycle — front end anchored near the 3.50–3.75% Fed funds range while the 10Y holds an inflation/deficit premium at 4.39%."
       },
       {
         "label": "2Y–10Y",
         "description": "Classic 2s10s",
-        "bps": -40,
-        "status": "warning",
-        "note": "Approaching -20 bps territory — the least-inverted reading since 2022. Un-inversion is the single most important macro signal to watch in H2 2026."
+        "bps": 54,
+        "status": "normal",
+        "note": "Positively sloped; a hawkish Fed pause plus sticky long-end inflation compensation has completed the un-inversion the market spent two years waiting for."
       },
       {
         "label": "5Y–30Y",
         "description": "Long-end slope",
-        "bps": 14,
+        "bps": 53,
         "status": "normal",
-        "note": "Positive long-end slope intact; term premium still being demanded by bond market given deficit concerns."
+        "note": "Long end still demands a term premium given deficits and a 4.2% CPI print — the curve is normal but not signaling all-clear on inflation."
       }
     ],
-    "inversionStatus": "3M–10Y inverted for ~23 months; 2s10s narrowing sharply — full un-inversion possible by September if FOMC cuts",
-    "recessionProbability": "~23% (NY Fed 12-month model, down from 28% last month)",
-    "recessionProbabilityScore": 23,
-    "trajectory": "Oil-driven disinflation is pulling front-end yields down faster than the long end — the curve is dis-inverting constructively. A confirmed September Fed cut would likely complete un-inversion and historically mark the beginning of a strong 12-month equity period.",
-    "canadianCurve": "BoC curve is positively sloped (rate at 2.25% vs. 10Y GoC ~3.55%); Canadian May CPI printed 2.1% — the cleanest in the G7 right now. BoC cut in July or September is a live base-case, which is a significant tailwind for ZAG.TO and Canadian bank NIMs."
+    "inversionStatus": "Fully dis-inverted across 3M–10Y and 2s10s — the curve normalized as the Fed paused at an elevated plateau while the long end priced in sticky inflation risk",
+    "recessionProbability": "~13% (NY Fed 12-month model, est.) — a normal curve historically signals low near-term recession risk, though the hawkish hike-pricing is a fresh cross-current",
+    "recessionProbabilityScore": 13,
+    "trajectory": "A confirmed September hike would likely steepen the front end further and could re-test 2Y yields higher; a hold would leave the curve range-bound at current normal levels.",
+    "canadianCurve": "BoC held at 2.25% on June 10 for a fourth straight meeting — Canadian growth is weak and the BoC is explicitly looking through Iran-war-driven headline inflation rather than tightening into it. GoC curve is positively sloped; CAD has weakened to ~1.36–1.39 vs USD."
   },
   "buffettIndicator": {
-    "value": "~185%",
-    "valueLabel": "Significantly Overvalued",
+    "value": "~188%",
+    "valueLabel": "Extremely Overvalued",
     "color": "#ef4444",
-    "score": 80,
+    "score": 84,
     "historicalAvg": "~85% (1950–2024 avg)",
     "fairValueZone": "75–100%",
     "trend": "up",
-    "description": "US total equity market cap at ~185% of nominal GDP — S&P breakout above 7,500 pushed ratio higher. AI-driven earnings premium is the main justification, but the ratio remains well above any historical definition of fair value.",
-    "implication": "Quality bias and position-size discipline remain essential. The Buffett Indicator is not a timing tool, but at 185% it argues strongly against adding speculative positions at current prices."
+    "description": "US total equity market cap has pushed to a fresh 2026 high alongside the S&P's record close — valuation has re-rated further even as the earnings backdrop is carried by a handful of AI capex names.",
+    "implication": "At ~188%, there is essentially no valuation cushion left outside the capex winners; a hawkish repricing shock (confirmed September hike, hot June CPI) would hit richly-priced, non-AI-capex names hardest."
   },
   "macroSignals": [
     {
       "category": "Equities",
       "icon": "📈",
       "signals": [
-        {
-          "label": "S&P 500",
-          "value": "~7,542",
-          "trend": "up",
-          "status": "bullish",
-          "note": "Broke above 7,500 for the first time post-Iran shock; driven by AI mega-cap earnings and the rate-cut dot-plot upgrade. Russell 2000 also starting to participate — a broadening signal."
-        },
-        {
-          "label": "TSX Composite",
-          "value": "~34,510",
-          "trend": "up",
-          "status": "bullish",
-          "note": "TSX outperforming EM YTD — Canadian banks re-rating on BoC cut anticipation and improving credit conditions. Energy holding up despite WTI retreat as Canadian differentials tighten."
-        },
-        {
-          "label": "VIX",
-          "value": "~14.8",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Back near pre-conflict lows; options market is not pricing significant near-term tail risk. Sub-15 VIX historically associated with continued positive equity momentum."
-        },
-        {
-          "label": "Nasdaq / Tech",
-          "value": "~26,740",
-          "trend": "up",
-          "status": "bullish",
-          "note": "AI infra theme strengthening into Q2 earnings — NVDA, META, MSFT all guiding above street. Small and mid-cap tech starting to catch up, suggesting sentiment broadening."
-        }
+        { "label": "S&P 500", "value": "~7,440", "trend": "up", "status": "bullish", "note": "Record close June 29, +9% YTD — but the rally is concentrated in AI capex mega-caps, not broad-based." },
+        { "label": "TSX Composite", "value": "~35,400", "trend": "up", "status": "bullish", "note": "Record territory (intraday high 35,630 on June 17) on gold miners, Shopify, energy and financials strength." },
+        { "label": "VIX", "value": "~16.4", "trend": "sideways", "status": "caution", "note": "Compressed again after a spike to 23.3 on the June 22 Iran strike threat — the tail risk is fatter than the level implies." },
+        { "label": "Nasdaq / Tech", "value": "~25,900", "trend": "down", "status": "caution", "note": "Fell ~3.4% in June even as the S&P hit records — a genuine breadth warning underneath the index-level melt-up." }
       ]
     },
     {
       "category": "Valuation",
       "icon": "📊",
       "signals": [
-        {
-          "label": "Buffett Indicator",
-          "value": "~185%",
-          "trend": "up",
-          "status": "bearish",
-          "note": "Total US market cap ~185% of GDP — market breakout pushed ratio to new 2026 high. Fair value zone: 75–100%. Warrants disciplined position sizing even in conviction names."
-        },
-        {
-          "label": "Shiller CAPE",
-          "value": "~35×",
-          "trend": "up",
-          "status": "bearish",
-          "note": "Near dot-com peak territory on a cyclically adjusted basis. The AI productivity premium is real but does not fully justify current levels relative to 10-year real earnings."
-        },
-        {
-          "label": "S&P 500 Forward P/E",
-          "value": "~21.5×",
-          "trend": "up",
-          "status": "caution",
-          "note": "Forward P/E expanding as price outpaces estimate revisions; positive for momentum but leaves limited cushion for any earnings miss or macro shock."
-        },
-        {
-          "label": "S&P 500 Earnings Yield",
-          "value": "~4.65%",
-          "trend": "down",
-          "status": "caution",
-          "note": "Equity risk premium slightly improved vs. May as 10Y Treasury fell to 4.18% — spread now ~47 bps positive vs. near-zero last month. Still the lowest risk premium since 2007."
-        }
+        { "label": "Buffett Indicator", "value": "~188%", "trend": "up", "status": "bearish", "note": "New 2026 high — market cap re-rating has outrun GDP growth by a wide margin." },
+        { "label": "Shiller CAPE", "value": "~36×", "trend": "up", "status": "bearish", "note": "Pushing further into dot-com-adjacent territory; AI productivity premium is doing all the justifying." },
+        { "label": "S&P 500 Forward P/E", "value": "~22×", "trend": "up", "status": "caution", "note": "Expanding further as price outruns estimate revisions outside the AI capex complex." },
+        { "label": "S&P 500 Earnings Yield", "value": "~4.55%", "trend": "down", "status": "caution", "note": "Equity risk premium over the 4.39% 10Y is thin — one of the least attractive stock/bond trade-offs since 2007." }
       ]
     },
     {
       "category": "Rates & Bonds",
       "icon": "🏦",
       "signals": [
-        {
-          "label": "Fed Funds Rate",
-          "value": "3.50–3.75%",
-          "trend": "sideways",
-          "status": "caution",
-          "note": "FOMC held June 12 as expected. Updated dot plot: median now shows 1 cut in 2026, implying September. Markets pricing 72% probability of a September cut — the most hawkish credible path in 18 months."
-        },
-        {
-          "label": "10Y US Treasury",
-          "value": "~4.18%",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Fell 17 bps from May peak as Iran framework deal drove oil lower and inflation expectations pulled back. A break below 4.0% would be a significant re-rating event for equities."
-        },
-        {
-          "label": "Yield Curve (2s10s)",
-          "value": "~-40 bps",
-          "trend": "up",
-          "status": "caution",
-          "note": "Dis-inverting steadily — up from -83 bps peak. A positive 2s10s reading (historically achieved ~6–18 months before a recession ends) would be the strongest macro buy signal of this cycle."
-        },
-        {
-          "label": "10Y Real Yield",
-          "value": "~1.82%",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Declining with nominal yields; still mildly restrictive but no longer compressing equity P/E multiples as aggressively as in March. A break below 1.5% would re-rate growth stocks significantly."
-        },
-        {
-          "label": "10Y Breakeven Inflation",
-          "value": "~2.21%",
-          "trend": "down",
-          "status": "bullish",
-          "note": "Falling rapidly — now the most credible disinflation signal since 2023. Oil pulling below $85 WTI is doing the heavy lifting. If this reaches 2.0%, the Fed cut becomes consensus."
-        },
-        {
-          "label": "BoC Rate",
-          "value": "2.25%",
-          "trend": "sideways",
-          "status": "neutral",
-          "note": "BoC held June 4. Canadian May CPI printed 2.1% — cleanest in G7. A July cut is now live base-case for many Bay Street economists. ZAG.TO positioned well for this scenario."
-        }
+        { "label": "Fed Funds Rate", "value": "3.50–3.75%", "trend": "sideways", "status": "bearish", "note": "Held June 17 in Kevin Warsh's first meeting as chair; dot plot flipped to show rates ending 2026 HIGHER (3.6–4.1%) — a hike, not a cut, is now the live risk." },
+        { "label": "10Y US Treasury", "value": "~4.39%", "trend": "sideways", "status": "caution", "note": "Little changed on the month even as short-end hike odds rose — long end still pricing sticky inflation." },
+        { "label": "Yield Curve (2s10s)", "value": "~+54 bps", "trend": "up", "status": "neutral", "note": "Fully dis-inverted — the historically bullish un-inversion signal has now fired, though under an unusually hawkish backdrop." },
+        { "label": "10Y Real Yield", "value": "~2.05%", "trend": "up", "status": "caution", "note": "Elevated real yields are the direct pressure behind gold's -14% quarterly drawdown." },
+        { "label": "10Y Breakeven Inflation", "value": "~2.34%", "trend": "up", "status": "caution", "note": "Drifting higher with the May CPI acceleration — the disinflation narrative from earlier in 2026 has stalled." },
+        { "label": "BoC Rate", "value": "2.25%", "trend": "sideways", "status": "neutral", "note": "Held June 10 for a 4th straight meeting; BoC explicitly looking through war-driven headline inflation given weak domestic growth." }
       ]
     },
     {
       "category": "Macro",
       "icon": "🌐",
       "signals": [
-        {
-          "label": "US CPI (YoY)",
-          "value": "~3.0%",
-          "trend": "down",
-          "status": "neutral",
-          "note": "May CPI printed 3.0% — first sub-3.1% reading since October 2025; energy component falling fast. If June prints 2.7–2.8%, the September cut becomes near-certain."
-        },
-        {
-          "label": "US Core PCE (YoY)",
-          "value": "~2.65%",
-          "trend": "down",
-          "status": "neutral",
-          "note": "April PCE came in at 2.65%; May estimate ~2.55%. Fed's 2% target still not achieved but trajectory is the clearest in 18 months. Services PCE easing but slowly."
-        },
-        {
-          "label": "ISM Manufacturing",
-          "value": "49.8",
-          "trend": "up",
-          "status": "neutral",
-          "note": "Edging back toward the 50 expansion/contraction line; new orders sub-index showing green shoots. Not yet expansionary but no longer deteriorating."
-        },
-        {
-          "label": "ISM Services",
-          "value": "54.1",
-          "trend": "up",
-          "status": "bullish",
-          "note": "Services sector reaccelerating modestly; business activity index strong. Consumer spending on services remains the bedrock of the soft-landing thesis."
-        },
-        {
-          "label": "M2 Growth (YoY)",
-          "value": "~+4.8%",
-          "trend": "up",
-          "status": "neutral",
-          "note": "M2 growth accelerating modestly — positive for risk assets but bears watching if it gets ahead of productivity gains. Not yet inflationary at this rate."
-        },
-        {
-          "label": "US Unemployment",
-          "value": "~4.0%",
-          "trend": "down",
-          "status": "bullish",
-          "note": "May jobs report surprised to the upside: +185K payrolls, unemployment ticked down to 4.0%. Soft-landing scenario gaining credibility — labour market has not broken."
-        },
-        {
-          "label": "Oil (WTI)",
-          "value": "~$82",
-          "trend": "down",
-          "status": "bullish",
-          "note": "Iran framework agreement (June 9) pushed WTI below $85 for the first time since February. A formal deal could see $70–75. This is the single biggest disinflationary catalyst of 2026."
-        },
-        {
-          "label": "Gold",
-          "value": "~$3,265",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Pulled back ~$45 from May highs as Iran optimism reduced safe-haven demand. Structural floor from central bank buying still intact — not a breakdown, just a rotation from fear to risk-on."
-        },
-        {
-          "label": "USD/CAD",
-          "value": "~1.395",
-          "trend": "up",
-          "status": "neutral",
-          "note": "CAD mildly weaker as oil retreats — partially offsetting the benefit of falling oil for Canadian consumers. BoC cut expectations also weighing on CAD vs USD."
-        }
+        { "label": "US CPI (YoY)", "value": "4.2%", "trend": "up", "status": "bearish", "note": "May print accelerated on the Iran-war energy shock (energy +3.9% MoM); June print due July 14 is the next major catalyst." },
+        { "label": "US Core PCE (YoY)", "value": "~2.9%", "trend": "up", "status": "caution", "note": "Tracking with core CPI's acceleration — the Fed's 2% target is moving further away, not closer." },
+        { "label": "US Unemployment", "value": "4.3%", "trend": "up", "status": "neutral", "note": "May print — labour market softening modestly but not breaking; still consistent with a soft landing on the growth side alone." },
+        { "label": "ISM Manufacturing", "value": "54.0", "trend": "up", "status": "bullish", "note": "May reading, up from 52.7 — solidly expansionary; June data due July 1." },
+        { "label": "ISM Services", "value": "54.5", "trend": "up", "status": "bullish", "note": "23rd consecutive month of expansion; growth backdrop is genuinely fine even as inflation is not." },
+        { "label": "M2 Growth (YoY)", "value": "~+4.9%", "trend": "up", "status": "caution", "note": "Still running ahead of productivity growth — a modest inflationary cross-current." },
+        { "label": "Oil (WTI)", "value": "~$70.6", "trend": "down", "status": "neutral", "note": "Settled near $70.56 after the June 18 US-Iran ceasefire MOU, down sharply from the $84–88 wartime spike — but the ceasefire already cracked once on June 22." },
+        { "label": "Gold", "value": "~$4,020", "trend": "down", "status": "bearish", "note": "Down 11% in June and 14% QTD as rising real yields overwhelm safe-haven demand from the still-live Iran risk." },
+        { "label": "USD/CAD", "value": "~1.37", "trend": "up", "status": "neutral", "note": "CAD weaker on a dovish-relative BoC vs. a hawkish Fed — a modest tailwind for CAD-cost, USD-revenue names." }
       ]
     },
     {
       "category": "Credit & Risk",
       "icon": "💳",
       "signals": [
-        {
-          "label": "HY Credit Spread (CDX HY)",
-          "value": "~345 bps",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Spreads compressing toward pre-conflict levels; HY market is effectively pricing a soft-landing scenario. A move below 320 bps would be all-clear for credit."
-        },
-        {
-          "label": "IG Credit Spread",
-          "value": "~92 bps",
-          "trend": "down",
-          "status": "bullish",
-          "note": "Investment-grade at tightest spread since Jan 2026; corporate balance sheets broadly healthy, supporting dividend growers like ENB, CNQ, and Canadian banks."
-        },
-        {
-          "label": "US HY Default Rate",
-          "value": "~3.6%",
-          "trend": "sideways",
-          "status": "caution",
-          "note": "Rate of increase slowing — may be peaking if September cut materialises and refinancing stress eases. Still above 2025 trough of 2.4%; watch the next 60 days."
-        },
-        {
-          "label": "Bank Lending Standards",
-          "value": "Tightening (easing rate)",
-          "trend": "down",
-          "status": "neutral",
-          "note": "Net 16% of banks tightening C&I standards in Q2 survey, down from 22% in Q1 — pace of tightening is slowing. First sign that credit conditions may be bottoming."
-        }
+        { "label": "HY Credit Spread (CDX HY)", "value": "~350 bps (est.)", "trend": "sideways", "status": "neutral", "note": "Holding tight despite the hawkish repricing — credit hasn't yet caught up to the rates story; worth watching if hike odds keep rising." },
+        { "label": "IG Credit Spread", "value": "~95 bps (est.)", "trend": "sideways", "status": "neutral", "note": "Investment-grade balance sheets remain healthy; no stress signal yet from the hawkish pivot." },
+        { "label": "US HY Default Rate", "value": "~3.7% (est.)", "trend": "sideways", "status": "caution", "note": "A resumed hike cycle would extend refinancing stress rather than let it ease as previously expected." },
+        { "label": "Bank Lending Standards", "value": "Tightening (est.)", "trend": "sideways", "status": "caution", "note": "Credit conditions were bottoming under the old rate-cut scenario; the hawkish flip removes that tailwind." }
       ]
     },
     {
       "category": "Global & Commodities",
       "icon": "🌍",
       "signals": [
-        {
-          "label": "DXY (US Dollar Index)",
-          "value": "~102.1",
-          "trend": "down",
-          "status": "bullish",
-          "note": "Dollar weakening on rate-cut pricing and oil-driven disinflation; DXY below 103 is a meaningful tailwind for NVDA, AMZN, and GOOGL international revenue. Also supportive of gold floor."
-        },
-        {
-          "label": "Copper (front-month)",
-          "value": "~$4.52/lb",
-          "trend": "up",
-          "status": "bullish",
-          "note": "New 9-month high — AI data center buildout and grid electrification are providing demand above and beyond the China construction cycle. Strong corroborating signal for tech capex."
-        },
-        {
-          "label": "China PMI",
-          "value": "51.2 (mfg)",
-          "trend": "up",
-          "status": "bullish",
-          "note": "China manufacturing PMI back above 50 for the first time in 3 months; stimulus measures gaining traction. Positive for TSM (advanced packaging for Chinese AI customers) and commodity names."
-        },
-        {
-          "label": "Eurozone CPI",
-          "value": "2.0% YoY",
-          "trend": "down",
-          "status": "bullish",
-          "note": "Eurozone hit the ECB's 2% target in May — ECB cut 25 bps at its June meeting. This is the global disinflationary tide that the Fed is watching; gives Powell political cover for September."
-        }
+        { "label": "DXY (US Dollar Index)", "value": "~101 (est.)", "trend": "up", "status": "caution", "note": "Hawkish Fed repricing is a fresh dollar tailwind — a reversal of the weak-dollar thesis that was priced a month ago." },
+        { "label": "Copper (front-month)", "value": "~$6.19/lb", "trend": "up", "status": "bullish", "note": "Near record highs (LME ~$13,800/tonne), up 22.6% YoY on AI data-center buildout and electrification demand — still the cleanest corroborating signal for the capex theme." },
+        { "label": "China PMI", "value": "50.3 (mfg) / 50.2 (non-mfg)", "trend": "up", "status": "neutral", "note": "Third straight month of expansion, supported by AI-linked high-tech exports even as domestic demand stays soft." },
+        { "label": "Eurozone CPI", "value": "~2.2% (est.)", "trend": "sideways", "status": "neutral", "note": "Broadly at target; ECB has more room to ease than the Fed does right now." }
       ]
     },
     {
       "category": "Sentiment",
       "icon": "🧠",
       "signals": [
-        {
-          "label": "Fear & Greed",
-          "value": "62 — Greed",
-          "trend": "up",
-          "status": "neutral",
-          "note": "Crossed into Greed territory for first time since November 2025; Iran framework deal + FOMC dot-plot upgrade drove the shift. Approaching levels that historically signal near-term caution."
-        },
-        {
-          "label": "AAII Bull/Bear",
-          "value": "Bullish (52% Bulls)",
-          "trend": "up",
-          "status": "caution",
-          "note": "Retail bullishness rising toward contrarian caution zone (>55%). Still not at Extreme Greed levels but watch for a spike that would signal crowded positioning."
-        },
-        {
-          "label": "Put/Call Ratio",
-          "value": "~0.75",
-          "trend": "down",
-          "status": "caution",
-          "note": "Put hedging demand falling as VIX declines; below 0.8 historically signals complacency. Not a sell signal on its own but worth watching alongside rising equity prices."
-        },
-        {
-          "label": "US Consumer Confidence",
-          "value": "~104 (Michigan)",
-          "trend": "up",
-          "status": "neutral",
-          "note": "University of Michigan Consumer Sentiment jumped on falling gas prices; above 100 for the first time since Q3 2025. A significant tailwind for consumer discretionary names — BKNG, ABNB, UBER."
-        },
-        {
-          "label": "Earnings Revisions",
-          "value": "Rising — +3.2% YTD",
-          "trend": "up",
-          "status": "bullish",
-          "note": "FY2026 S&P 500 EPS estimates upgraded for the second consecutive month; AI-driven productivity gains are feeding through to margins. NVDA, META, MSFT led upward revisions."
-        }
+        { "label": "Fear & Greed", "value": "27 — Fear", "trend": "down", "status": "bearish", "note": "The single most important signal this month: Fear sentiment against a record S&P print is a genuine, rare divergence." },
+        { "label": "AAII Bull/Bear", "value": "Bearish tilt (est.)", "trend": "down", "status": "caution", "note": "Consistent with the Fear & Greed reading — retail sentiment has not confirmed the index-level rally." },
+        { "label": "Put/Call Ratio", "value": "Elevated (est.)", "trend": "up", "status": "caution", "note": "Hedging demand picked up alongside the June 22 VIX spike and hasn't fully unwound." },
+        { "label": "US Consumer Confidence", "value": "Softening (est.)", "trend": "down", "status": "caution", "note": "4.2% CPI and elevated energy costs are pressuring the consumer-recovery thesis that was priced a month ago." },
+        { "label": "Earnings Revisions", "value": "Rising, narrow", "trend": "up", "status": "caution", "note": "Upward revisions remain concentrated in AI capex names (NVDA, MSFT, META) rather than broadening out." }
       ]
     }
   ],
   "newsSignals": [
     {
-      "source": "Bloomberg",
-      "headline": "Iran Nuclear Framework Agreed; WTI Crude Falls Below $82 for First Time Since February",
-      "date": "June 9, 2026",
-      "impact": "bullish",
-      "portfolioImpact": "Oil below $85 is the single biggest near-term disinflationary catalyst — clears the path for a September Fed cut. Positive for rate-sensitive tech (NVDA, MSFT, NOW); mild headwind for CNQ near-term but dividend remains covered above $65 WTI."
-    },
-    {
-      "source": "Federal Reserve",
-      "headline": "FOMC Holds at 3.50–3.75%; Updated Dot Plot Shows Median 1 Cut in 2026 — September Window Open",
-      "date": "June 12, 2026",
-      "impact": "bullish",
-      "portfolioImpact": "September cut now base case (72% market probability). Adds tailwind to growth stocks, particularly PLTR, NOW, and AMZN. Validates adding ZAG.TO in RRSP — duration should perform well into the cut. CAD mildly positive on risk-on."
-    },
-    {
-      "source": "Apple",
-      "headline": "Apple Intelligence 2.0 Announced at WWDC: On-Device AI Across All Platforms, Siri Rebuilt on Foundation Model",
-      "date": "June 10, 2026",
-      "impact": "bullish",
-      "portfolioImpact": "Positive for AAPL (TFSA) — super-cycle upgrade thesis strengthened by AI feature set on iPhone 18 lineup due in September. Also supportive of AVGO (RRSP) custom AI silicon relationship with Apple."
-    },
-    {
-      "source": "Reuters",
-      "headline": "Microsoft Raises Full-Year Azure Guidance on AI Workload Surge; Capex Plan Tops $70B",
-      "date": "June 6, 2026",
-      "impact": "bullish",
-      "portfolioImpact": "Directly positive for MSFT (RRSP) and NVDA (TFSA) — $70B capex confirms H100/B200 demand runway well into 2027. Also lifts ANET and AMZN (AWS competing in same data centre buildout)."
-    },
-    {
-      "source": "Statistics Canada",
-      "headline": "Canada May CPI: 2.1% — Cleanest G7 Print; BoC July Cut Now Live Base-Case",
+      "source": "CNBC",
+      "headline": "Fed Holds Rates at Warsh's First Meeting as Chair; Dot Plot Flips to Show Hikes, Not Cuts, by Year-End",
       "date": "June 17, 2026",
-      "impact": "bullish",
-      "portfolioImpact": "BoC cut in July would steepen the GoC curve and re-rate Canadian banks (RY, TD, BMO hold NIMs better with a positive curve). ZAG.TO positioned for duration rally. Modest CAD headwind for USD-denominated holdings — partially offset by rising equity prices."
+      "impact": "bearish",
+      "portfolioImpact": "The rate-cut playbook priced a month ago is invalidated — avoid adding long-duration bonds (ZAG.TO) or richly-valued rate-cut-dependent growth until the September meeting clarifies direction."
     },
     {
-      "source": "WSJ",
-      "headline": "Booking Holdings Reports Record Q1 International Travel Revenue; Raises FY2026 Guidance",
-      "date": "June 5, 2026",
+      "source": "Al Jazeera",
+      "headline": "Oil Prices Fall, Stocks Rally as US and Iran Sign Framework MOU to End War, Reopen Strait of Hormuz",
+      "date": "June 18, 2026",
       "impact": "bullish",
-      "portfolioImpact": "BKNG now in scanner universe — strong Q1 and guidance upgrade puts it squarely in the GARP and Compounder screener buckets. Consumer confidence recovery (Michigan: 104) is a structural tailwind for the entire travel vertical: BKNG, ABNB, RCL, MAR."
+      "portfolioImpact": "WTI relief to ~$70 supports margins for Canadian oil sands producers (SU.TO) at their low break-evens, but the 60-day ceasefire window is short and unproven."
+    },
+    {
+      "source": "CNBC",
+      "headline": "Oil Prices Fluctuate as Trump Threatens Fresh Strikes on Iran, Rattling Strait of Hormuz Shipping",
+      "date": "June 22, 2026",
+      "impact": "bearish",
+      "portfolioImpact": "The ceasefire already cracked once — keep a modest CNQ/SU.TO/gold hedge live rather than assuming the Iran risk is fully resolved."
+    },
+    {
+      "source": "BLS",
+      "headline": "May CPI Accelerates to 4.2% YoY as Iran-War Energy Shock Feeds Through; Core at 2.9%",
+      "date": "June 10, 2026",
+      "impact": "bearish",
+      "portfolioImpact": "Hot inflation plus a hawkish Fed is the core risk to any name priced for imminent rate relief; the June CPI print (July 14) is the next binary catalyst."
     }
   ],
   "outlooks": [
     {
       "horizon": "3 months",
-      "period": "Sept 2026",
+      "period": "Sep 2026",
       "scenarios": [
         {
           "label": "Bull case",
-          "probability": 42,
+          "probability": 28,
           "color": "#22c55e",
           "icon": "🟢",
-          "trigger": "Iran deal finalised; oil falls to $70–75; June CPI prints 2.7%; Fed cuts 25 bps Sept 17; 2s10s un-inverts — historically the strongest 12-month forward equity return signal of the past 40 years",
-          "marketTarget": "S&P 7,900–8,300",
-          "canadianAngle": "TSX 36,000–37,000; BoC cuts July + September; ZAG.TO rallies 4–6%; CAD range-bound 1.37–1.40; Canadian banks re-rate on curve steepening",
-          "positioning": "Add NVDA on any 5% dips — B200 ramp is the 2026 earnings catalyst; deploy ZAG.TO in RRSP ahead of cut; add BKNG and ABNB on consumer confidence recovery; reduce GOLD to 4% (risk-on rotation)",
-          "sectorRotation": "Overweight Financials (steepening curve), Technology (rate cut re-rates growth), Consumer Discretionary (confidence recovery); underweight Utilities, Gold miners"
+          "trigger": "Iran ceasefire holds past its 60-day window; June/July CPI cool back toward 3%; September FOMC holds rather than hikes; AI capex earnings beat again",
+          "marketTarget": "S&P 7,700–8,000",
+          "canadianAngle": "TSX 36,000–37,000; BoC stays on hold; CAD stabilizes 1.34–1.37; Canadian banks and energy grind higher on stable oil",
+          "positioning": "Add NVDA/MSFT/AVGO on dips; hold ENB/SU.TO as ceasefire-durability hedge; avoid adding bond duration until a hold is confirmed",
+          "sectorRotation": "Overweight AI infrastructure and Canadian financials; underweight long-duration bonds and rate-cut-dependent consumer discretionary"
         },
         {
           "label": "Base case",
-          "probability": 40,
+          "probability": 45,
           "color": "#fbbf24",
           "icon": "🟡",
-          "trigger": "Iran framework holds but formal deal delayed to Q4; oil stays $78–88; Fed cuts once in September; AI earnings carry the index; 2s10s moves to -10 to +10 bps",
-          "marketTarget": "S&P 7,500–7,900",
-          "canadianAngle": "TSX 33,500–35,500; BoC cuts in September; energy names range-bound on oil consolidation; SHOP strengthens on weaker CAD",
-          "positioning": "Hold NVDA, AMZN, PLTR — AI theme intact; DCA into VFV.TO and QQQM systematically; maintain GOLD at 5% weight as geopolitical hedge; add BKNG and RCL on any 5% pullback",
-          "sectorRotation": "Quality growth bias: mega-cap tech + consumer recovery; trim deep energy cyclicals on oil stability; mild rotation into Financials ahead of confirmed BoC cut"
+          "trigger": "Fed holds again in September but keeps a hawkish tilt; Iran ceasefire holds but stays tense; CPI plateaus near 4%; AI capex carries the index while breadth stays narrow",
+          "marketTarget": "S&P 7,300–7,700",
+          "canadianAngle": "TSX 34,500–36,000; BoC on hold; CAD range-bound 1.35–1.39; gold stabilizes but doesn't recover",
+          "positioning": "Stay concentrated in the AI capex chain; keep gold/energy as a hedge without adding; do not chase Nasdaq weakness or gold's drawdown",
+          "sectorRotation": "Barbell: AI infrastructure mega-caps + Canadian pipelines/banks; trim richly-priced consumer discretionary priced for a cut that isn't coming"
         },
         {
           "label": "Bear case",
-          "probability": 18,
+          "probability": 27,
           "color": "#ef4444",
           "icon": "🔴",
-          "trigger": "Iran framework collapses; oil spikes back above $100; June CPI re-accelerates to 3.3%+; Fed forced to hold all year or hike; sentiment whiplash from 62 Fear & Greed to sub-30",
-          "marketTarget": "S&P 6,800–7,200",
-          "canadianAngle": "TSX 30,000–32,000; BoC cuts cancelled; energy rallies briefly but equity risk-off dominates; CAD strengthens temporarily then reverses",
-          "positioning": "Rotate to GOLD (TFSA) and CNQ (TFSA); increase ZAG.TO short-duration in RRSP; trim PLTR and NOW; cut consumer discretionary (BKNG, ABNB) entirely — travel demand is rate-sensitive",
-          "sectorRotation": "Max defensives: Consumer Staples, Healthcare, Gold; avoid Financials (re-inversion crushes NIMs), Consumer Discretionary, Real Estate"
+          "trigger": "September FOMC actually hikes; Iran ceasefire collapses and oil spikes back above $95; June/July CPI re-accelerate above 4.5%; Fear & Greed falls into Extreme Fear and the AI capex names finally correct",
+          "marketTarget": "S&P 6,400–6,900",
+          "canadianAngle": "TSX 30,000–33,000; BoC forced to hold despite weak growth; CAD weakens sharply; energy spikes briefly then risk-off dominates",
+          "positioning": "Raise cash; add to gold and CNQ/SU.TO on the oil spike; trim high-beta/growth (BTCC, richly-priced non-capex tech) aggressively",
+          "sectorRotation": "Max defensives: energy, gold miners, Canadian banks; exit crypto and rate-cut-dependent consumer discretionary entirely"
         }
       ],
       "keyEvents": [
-        { "date": "June 18", "event": "US May CPI print — critical data for September cut probability" },
-        { "date": "July 2026", "event": "Q2 earnings season begins — AI capex and consumer travel are key readthroughs" },
-        { "date": "July 30", "event": "BoC rate decision — July cut is live base-case given May CPI of 2.1%" },
-        { "date": "Sept 17", "event": "FOMC — September cut window; dot plot and presser will be market-moving" }
+        { "date": "July 1, 2026",  "event": "June ISM Manufacturing PMI" },
+        { "date": "July 14, 2026", "event": "June CPI print — decides whether September is a hike or a hold" },
+        { "date": "July 30, 2026", "event": "BoC rate decision" },
+        { "date": "Sep 17, 2026",  "event": "FOMC — first live hike-not-cut risk of this cycle under Chair Warsh" }
       ]
     },
     {
@@ -456,77 +226,73 @@
       "scenarios": [
         {
           "label": "Bull case",
-          "probability": 35,
+          "probability": 25,
           "color": "#22c55e",
           "icon": "🟢",
-          "trigger": "2 Fed cuts (Sept + Nov/Dec); 2s10s fully positive; AI cycle drives 15%+ EPS growth for S&P; Iran deal fully ratified; oil stable at $72–78; new Fed Chair seen as credible",
-          "marketTarget": "S&P 8,400–9,000",
-          "canadianAngle": "TSX 37,000+; BoC 3 cuts total; housing stabilises; SHOP and Canadian financials lead; ZAG.TO rallies 6–9%; GoC positively sloped",
-          "positioning": "Increase equity allocation to 85%; full positions in NVDA, AMZN, AVGO, LLY; add BKNG and RCL for consumer cycle recovery; rotate ZAG.TO gains into VFV.TO",
-          "sectorRotation": "Overweight Financials (steeper curve major NIM tailwind), Technology, Consumer Discretionary; reduce Utilities (crowded defensives), Gold, Energy"
+          "trigger": "Iran conflict fully resolves; inflation rolls back over toward 3% by Q4; Fed holds through year-end without hiking; AI capex earnings broaden participation beyond mega-caps",
+          "marketTarget": "S&P 8,000–8,500",
+          "canadianAngle": "TSX 37,000+; BoC begins cutting into 2027 on continued weak growth; CAD strengthens to 1.30–1.34",
+          "positioning": "Increase equity allocation broadly, not just AI capex; rotate some gains into Canadian financials and energy",
+          "sectorRotation": "Broaden from mega-cap AI into financials, industrials, and quality cyclicals as breadth confirms"
         },
         {
           "label": "Base case",
-          "probability": 42,
+          "probability": 45,
           "color": "#fbbf24",
           "icon": "🟡",
-          "trigger": "1–2 Fed cuts; curve normalising; AI cycle intact; growth moderates to 2.0–2.5%; Iran deal in limbo but not collapsing; 2s10s at 0 to +25 bps by year-end",
-          "marketTarget": "S&P 7,600–8,200",
-          "canadianAngle": "TSX 34,000–36,500; BoC 2 cuts; ZAG.TO performs; Canadian banks grind higher on improving curve; CAD 1.37–1.42 range",
-          "positioning": "Stay the course with DCA; reinvest dividends systematically; maintain TFSA/RRSP placement discipline; 5% GOLD allocation; add BKNG and ABNB on dips for consumer recovery play",
-          "sectorRotation": "Barbell: quality growth (NVDA, MSFT) + consumer recovery (BKNG, ABNB, RCL) + defensives (KO, PG); reduce speculative small-cap"
+          "trigger": "Fed hikes once in September then pauses; Iran ceasefire holds in fits and starts; inflation grinds sideways near 3.5–4%; AI capex remains the dominant earnings story",
+          "marketTarget": "S&P 7,200–7,900",
+          "canadianAngle": "TSX 34,000–36,500; BoC on hold most of H2; CAD range-bound; gold finds a base once real yields peak",
+          "positioning": "Stay concentrated in AI capex and Canadian income names; keep a full but not oversized gold/energy hedge; avoid duration",
+          "sectorRotation": "Quality/capex barbell: mega-cap AI infrastructure + Canadian pipelines and banks; reduce speculative small-cap and crypto"
         },
         {
           "label": "Bear case",
-          "probability": 23,
+          "probability": 30,
           "color": "#ef4444",
           "icon": "🔴",
-          "trigger": "Fed holds all year or hikes; stagflation entrenches; credit spreads widen to 500+ bps; earnings fall 8–12%; new Fed Chair loses credibility — bond market vigilantes return",
+          "trigger": "Fed hikes multiple times as inflation proves sticky above 4.5%; Iran conflict re-escalates; credit spreads widen sharply; AI capex names finally re-rate on valuation",
           "marketTarget": "S&P 6,000–6,800",
-          "canadianAngle": "TSX 27,000–30,000; housing correction sharpens; BoC emergency cuts; CAD weakens sharply; SHOP and consumer names hit hardest",
-          "positioning": "Raise cash to 20%; ZAG.TO to 20% of RRSP; hold GOLD at 8%; liquidate PLTR, MU, ARM leverage; reduce consumer discretionary entirely — BKNG and ABNB are high-beta in this scenario",
-          "sectorRotation": "Maximum defensives: Staples, Healthcare, Gold miners, short-duration bonds; exit all AI-momentum, crypto (BTCC), and consumer cyclicals"
+          "canadianAngle": "TSX 27,000–30,000; BoC caught between weak growth and a weak currency; CAD weakens toward 1.45+",
+          "positioning": "Raise cash to 20-25%; full gold and energy weighting; exit crypto, high-beta growth, and long-duration bonds entirely",
+          "sectorRotation": "Maximum defensives: energy, gold, Canadian banks, short-duration cash instruments; avoid all rate-sensitive and rate-cut-dependent exposure"
         }
       ],
       "keyEvents": [
-        { "date": "Sept 17",   "event": "FOMC — first potential cut; market-defining event for H2 2026" },
-        { "date": "Oct 2026",  "event": "Q3 earnings — consumer spending and AI capex are the two key themes to watch" },
-        { "date": "Nov 4, 2026", "event": "US midterm elections — fiscal policy direction and Fed independence narrative" },
-        { "date": "Dec 2026",  "event": "Year-end rebalancing + potential second Fed cut window" }
+        { "date": "Sep 17, 2026", "event": "FOMC — the defining event of H2 2026 under new Chair Warsh" },
+        { "date": "Oct 2026",     "event": "Q3 earnings — watch whether AI capex earnings broaden or the melt-up stays narrow" },
+        { "date": "Nov 4, 2026",  "event": "US midterm elections — fiscal policy and Fed independence narrative" },
+        { "date": "Dec 2026",     "event": "Year-end rebalancing; second Fed decision of H2" }
       ]
     }
   ],
   "catalysts": {
     "bullish": [
-      { "icon": "🕊️", "label": "Iran deal finalised — oil to $70–75, June CPI sub-2.8%, Fed cuts September — the 3-step unlock scenario" },
-      { "icon": "📈", "label": "2s10s yield curve un-inversion — historically the single strongest 12-month equity return signal; -40 bps now, on the cusp" },
-      { "icon": "🤖", "label": "AI capex super-cycle intact — MSFT $70B, AMZN $40B, GOOGL $75B capex plans locked in for 2026–27" },
-      { "icon": "🛫", "label": "Consumer confidence recovery (Michigan: 104) — structural tailwind for BKNG, ABNB, RCL, UBER consumer discretionary cycle" },
-      { "icon": "🍁", "label": "BoC July cut live — Canadian banks, ZAG.TO, and SHOP positioned to benefit from GoC curve steepening" },
-      { "icon": "📱", "label": "Apple Intelligence 2.0 — iPhone 18 AI super-cycle in September could be the largest consumer electronics upgrade cycle in 5 years" }
+      { "icon": "🤖", "label": "AI capex supercycle intact and accelerating — MSFT $120B+, AMZN $200B, GOOGL $175-185B, META up to $135B, NVDA ~$500B secured through 2026" },
+      { "icon": "🥉", "label": "Copper at record highs (~$6.19/lb) on AI data-center and electrification demand — the cleanest corroborating signal for the capex theme" },
+      { "icon": "📈", "label": "Yield curve fully un-inverted (2s10s +54 bps) — historically a strong 12-month forward equity signal, even under a hawkish backdrop" },
+      { "icon": "🕊️", "label": "US-Iran 60-day ceasefire MOU holding (for now) — Strait of Hormuz reopening would remove the last major oil-supply risk premium" },
+      { "icon": "🇨🇳", "label": "China PMI expanding for a third straight month on AI-linked high-tech exports" }
     ],
     "bearish": [
-      { "icon": "🔥", "label": "Iran framework collapse — oil back above $100, CPI re-accelerates, Fed forced to hike, equity sentiment whiplash from Greed to Fear" },
-      { "icon": "📉", "label": "September cut fails to materialise — market pricing 72% probability; a hold would trigger a violent repricing of growth multiples" },
-      { "icon": "🏛️", "label": "Fed Chair confirmation debacle — any perception of political capture would trigger bond market vigilantes and a sharp curve steepening for wrong reasons" },
-      { "icon": "💳", "label": "Consumer credit stress resurfaces — delinquencies at 10-year highs; if confidence 104 print reverses on job loss, consumer discretionary unwinds fast" },
-      { "icon": "🏢", "label": "Commercial real estate credit event — regional bank loan book stress not yet resolved; a catalyst could widen HY spreads 150+ bps rapidly" },
-      { "icon": "🇨🇳", "label": "China PMI reversal — if China stimulus fades and PMI re-enters contraction, copper and TSM/ASML demand signals would reverse sharply" }
+      { "icon": "🏛️", "label": "Fed dot plot flipped hawkish under new Chair Warsh — a September hike (62% priced) would be the first hike of this cycle and could shock richly-valued non-capex names" },
+      { "icon": "🔥", "label": "Iran ceasefire is fragile — already cracked once (June 22 strike threat); a full re-escalation sends oil back above $95-100" },
+      { "icon": "📉", "label": "Fear & Greed at 27 against a record S&P print — a rare divergence that has historically preceded either a sharp correction or a violent breadth catch-up rally" },
+      { "icon": "💰", "label": "May CPI at 4.2% and accelerating — the disinflation narrative from earlier in 2026 has stalled; July 14 print is the next binary risk" },
+      { "icon": "🥇", "label": "Gold down 14% QTD as real yields rise — the safe-haven trade is currently losing to the rates trade, a warning that markets aren't yet hedging the geopolitical risk properly" },
+      { "icon": "📊", "label": "Buffett Indicator at ~188% (Extremely Overvalued) — zero valuation cushion outside the AI capex complex for any hawkish repricing shock" }
     ]
   },
   "portfolioImplication": {
-    "summary": "The macro backdrop has improved materially since May. The Iran framework deal + FOMC dot-plot upgrade + falling oil have combined to open a credible September rate-cut window — the event markets have been waiting 18 months for. The yield curve's approach to un-inversion is the most important signal to monitor. Position for the cut while keeping quality-bias and size discipline: the Buffett Indicator at 185% means there is no margin for error in speculative positions. The key new theme is a consumer recovery trade — BKNG, ABNB, and RCL are now in the scanner universe and merit attention as confidence-driven compounders.",
+    "summary": "The macro backdrop flipped materially hawkish in June even as the index hit records — a new Fed chair's first meeting produced a dot plot showing hikes, not cuts, while May CPI accelerated to 4.2% on a real Iran-war energy shock. The rally is narrow (Nasdaq actually fell in June) and unconfirmed by sentiment (Fear & Greed at 27), which is the single most important signal to watch. AI capex remains the one genuinely load-bearing bull case — it's contractually locked in and self-funding, which makes it the least rate-sensitive part of the market. Everything priced for imminent rate cuts (long-duration bonds, rate-cut-dependent consumer discretionary) needs to be reassessed; the July 14 CPI print and September 17 FOMC are the two events that will decide which way this resolves.",
     "actions": [
-      { "priority": "High",   "type": "Hold",      "ticker": "NVDA",    "action": "Hold NVDA (TFSA) — B200 Blackwell ramp is the single largest earnings catalyst in the market; MSFT's $70B capex plan directly feeds NVDA revenue. Only trim above 20% of TFSA. Stop: $160." },
-      { "priority": "High",   "type": "Buy",       "ticker": "AMZN",    "action": "Add AMZN on any 4–6% dips — AWS cloud revenue re-accelerating in Q2; $40B AI infra plan locked in. September rate cut re-rates the growth multiple further. Best large-cap risk/reward in the portfolio." },
-      { "priority": "High",   "type": "Buy",       "ticker": "ZAG.TO",  "action": "Add ZAG.TO in RRSP now — BoC July cut is live base-case with Canada CPI at 2.1%; duration will outperform as curve steepens. Ideal RRSP placement (no WHT, CAD-denominated, interest tax-deferred)." },
-      { "priority": "High",   "type": "Watch",     "ticker": "BKNG",    "action": "Watch BKNG — now in scanner universe (score: 70). Record Q1 travel revenue + consumer confidence at 104 is the setup. On any 5% dip toward scanner fair value, initiate a position in RRSP (no WHT drag on dividends, even though BKNG pays none)." },
-      { "priority": "Medium", "type": "Hold",      "ticker": "GOLD",    "action": "Hold GOLD (TFSA) at 5% — pulled back $45 from May highs on Iran optimism; maintain the position as geopolitical floor from central bank buying is intact. Only trim if Iran deal is formally ratified." },
-      { "priority": "Medium", "type": "Hold",      "ticker": "CNQ",     "action": "Hold CNQ (TFSA) — oil at $82 still covers the 4.5% dividend comfortably; exit thesis triggers below $65 WTI. Near-term headwind from Iran deal but the long-run oil sands cost advantage is unchanged." },
-      { "priority": "Medium", "type": "Watch",     "ticker": "ABNB",    "action": "Watch ABNB — scanner score 81, fwdPEG 0.71. Consumer confidence recovery trade with near-zero debt. A 5–7% pullback would be an attractive entry; allocate in TFSA for tax-free appreciation." },
-      { "priority": "Medium", "type": "Buy",       "ticker": "AVGO",    "action": "Add AVGO (RRSP) on any pullback — custom ASIC demand from Apple, MSFT, and Meta is doubling; dividend grows 15%+ annually. RRSP placement eliminates 0.7% WHT drag. Target weight: 5% of RRSP." },
-      { "priority": "Low",    "type": "Watch",     "ticker": "RCL",     "action": "Watch RCL — scanner score 72, fwdPEG 0.53 (cheapest new addition on growth). Consumer travel recovery + lower oil (fuel cost tailwind) is the bull case. High D/E (2.5×) makes it rate-sensitive — buy only after September cut confirmed." },
-      { "priority": "Low",    "type": "Hold",      "ticker": "BTCC",    "action": "Hold BTCC (TFSA) at 5% cap — risk appetite improving but crypto remains the highest-beta position. Don't add; consider trimming if it exceeds 5% weight on any crypto rally." }
+      { "priority": "High",   "type": "Hold",    "ticker": "NVDA",    "action": "Hold/add NVDA on dips — ~$500B of Blackwell/Rubin revenue is secured through 2026 regardless of Fed path; the least rate-sensitive name in the portfolio." },
+      { "priority": "High",   "type": "Reduce",  "ticker": "ZAG.TO",  "action": "Do not add duration here — the June dot plot flip to hikes invalidates the rate-cut thesis this position was built on; hold existing weight, don't extend it." },
+      { "priority": "High",   "type": "Hold",    "ticker": "CNQ",     "action": "Hold CNQ as an Iran-ceasefire-durability hedge — the MOU already cracked once on June 22; oil at $70 still covers the dividend comfortably." },
+      { "priority": "Medium", "type": "Watch",   "ticker": "GOLD",    "action": "Do not add to GOLD despite the live geopolitical risk — down 14% QTD as real yields rise; wait for real yields to roll over before increasing weight." },
+      { "priority": "Medium", "type": "Watch",   "ticker": "BKNG",    "action": "Watch, don't add — the consumer-recovery thesis is undercut by 4.2% CPI and elevated energy costs; reassess after the July 14 print." },
+      { "priority": "Medium", "type": "Hold",    "ticker": "AVGO",    "action": "Hold AVGO — custom AI silicon demand from MSFT/META/Apple is part of the same locked-in capex wave as NVDA; RRSP placement still optimal for the dividend." },
+      { "priority": "Low",    "type": "Reduce",  "ticker": "BTCC",    "action": "Trim BTCC toward the low end of its range — Fear & Greed at 27 plus live Fed and geopolitical uncertainty is not the setup to hold full high-beta weight." }
     ]
   }
 }

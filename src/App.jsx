@@ -1461,6 +1461,14 @@ export default function App() {
   const [pulseLoading,     setPulseLoading]    = useState(false);
   const [pulseError,       setPulseError]      = useState(null);
   const [pulseRefreshedAt, setPulseRefreshedAt]= useState(() => localStorage.getItem("pulse:refreshedAt") || null);
+  const [recContext,          setRecContext]         = useState(() => {
+    try {
+      const c = localStorage.getItem("recContext:cache");
+      if (!c) return portfolioIdeas.marketContext;
+      return { ...portfolioIdeas.marketContext, ...JSON.parse(c) };
+    } catch { return portfolioIdeas.marketContext; }
+  });
+  const [recContextRefreshedAt, setRecContextRefreshedAt] = useState(() => localStorage.getItem("recContext:refreshedAt") || null);
   const [pulseCopyLoading, setPulseCopyLoading]= useState(false);
   const [pulseCopied,      setPulseCopied]     = useState(false);
   const [pulsePasteOpen,   setPulsePasteOpen]  = useState(false);
@@ -1720,6 +1728,29 @@ export default function App() {
           setPulseRefreshedAt(scheduledTs);
           localStorage.setItem("pulse:cache", JSON.stringify(data));
           localStorage.setItem("pulse:refreshedAt", scheduledTs);
+        }
+      } catch { /* network error — silently use cached/bundled data */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load Recommendations market-context on startup — picks up the latest manual
+  // refresh (see /api/refresh-recommendations); falls back to the bundled JSON if
+  // it hasn't been triggered yet.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/public-data?key=recommendations-context");
+        if (!res.ok) return; // no scheduled data yet — fall back to bundled JSON / localStorage
+        const data = await res.json();
+        if (!data.marketContext?.themes?.length) return;
+
+        const existingTs  = recContextRefreshedAt || "";
+        const scheduledTs = data._scheduledAt || data.lastUpdated || "";
+        if (scheduledTs && scheduledTs > existingTs) {
+          setRecContext(data.marketContext);
+          setRecContextRefreshedAt(scheduledTs);
+          localStorage.setItem("recContext:cache", JSON.stringify(data.marketContext));
+          localStorage.setItem("recContext:refreshedAt", scheduledTs);
         }
       } catch { /* network error — silently use cached/bundled data */ }
     })();
@@ -6427,7 +6458,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           {/* ── Market context card — live from Market Pulse ── */}
           {(() => {
             const mp  = marketPulse;
-            const ctx = portfolioIdeas.marketContext;
+            const ctx = recContext;
             const regime   = mp.regime;
             const risk     = mp.riskMeter;
             const outlook3m = mp.outlooks?.[0];
