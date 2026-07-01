@@ -860,7 +860,7 @@ const SECTOR_IV_MULT = {
   "Semiconductor":3.0, "Technology":2.4, "Aerospace/Defense":1.6,
   "Healthcare":1.7, "Financials":1.3, "Energy":2.0, "Payments":1.6,
   "Consumer Staples":1.1, "Consumer Cyclical":1.9, "Industrials":1.6,
-  "Real Estate":1.5, "Utilities":1.2,
+  "Real Estate":1.5, "Utilities":1.2, "Cyber Security":2.6,
 };
 const OPT_EXPIRIES = [
   { label:"21 DTE",  days:21 },
