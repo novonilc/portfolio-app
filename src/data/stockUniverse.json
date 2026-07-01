@@ -1656,6 +1656,25 @@
       "peg": 0.49
     },
     {
+      "ticker": "CCO.TO",
+      "name": "Cameco Corporation",
+      "sector": "Materials",
+      "market": "CA",
+      "mktCap": "large",
+      "isBank": false,
+      "moat": "Tier-1 Uranium Reserves + Westinghouse Stake",
+      "price": 147.0,
+      "pe": 104.4,
+      "fwdPe": 97.7,
+      "epsGrowth": 87,
+      "roe": 10,
+      "de": 0.14,
+      "divYield": 0.2,
+      "grossMargin": 36,
+      "fcfYield": 1.0,
+      "peg": 1.2
+    },
+    {
       "ticker": "TD",
       "name": "TD Bank",
       "sector": "Financials",

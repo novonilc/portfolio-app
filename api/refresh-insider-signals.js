@@ -34,7 +34,7 @@ const UNIVERSE_TICKERS = [
   "BKNG","ABNB","UBER","MAR","HLT","RCL","TJX","LOW","LVS","XOM","CVX","OXY",
   "COP","SLB","RTX","LMT","GE","HON","AXON","NOC","LHX","RKLB","ASTS","LUNR",
   "MDA.TO","CAT","DE","ITW","TDG","ODFL","T","VZ","TMUS","LIN","SHW","AMT",
-  "PLD","NEE","AEP","ENB","CNQ","SU.TO","TD","RY","BNS","BMO","CM","MFC",
+  "PLD","NEE","AEP","ENB","CNQ","SU.TO","CCO.TO","TD","RY","BNS","BMO","CM","MFC",
   "SLF","ATD.TO","SHOP","TRP","BAM","CP.TO","CNR.TO","TFII","WSP.TO",
 ];
 

@@ -132,6 +132,7 @@ const CA_STOCKS = [
   { ticker:'ENB',    name:'Enbridge',                    sector:'Energy Infra',    market:'CA', mktCap:'large' },
   { ticker:'CNQ',    name:'Canadian Natural Resources',   sector:'Energy',          market:'CA', mktCap:'large' },
   { ticker:'SU.TO',  name:'Suncor Energy',                sector:'Energy',          market:'CA', mktCap:'large' },
+  { ticker:'CCO.TO', name:'Cameco Corporation',           sector:'Materials',       market:'CA', mktCap:'large' },
   { ticker:'TD',     name:'TD Bank',                      sector:'Financials',      market:'CA', mktCap:'mega'  },
   { ticker:'RY',     name:'Royal Bank of Canada',         sector:'Financials',      market:'CA', mktCap:'mega'  },
   { ticker:'BNS',    name:'Scotiabank',                   sector:'Financials',      market:'CA', mktCap:'large' },
@@ -205,6 +206,7 @@ const CURATED_MOATS = {
   SHOP:'E-Commerce Platform',           BAM:'Alternative Asset Management',
   'CP.TO':'North American Rail Duopoly', 'CNR.TO':'North American Rail Duopoly',
   CNQ:'Low-Cost Oil Sands',             'SU.TO':'$45/bbl Break-Even Advantage',
+  'CCO.TO':'Tier-1 Uranium Reserves + Westinghouse Stake',
   TFII:'Trucking + Last Mile Scale',    'WSP.TO':'Global Engineering Consulting',
   SPCX:'Covered Call Premium Income on S&P 500',
 };
