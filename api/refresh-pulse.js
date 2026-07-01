@@ -5,7 +5,146 @@
 
 import { put, list } from "@vercel/blob";
 
-const BLOB_PATH = "market-pulse/latest.json";
+const BLOB_PATH      = "market-pulse/latest.json";
+const RECS_BLOB_PATH = "recommendations-context/latest.json";
+
+// Folded into this file (rather than its own api/*.js) to stay under Vercel's
+// Hobby-plan 12-Serverless-Function cap — triggered via ?target=recommendations.
+async function fetchLatestBlob(prefix) {
+  try {
+    const { blobs } = await list({ prefix });
+    if (!blobs.length) return null;
+    const res = await fetch(blobs[0].url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
+function buildRecommendationsPrompt(pulse, bnn) {
+  const today      = new Date().toISOString().split("T")[0];
+  const monthLabel = new Date().toLocaleString("default", { month: "long", year: "numeric" });
+
+  const pulseLines = [];
+  if (pulse) {
+    pulseLines.push(`- Regime: ${pulse.regime?.label} — ${pulse.regime?.sublabel}`);
+    pulseLines.push(`- Regime description: ${pulse.regime?.description}`);
+    pulseLines.push(`- Risk meter: ${pulse.riskMeter?.score}/100 — ${pulse.riskMeter?.label}`);
+    if (pulse.yieldCurve) pulseLines.push(`- Yield curve: ${pulse.yieldCurve.shapeLabel} (${pulse.yieldCurve.trajectory || ""})`);
+    if (pulse.buffettIndicator) pulseLines.push(`- Buffett Indicator: ${pulse.buffettIndicator.value} (${pulse.buffettIndicator.valueLabel})`);
+    (pulse.macroSignals || []).forEach(cat => {
+      (cat.signals || []).forEach(s => {
+        if (["S&P 500","TSX Composite","VIX","Fear & Greed","Oil (WTI)","Gold","Fed Funds Rate","US CPI (YoY)","Copper (front-month)"].includes(s.label)) {
+          pulseLines.push(`- ${s.label}: ${s.value} (${s.status}) — ${s.note}`);
+        }
+      });
+    });
+    (pulse.newsSignals || []).forEach(n => pulseLines.push(`- [${n.source}, ${n.date}] ${n.headline}`));
+    if (pulse.catalysts?.bullish?.length) pulseLines.push(`- Bullish catalysts: ${pulse.catalysts.bullish.map(c => c.label).join(" | ")}`);
+    if (pulse.catalysts?.bearish?.length) pulseLines.push(`- Bearish catalysts: ${pulse.catalysts.bearish.map(c => c.label).join(" | ")}`);
+    if (pulse.portfolioImplication?.summary) pulseLines.push(`- Portfolio implication summary: ${pulse.portfolioImplication.summary}`);
+  }
+
+  let bnnBlock = "";
+  if (bnn?.experts?.length) {
+    const rows = bnn.experts.flatMap(e => (e.picks || []).map(p =>
+      `  ${p.ticker} — ${p.rawAction || p.action.toUpperCase()} [${e.guest}${e.firm ? ", " + e.firm : ""}]: "${p.rationale}"`
+    ));
+    if (rows.length) bnnBlock = `\nBNN Bloomberg Market Call picks (${bnn.date || "latest"}):\n` + rows.join("\n");
+  }
+
+  return `You are a senior investment strategist writing the "market context" header for a curated stock recommendations page (TFSA/RRSP-focused, Canadian investor audience). The page covers a fixed universe of ~13 hand-picked compounders spanning: defense (RTX), energy (ENB, SU.TO), AI infrastructure (ARM, ASML), healthcare (ISRG, NVO, JNJ), Canadian financials (RY), consumer (COST, MCD), payments (V), and Canadian tech (SHOP), plus a cash-rich value anchor (BRK.B).
+
+Today's date: ${today}
+
+Grounding input — the most recently published Market Pulse (treat as authoritative; do not contradict it):
+${pulseLines.length ? pulseLines.join("\n") : "(no pulse data available — use your best current knowledge)"}
+${bnnBlock}
+
+Your job is NOT to re-derive macro data. It is to distill the above into a punchy, stock-picker-facing summary that helps someone scanning the recommendations list understand the current regime at a glance, and to flag which of the 13 tickers' theses are most and least supported by current conditions.
+
+Be concise — every "desc" field: one sentence max, specific, and tied to a real, current fact from the grounding input above (not generic).
+
+Return ONLY a JSON object inside a single \`\`\`json code block, no text before or after, matching this schema exactly:
+
+{
+  "lastUpdated": "${today}",
+  "marketContext": {
+    "period": "${monthLabel}",
+    "conflictAlert": "short ALL-CAPS-style headline, <60 chars, naming the single biggest live risk or catalyst right now",
+    "conflictInsights": [
+      { "label": "short 3-6 word label", "desc": "one sentence, specific to the current data" }
+    ],
+    "themes": [
+      { "icon": "single emoji", "label": "2-4 word theme name", "color": "#22c55e (bullish) | #fbbf24 (caution) | #ef4444 (bearish) | #a78bfa (secular/structural) | #22d3ee (Canada-specific) | #64748b (neutral/frozen)", "desc": "one sentence tying this theme to specific tickers in the universe listed above where relevant" }
+    ]
+  }
+}
+
+Requirements:
+- conflictInsights: exactly 4 items.
+- themes: exactly 8 items, ordered most-to-least market-moving. At least one theme must reference the AI capex / semiconductor complex (relevant to ARM, ASML), at least one must reference the Canadian names (RY, SU.TO, SHOP, ENB), and at least one must reference the defense/geopolitical thread (RTX) if a live conflict or ceasefire is part of the grounding input.
+- Do not invent tickers or data points not present in or reasonably inferable from the grounding input.`;
+}
+
+async function refreshRecommendationsContext(res) {
+  const [pulse, bnn] = await Promise.all([
+    fetchLatestBlob("market-pulse/latest"),
+    fetchLatestBlob("bnn-calls/latest"),
+  ]);
+
+  const prompt = buildRecommendationsPrompt(pulse, bnn);
+
+  const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type":    "application/json",
+      "x-api-key":       process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model:      "claude-sonnet-4-6",
+      max_tokens: 4000,
+      messages:   [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!aiRes.ok) {
+    const err = await aiRes.json().catch(() => ({}));
+    return res.status(502).json({ error: "Claude API error", detail: err });
+  }
+
+  const aiData  = await aiRes.json();
+  const rawText = (aiData.content?.[0]?.text || "").trim();
+
+  let jsonStr = rawText;
+  const fence = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fence) {
+    jsonStr = fence[1].trim();
+  } else {
+    const s = rawText.indexOf("{"), e = rawText.lastIndexOf("}");
+    if (s !== -1 && e > s) jsonStr = rawText.slice(s, e + 1);
+  }
+
+  const parsed = JSON.parse(jsonStr);
+  if (!parsed.marketContext?.themes?.length) {
+    return res.status(502).json({ error: "Claude returned incomplete data — try again" });
+  }
+
+  const payload = { ...parsed, _scheduledAt: new Date().toISOString() };
+  await put(RECS_BLOB_PATH, JSON.stringify(payload), {
+    access:          "public",
+    contentType:     "application/json",
+    addRandomSuffix: false,
+    allowOverwrite:  true,
+  });
+
+  return res.status(200).json({
+    ok:          true,
+    lastUpdated: parsed.lastUpdated,
+    period:      parsed.marketContext.period,
+    themeCount:  parsed.marketContext.themes.length,
+  });
+}
 
 async function fetchLiveSignals() {
   const live = {};
@@ -328,6 +467,16 @@ export default async function handler(req, res) {
 
   if (!process.env.ANTHROPIC_API_KEY)    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
   if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(500).json({ error: "BLOB_READ_WRITE_TOKEN not configured" });
+
+  // Manual-only: refreshes the Recommendations tab's marketContext block instead of
+  // the daily Market Pulse. Not on any cron — trigger with ?target=recommendations.
+  if (req.query?.target === "recommendations") {
+    try {
+      return await refreshRecommendationsContext(res);
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
 
   try {
     const [live, bnn] = await Promise.all([fetchLiveSignals(), fetchBnnPicks()]);

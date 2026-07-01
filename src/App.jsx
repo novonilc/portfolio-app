@@ -1734,8 +1734,8 @@ export default function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load Recommendations market-context on startup — picks up the latest manual
-  // refresh (see /api/refresh-recommendations); falls back to the bundled JSON if
-  // it hasn't been triggered yet.
+  // refresh (see /api/refresh-pulse?target=recommendations); falls back to the
+  // bundled JSON if it hasn't been triggered yet.
   useEffect(() => {
     (async () => {
       try {
