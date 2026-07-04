@@ -27,7 +27,13 @@
       "Bash(curl -s http://localhost:5175/)",
       "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node node_modules/.bin/vite build)",
       "Skill(schedule)",
-      "Skill(schedule:*)"
+      "Skill(schedule:*)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(python3 -c ' *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(git status *)",
+      "Bash(git --version)"
     ]
   }
 }
