@@ -1,6 +1,6 @@
 {
   "lastUpdated": "2026-07-04",
-  "note": "Live data from Yahoo Finance. Moats are manually curated.",
+  "note": "Live data from Yahoo Finance. Moats are manually curated. USCC and CYBR fundamentals are manual placeholders (fetch gaps in this run); will refresh automatically once the ticker/script fix is live. revGrowth backfilled from latest reported quarters for pre-profit/high-growth names (CRWD/PANW/NET/ZS/OKTA/S/CYBR/MRVL/SHOP).",
   "stocks": [
     {
       "ticker": "AAPL",
@@ -320,7 +320,8 @@
       "divYield": 0.1,
       "grossMargin": 52,
       "fcfYield": 1.1,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 28
     },
     {
       "ticker": "ANET",
@@ -400,7 +401,8 @@
       "divYield": 0,
       "grossMargin": 75,
       "fcfYield": 1,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 26
     },
     {
       "ticker": "PANW",
@@ -420,7 +422,29 @@
       "divYield": 0,
       "grossMargin": 72,
       "fcfYield": 1.3,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 31
+    },
+    {
+      "ticker": "CYBR",
+      "name": "CyberArk Software",
+      "sector": "Cyber Security",
+      "market": "US",
+      "mktCap": "mid",
+      "isBank": false,
+      "moat": "Privileged Access Management Leader",
+      "price": 420.0,
+      "pe": 90.0,
+      "fwdPe": 55.0,
+      "epsGrowth": 40,
+      "fwdEpsGrowth": 22,
+      "roe": 8,
+      "de": 0.4,
+      "divYield": 0,
+      "grossMargin": 80,
+      "fcfYield": 2.0,
+      "peg": 2.25,
+      "revGrowth": 19
     },
     {
       "ticker": "FTNT",
@@ -460,7 +484,8 @@
       "divYield": 0,
       "grossMargin": 73,
       "fcfYield": 0.9,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 34
     },
     {
       "ticker": "ZS",
@@ -480,7 +505,8 @@
       "divYield": 0,
       "grossMargin": 77,
       "fcfYield": 4.7,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 25
     },
     {
       "ticker": "OKTA",
@@ -500,7 +526,8 @@
       "divYield": 0,
       "grossMargin": 77,
       "fcfYield": 3.9,
-      "peg": 4.84
+      "peg": 4.84,
+      "revGrowth": 11
     },
     {
       "ticker": "S",
@@ -520,7 +547,8 @@
       "divYield": 0,
       "grossMargin": 73,
       "fcfYield": 4.5,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 21
     },
     {
       "ticker": "JPM",
@@ -2040,7 +2068,8 @@
       "divYield": 0,
       "grossMargin": 48,
       "fcfYield": 0.8,
-      "peg": 0
+      "peg": 0,
+      "revGrowth": 34
     },
     {
       "ticker": "TRP",
@@ -2163,13 +2192,32 @@
       "peg": 0
     },
     {
-      "ticker": "SPCX",
-      "name": "Harvest S&P 500 Covered Call ETF",
+      "ticker": "USCC",
+      "name": "Global X S&P 500 Covered Call ETF",
       "sector": "ETF",
       "market": "CA",
       "mktCap": "large",
       "isBank": false,
       "moat": "Covered Call Premium Income on S&P 500",
+      "price": 159.9,
+      "pe": 0,
+      "fwdPe": 813,
+      "epsGrowth": 0,
+      "roe": 0,
+      "de": 0.74,
+      "divYield": 0,
+      "grossMargin": 49,
+      "fcfYield": 0,
+      "peg": 0
+    },
+    {
+      "ticker": "SPCX",
+      "name": "SpaceX",
+      "sector": "Defense",
+      "market": "US",
+      "mktCap": "mega",
+      "isBank": false,
+      "moat": "Reusable Rocket + Starlink Constellation Dominance",
       "price": 162,
       "pe": 0,
       "fwdPe": 823.7,

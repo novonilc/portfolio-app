@@ -104,9 +104,10 @@ const US_STOCKS = [
   { ticker:'OXY',   name:'Occidental Petroleum',    sector:'Energy',                mktCap:'large' },
   { ticker:'COP',   name:'ConocoPhillips',          sector:'Energy',                mktCap:'large' },
   { ticker:'SLB',   name:'SLB (Schlumberger)',      sector:'Energy',                mktCap:'large' },
-  // Defense & Industrials (10)
+  // Defense & Industrials (11)
   { ticker:'RTX',   name:'RTX Corporation',         sector:'Defense',               mktCap:'large' },
   { ticker:'LMT',   name:'Lockheed Martin',         sector:'Defense',               mktCap:'large' },
+  { ticker:'SPCX',  name:'SpaceX',                  sector:'Defense',               mktCap:'mega'  },
   { ticker:'GE',    name:'GE Aerospace',            sector:'Industrials',           mktCap:'large' },
   { ticker:'HON',   name:'Honeywell',               sector:'Industrials',           mktCap:'large' },
   { ticker:'AXON',  name:'Axon Enterprise',         sector:'Defense',               mktCap:'mid'   },
@@ -157,7 +158,7 @@ const CA_STOCKS = [
   { ticker:'CNR.TO', name:'Canadian National Railway',    sector:'Industrials',     market:'CA', mktCap:'large' },
   { ticker:'TFII',   name:'TFI International',            sector:'Industrials',     market:'CA', mktCap:'mid'   },
   { ticker:'WSP.TO', name:'WSP Global',                   sector:'Industrials',     market:'CA', mktCap:'mid'   },
-  { ticker:'SPCX',   name:'Harvest S&P 500 Covered Call ETF', sector:'ETF',         market:'CA', mktCap:'large' },
+  { ticker:'USCC',   name:'Global X S&P 500 Covered Call ETF', sector:'ETF',        market:'CA', mktCap:'large' },
 ];
 
 // ── Manually curated moat descriptions ───────────────────────────────────────
@@ -222,7 +223,8 @@ const CURATED_MOATS = {
   CNQ:'Low-Cost Oil Sands',             'SU.TO':'$45/bbl Break-Even Advantage',
   'CCO.TO':'Tier-1 Uranium Reserves + Westinghouse Stake',
   TFII:'Trucking + Last Mile Scale',    'WSP.TO':'Global Engineering Consulting',
-  SPCX:'Covered Call Premium Income on S&P 500',
+  USCC:'Covered Call Premium Income on S&P 500',
+  SPCX:'Reusable Rocket + Starlink Constellation Dominance',
 };
 
 // ── Banks / insurers — D/E excluded from scoring ─────────────────────────────
@@ -256,6 +258,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const rawPe    = sd.trailingPE?.raw;
   const rawFwdPe = sd.forwardPE?.raw;
   const rawEpsG  = fd.earningsGrowth?.raw  ?? ks.earningsGrowth?.raw;
+  const rawRevG  = fd.revenueGrowth?.raw;
   const rawRoe   = fd.returnOnEquity?.raw;
   const rawDe    = fd.debtToEquity?.raw;
   const rawDivY  = sd.dividendYield?.raw;
@@ -273,6 +276,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const pe          = rawPe    != null ? r1(rawPe)               : null;
   const fwdPe       = rawFwdPe != null ? r1(rawFwdPe)            : null;
   const epsGrowth   = rawEpsG  != null ? Math.round(rawEpsG*100) : null;
+  const revGrowth   = rawRevG  != null ? Math.round(rawRevG*100) : null;
   const fwdEpsGrowth= rawFwdEpsG != null ? Math.round(rawFwdEpsG*100) : null;
   const roe         = rawRoe   != null ? Math.round(rawRoe*100)  : null;
   const de          = rawDe    != null ? r2(rawDe / 100)         : null;
@@ -284,7 +288,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
                       ? r2(pe / epsGrowth) : null;
   const price       = rawPrice != null ? r2(rawPrice)            : null;
 
-  return { pe, fwdPe, epsGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
+  return { pe, fwdPe, epsGrowth, revGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
 }
 
 async function main() {
@@ -317,6 +321,7 @@ async function main() {
         pe:          live.pe          ?? 0,
         fwdPe:       live.fwdPe       ?? 0,
         epsGrowth:   live.epsGrowth   ?? 0,
+        revGrowth:   live.revGrowth   ?? 0,
         fwdEpsGrowth:live.fwdEpsGrowth?? 0,
         roe:         live.roe         ?? 0,
         de:          live.de          ?? 0,
