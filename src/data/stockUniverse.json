@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-07-05",
+  "lastUpdated": "2026-07-06",
   "note": "Live data from Yahoo Finance. Moats are manually curated.",
   "stocks": [
     {
@@ -21,7 +21,10 @@
       "divYield": 0.3,
       "grossMargin": 48,
       "fcfYield": 2.2,
-      "peg": 1.7
+      "peg": 1.7,
+      "sma50": 293.52,
+      "sma200": 270.69,
+      "rsi14": 60.3
     },
     {
       "ticker": "MSFT",
@@ -42,7 +45,10 @@
       "divYield": 0.9,
       "grossMargin": 68,
       "fcfYield": 1.3,
-      "peg": 1.01
+      "peg": 1.01,
+      "sma50": 407.6,
+      "sma200": 445.44,
+      "rsi14": 49.8
     },
     {
       "ticker": "NVDA",
@@ -63,7 +69,10 @@
       "divYield": 0.5,
       "grossMargin": 74,
       "fcfYield": 1,
-      "peg": 0.14
+      "peg": 0.14,
+      "sma50": 209.8,
+      "sma200": 191.03,
+      "rsi14": 41.2
     },
     {
       "ticker": "GOOGL",
@@ -84,7 +93,10 @@
       "divYield": 0.2,
       "grossMargin": 60,
       "fcfYield": 0.6,
-      "peg": 0.34
+      "peg": 0.34,
+      "sma50": 370.97,
+      "sma200": 316.15,
+      "rsi14": 49.5
     },
     {
       "ticker": "META",
@@ -105,7 +117,10 @@
       "divYield": 0.4,
       "grossMargin": 82,
       "fcfYield": 1.7,
-      "peg": 0.34
+      "peg": 0.34,
+      "sma50": 605.23,
+      "sma200": 646.51,
+      "rsi14": 49.6
     },
     {
       "ticker": "AMZN",
@@ -126,7 +141,10 @@
       "divYield": 0,
       "grossMargin": 51,
       "fcfYield": 0.4,
-      "peg": 0.42
+      "peg": 0.42,
+      "sma50": 255.42,
+      "sma200": 232.98,
+      "rsi14": 48.7
     },
     {
       "ticker": "AVGO",
@@ -147,7 +165,10 @@
       "divYield": 0.7,
       "grossMargin": 76,
       "fcfYield": 1.6,
-      "peg": 0.7
+      "peg": 0.7,
+      "sma50": 409.43,
+      "sma200": 361.45,
+      "rsi14": 39.6
     },
     {
       "ticker": "ORCL",
@@ -168,7 +189,10 @@
       "divYield": 1.4,
       "grossMargin": 66,
       "fcfYield": -6.1,
-      "peg": 1.09
+      "peg": 1.09,
+      "sma50": 186.37,
+      "sma200": 199.88,
+      "rsi14": 26.7
     },
     {
       "ticker": "AMD",
@@ -189,7 +213,10 @@
       "divYield": 0,
       "grossMargin": 53,
       "fcfYield": 0.8,
-      "peg": 1.9
+      "peg": 1.9,
+      "sma50": 460.38,
+      "sma200": 278.19,
+      "rsi14": 52.3
     },
     {
       "ticker": "MU",
@@ -210,7 +237,10 @@
       "divYield": 0.1,
       "grossMargin": 73,
       "fcfYield": 0.7,
-      "peg": 0.02
+      "peg": 0.02,
+      "sma50": 852.09,
+      "sma200": 444.34,
+      "rsi14": 48.5
     },
     {
       "ticker": "QCOM",
@@ -231,7 +261,10 @@
       "divYield": 2.1,
       "grossMargin": 55,
       "fcfYield": 5.2,
-      "peg": 0.11
+      "peg": 0.11,
+      "sma50": 202.48,
+      "sma200": 168.36,
+      "rsi14": 38.1
     },
     {
       "ticker": "TSM",
@@ -252,7 +285,10 @@
       "divYield": 0.9,
       "grossMargin": 62,
       "fcfYield": 31.9,
-      "peg": 0.65
+      "peg": 0.65,
+      "sma50": 419.5,
+      "sma200": 344.02,
+      "rsi14": 50.1
     },
     {
       "ticker": "ARM",
@@ -273,7 +309,10 @@
       "divYield": 0,
       "grossMargin": 98,
       "fcfYield": 0.2,
-      "peg": 7.73
+      "peg": 7.73,
+      "sma50": 298.72,
+      "sma200": 177.17,
+      "rsi14": 44.8
     },
     {
       "ticker": "NOW",
@@ -294,7 +333,10 @@
       "divYield": 0,
       "grossMargin": 77,
       "fcfYield": 4.7,
-      "peg": 31.65
+      "peg": 31.65,
+      "sma50": 100.15,
+      "sma200": 132.84,
+      "rsi14": 54.9
     },
     {
       "ticker": "PLTR",
@@ -315,7 +357,10 @@
       "divYield": 0,
       "grossMargin": 84,
       "fcfYield": 0.6,
-      "peg": 0.45
+      "peg": 0.45,
+      "sma50": 134.58,
+      "sma200": 157.91,
+      "rsi14": 51.5
     },
     {
       "ticker": "MRVL",
@@ -336,7 +381,10 @@
       "divYield": 0.1,
       "grossMargin": 52,
       "fcfYield": 1.1,
-      "peg": 0
+      "peg": 0,
+      "sma50": 223.63,
+      "sma200": 122.63,
+      "rsi14": 46.5
     },
     {
       "ticker": "ANET",
@@ -357,7 +405,10 @@
       "divYield": 0,
       "grossMargin": 64,
       "fcfYield": 2.2,
-      "peg": 2.2
+      "peg": 2.2,
+      "sma50": 159.8,
+      "sma200": 143.12,
+      "rsi14": 48.6
     },
     {
       "ticker": "FICO",
@@ -378,7 +429,10 @@
       "divYield": 0,
       "grossMargin": 84,
       "fcfYield": 2.5,
-      "peg": 0.58
+      "peg": 0.58,
+      "sma50": 1144.61,
+      "sma200": 1412.88,
+      "rsi14": 64.8
     },
     {
       "ticker": "INTC",
@@ -399,7 +453,10 @@
       "divYield": 0,
       "grossMargin": 37,
       "fcfYield": -1.4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 113.38,
+      "sma200": 60.33,
+      "rsi14": 49.1
     },
     {
       "ticker": "CRWD",
@@ -420,7 +477,10 @@
       "divYield": 0,
       "grossMargin": 75,
       "fcfYield": 1,
-      "peg": 0
+      "peg": 0,
+      "sma50": 155.16,
+      "sma200": 125.64,
+      "rsi14": 71.9
     },
     {
       "ticker": "PANW",
@@ -441,7 +501,10 @@
       "divYield": 0,
       "grossMargin": 72,
       "fcfYield": 1.3,
-      "peg": 0
+      "peg": 0,
+      "sma50": 251.44,
+      "sma200": 201.47,
+      "rsi14": 78.5
     },
     {
       "ticker": "FTNT",
@@ -462,7 +525,10 @@
       "divYield": 0,
       "grossMargin": 80,
       "fcfYield": 1.6,
-      "peg": 2.09
+      "peg": 2.09,
+      "sma50": 126.81,
+      "sma200": 93.15,
+      "rsi14": 67.1
     },
     {
       "ticker": "NET",
@@ -483,7 +549,10 @@
       "divYield": 0,
       "grossMargin": 73,
       "fcfYield": 0.9,
-      "peg": 0
+      "peg": 0,
+      "sma50": 225.45,
+      "sma200": 208.21,
+      "rsi14": 56.2
     },
     {
       "ticker": "ZS",
@@ -504,7 +573,10 @@
       "divYield": 0,
       "grossMargin": 77,
       "fcfYield": 4.7,
-      "peg": 0
+      "peg": 0,
+      "sma50": 141.67,
+      "sma200": 205.05,
+      "rsi14": 59.4
     },
     {
       "ticker": "OKTA",
@@ -525,7 +597,10 @@
       "divYield": 0,
       "grossMargin": 77,
       "fcfYield": 3.9,
-      "peg": 4.84
+      "peg": 4.84,
+      "sma50": 101.84,
+      "sma200": 88.85,
+      "rsi14": 74.8
     },
     {
       "ticker": "S",
@@ -546,7 +621,10 @@
       "divYield": 0,
       "grossMargin": 73,
       "fcfYield": 4.5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 16.03,
+      "sma200": 15.43,
+      "rsi14": 64.5
     },
     {
       "ticker": "JPM",
@@ -567,7 +645,10 @@
       "divYield": 1.8,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.94
+      "peg": 0.94,
+      "sma50": 312.61,
+      "sma200": 308.49,
+      "rsi14": 63.6
     },
     {
       "ticker": "BAC",
@@ -588,7 +669,10 @@
       "divYield": 1.9,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.61
+      "peg": 0.61,
+      "sma50": 53.65,
+      "sma200": 52.58,
+      "rsi14": 70.1
     },
     {
       "ticker": "GS",
@@ -609,7 +693,10 @@
       "divYield": 1.8,
       "grossMargin": 82,
       "fcfYield": 0,
-      "peg": 0.78
+      "peg": 0.78,
+      "sma50": 998.45,
+      "sma200": 889.59,
+      "rsi14": 46.8
     },
     {
       "ticker": "V",
@@ -630,7 +717,10 @@
       "divYield": 0.7,
       "grossMargin": 98,
       "fcfYield": 3,
-      "peg": 0.88
+      "peg": 0.88,
+      "sma50": 325.97,
+      "sma200": 328.9,
+      "rsi14": 76.7
     },
     {
       "ticker": "MA",
@@ -651,7 +741,10 @@
       "divYield": 0.6,
       "grossMargin": 100,
       "fcfYield": 3.4,
-      "peg": 1.49
+      "peg": 1.49,
+      "sma50": 497.45,
+      "sma200": 531.14,
+      "rsi14": 71.3
     },
     {
       "ticker": "AXP",
@@ -672,7 +765,10 @@
       "divYield": 1.1,
       "grossMargin": 63,
       "fcfYield": 0,
-      "peg": 1.22
+      "peg": 1.22,
+      "sma50": 321.84,
+      "sma200": 338.16,
+      "rsi14": 71.8
     },
     {
       "ticker": "BRK.B",
@@ -693,7 +789,10 @@
       "divYield": 0,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0
+      "peg": 0,
+      "sma50": null,
+      "sma200": null,
+      "rsi14": null
     },
     {
       "ticker": "SCHW",
@@ -714,7 +813,10 @@
       "divYield": 1.3,
       "grossMargin": 97,
       "fcfYield": 0,
-      "peg": 0.49
+      "peg": 0.49,
+      "sma50": 90.4,
+      "sma200": 94.68,
+      "rsi14": 65.1
     },
     {
       "ticker": "BLK",
@@ -735,7 +837,10 @@
       "divYield": 2.3,
       "grossMargin": 47,
       "fcfYield": 4.4,
-      "peg": 0.55
+      "peg": 0.55,
+      "sma50": 1039.17,
+      "sma200": 1064.07,
+      "rsi14": 45.7
     },
     {
       "ticker": "MSCI",
@@ -756,7 +861,10 @@
       "divYield": 1.4,
       "grossMargin": 83,
       "fcfYield": 2.7,
-      "peg": 0.7
+      "peg": 0.7,
+      "sma50": 591.77,
+      "sma200": 569.42,
+      "rsi14": 56.5
     },
     {
       "ticker": "PYPL",
@@ -777,7 +885,10 @@
       "divYield": 1.2,
       "grossMargin": 41,
       "fcfYield": 10.2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 44.88,
+      "sma200": 53.77,
+      "rsi14": 59.8
     },
     {
       "ticker": "HOOD",
@@ -798,7 +909,10 @@
       "divYield": 0,
       "grossMargin": 92,
       "fcfYield": 0,
-      "peg": 18.23
+      "peg": 18.23,
+      "sma50": 86.58,
+      "sma200": 102.37,
+      "rsi14": 67
     },
     {
       "ticker": "KKR",
@@ -819,7 +933,10 @@
       "divYield": 0.8,
       "grossMargin": 56,
       "fcfYield": 0,
-      "peg": 0
+      "peg": 0,
+      "sma50": 96.8,
+      "sma200": 110.71,
+      "rsi14": 48.7
     },
     {
       "ticker": "LLY",
@@ -840,7 +957,10 @@
       "divYield": 0.6,
       "grossMargin": 83,
       "fcfYield": 0.8,
-      "peg": 0.25
+      "peg": 0.25,
+      "sma50": 1054.92,
+      "sma200": 985.02,
+      "rsi14": 67.4
     },
     {
       "ticker": "JNJ",
@@ -861,7 +981,10 @@
       "divYield": 2,
       "grossMargin": 68,
       "fcfYield": 2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 232.74,
+      "sma200": 218.94,
+      "rsi14": 73.1
     },
     {
       "ticker": "ABBV",
@@ -882,7 +1005,10 @@
       "divYield": 2.7,
       "grossMargin": 72,
       "fcfYield": 4.5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 218.62,
+      "sma200": 222.01,
+      "rsi14": 77.2
     },
     {
       "ticker": "UNH",
@@ -903,7 +1029,10 @@
       "divYield": 2.2,
       "grossMargin": 19,
       "fcfYield": 4.6,
-      "peg": 32.1
+      "peg": 32.1,
+      "sma50": 390.46,
+      "sma200": 337.3,
+      "rsi14": 64.9
     },
     {
       "ticker": "ISRG",
@@ -924,7 +1053,10 @@
       "divYield": 0,
       "grossMargin": 66,
       "fcfYield": 1.5,
-      "peg": 2.73
+      "peg": 2.73,
+      "sma50": 429.73,
+      "sma200": 488.46,
+      "rsi14": 56.5
     },
     {
       "ticker": "NVO",
@@ -945,7 +1077,10 @@
       "divYield": 3.6,
       "grossMargin": 83,
       "fcfYield": -5.4,
-      "peg": 0.18
+      "peg": 0.18,
+      "sma50": 44.48,
+      "sma200": 47.83,
+      "rsi14": 73.4
     },
     {
       "ticker": "MRK",
@@ -957,7 +1092,7 @@
       "moat": "Pharma Pipeline + Keytruda",
       "price": 129.56,
       "pe": 36.5,
-      "fwdPe": 13.5,
+      "fwdPe": 13.4,
       "epsGrowth": 0,
       "revGrowth": 5,
       "fwdEpsGrowth": 222,
@@ -966,7 +1101,10 @@
       "divYield": 2.6,
       "grossMargin": 77,
       "fcfYield": 4.4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 116.81,
+      "sma200": 107.23,
+      "rsi14": 65.8
     },
     {
       "ticker": "AMGN",
@@ -987,7 +1125,10 @@
       "divYield": 2.7,
       "grossMargin": 71,
       "fcfYield": 3.7,
-      "peg": 6.5
+      "peg": 6.5,
+      "sma50": 341.4,
+      "sma200": 335.34,
+      "rsi14": 70.8
     },
     {
       "ticker": "IDXX",
@@ -1008,7 +1149,10 @@
       "divYield": 0,
       "grossMargin": 62,
       "fcfYield": 1.8,
-      "peg": 2.41
+      "peg": 2.41,
+      "sma50": 555.9,
+      "sma200": 628.05,
+      "rsi14": 51.9
     },
     {
       "ticker": "HIMS",
@@ -1029,7 +1173,10 @@
       "divYield": 0,
       "grossMargin": 73,
       "fcfYield": 2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 28.36,
+      "sma200": 32.66,
+      "rsi14": 67.5
     },
     {
       "ticker": "KO",
@@ -1050,7 +1197,10 @@
       "divYield": 2.5,
       "grossMargin": 62,
       "fcfYield": 0.9,
-      "peg": 1.47
+      "peg": 1.47,
+      "sma50": 79.89,
+      "sma200": 74.32,
+      "rsi14": 63.9
     },
     {
       "ticker": "PG",
@@ -1071,7 +1221,10 @@
       "divYield": 2.8,
       "grossMargin": 51,
       "fcfYield": 3.6,
-      "peg": 3.68
+      "peg": 3.68,
+      "sma50": 146.14,
+      "sma200": 148.55,
+      "rsi14": 57.7
     },
     {
       "ticker": "COST",
@@ -1092,7 +1245,10 @@
       "divYield": 0.6,
       "grossMargin": 13,
       "fcfYield": 1.6,
-      "peg": 1.04
+      "peg": 1.04,
+      "sma50": 992.32,
+      "sma200": 957.22,
+      "rsi14": 44.8
     },
     {
       "ticker": "WMT",
@@ -1113,7 +1269,10 @@
       "divYield": 0.9,
       "grossMargin": 25,
       "fcfYield": 0.8,
-      "peg": 2.07
+      "peg": 2.07,
+      "sma50": 123.01,
+      "sma200": 117.06,
+      "rsi14": 35.6
     },
     {
       "ticker": "MNST",
@@ -1134,7 +1293,10 @@
       "divYield": 0,
       "grossMargin": 55,
       "fcfYield": 1.8,
-      "peg": 1.62
+      "peg": 1.62,
+      "sma50": 87.13,
+      "sma200": 77.6,
+      "rsi14": 71.9
     },
     {
       "ticker": "HD",
@@ -1155,7 +1317,10 @@
       "divYield": 2.6,
       "grossMargin": 33,
       "fcfYield": 2.8,
-      "peg": 0
+      "peg": 0,
+      "sma50": 323.3,
+      "sma200": 355.42,
+      "rsi14": 69.5
     },
     {
       "ticker": "NFLX",
@@ -1176,7 +1341,10 @@
       "divYield": 0,
       "grossMargin": 49,
       "fcfYield": 7.9,
-      "peg": 0.29
+      "peg": 0.29,
+      "sma50": 84.12,
+      "sma200": 96.1,
+      "rsi14": 47.3
     },
     {
       "ticker": "TSLA",
@@ -1197,7 +1365,10 @@
       "divYield": 0,
       "grossMargin": 19,
       "fcfYield": 0.4,
-      "peg": 44.71
+      "peg": 44.71,
+      "sma50": 406.42,
+      "sma200": 418.61,
+      "rsi14": 46.8
     },
     {
       "ticker": "NKE",
@@ -1218,7 +1389,10 @@
       "divYield": 3.7,
       "grossMargin": 43,
       "fcfYield": 0,
-      "peg": 0.05
+      "peg": 0.05,
+      "sma50": 43.84,
+      "sma200": 57.32,
+      "rsi14": 52.9
     },
     {
       "ticker": "MCD",
@@ -1239,7 +1413,10 @@
       "divYield": 2.7,
       "grossMargin": 57,
       "fcfYield": 3,
-      "peg": 3.31
+      "peg": 3.31,
+      "sma50": 280.72,
+      "sma200": 303.5,
+      "rsi14": 53.6
     },
     {
       "ticker": "SBUX",
@@ -1260,7 +1437,10 @@
       "divYield": 2.4,
       "grossMargin": 22,
       "fcfYield": -1.1,
-      "peg": 2.41
+      "peg": 2.41,
+      "sma50": 102.01,
+      "sma200": 92.74,
+      "rsi14": 58.2
     },
     {
       "ticker": "XOM",
@@ -1281,7 +1461,10 @@
       "divYield": 3,
       "grossMargin": 30,
       "fcfYield": 2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 147.9,
+      "sma200": 135.67,
+      "rsi14": 36.7
     },
     {
       "ticker": "CVX",
@@ -1302,7 +1485,10 @@
       "divYield": 4.2,
       "grossMargin": 42,
       "fcfYield": 3.5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 184.02,
+      "sma200": 172.43,
+      "rsi14": 35.5
     },
     {
       "ticker": "OXY",
@@ -1323,7 +1509,10 @@
       "divYield": 2.1,
       "grossMargin": 70,
       "fcfYield": 6.2,
-      "peg": 0.21
+      "peg": 0.21,
+      "sma50": 55.99,
+      "sma200": 49.37,
+      "rsi14": 31.1
     },
     {
       "ticker": "COP",
@@ -1344,7 +1533,10 @@
       "divYield": 3.2,
       "grossMargin": 46,
       "fcfYield": 4.1,
-      "peg": 0
+      "peg": 0,
+      "sma50": 116.54,
+      "sma200": 105.7,
+      "rsi14": 34.5
     },
     {
       "ticker": "SLB",
@@ -1365,7 +1557,10 @@
       "divYield": 2.6,
       "grossMargin": 18,
       "fcfYield": 4.5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 53.84,
+      "sma200": 45.38,
+      "rsi14": 25.6
     },
     {
       "ticker": "RTX",
@@ -1386,7 +1581,10 @@
       "divYield": 1.5,
       "grossMargin": 20,
       "fcfYield": 2.7,
-      "peg": 1.13
+      "peg": 1.13,
+      "sma50": 179.76,
+      "sma200": 183.89,
+      "rsi14": 68.1
     },
     {
       "ticker": "LMT",
@@ -1407,7 +1605,10 @@
       "divYield": 2.5,
       "grossMargin": 10,
       "fcfYield": 3.2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 520.38,
+      "sma200": 540.51,
+      "rsi14": 59.7
     },
     {
       "ticker": "SPCX",
@@ -1428,7 +1629,10 @@
       "divYield": 0,
       "grossMargin": 49,
       "fcfYield": 0,
-      "peg": 0
+      "peg": 0,
+      "sma50": null,
+      "sma200": null,
+      "rsi14": null
     },
     {
       "ticker": "GE",
@@ -1449,7 +1653,10 @@
       "divYield": 0.5,
       "grossMargin": 31,
       "fcfYield": 1.4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 318.93,
+      "sma200": 309.41,
+      "rsi14": 76
     },
     {
       "ticker": "HON",
@@ -1470,7 +1677,10 @@
       "divYield": 4.1,
       "grossMargin": 37,
       "fcfYield": 4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 231.05,
+      "sma200": 224.82,
+      "rsi14": 47.3
     },
     {
       "ticker": "AXON",
@@ -1491,7 +1701,10 @@
       "divYield": 0,
       "grossMargin": 59,
       "fcfYield": 0.1,
-      "peg": 2.64
+      "peg": 2.64,
+      "sma50": 433.52,
+      "sma200": 533.48,
+      "rsi14": 76.9
     },
     {
       "ticker": "CAT",
@@ -1512,7 +1725,10 @@
       "divYield": 0.7,
       "grossMargin": 29,
       "fcfYield": 0.9,
-      "peg": 1.6
+      "peg": 1.6,
+      "sma50": 913.11,
+      "sma200": 696.78,
+      "rsi14": 50.9
     },
     {
       "ticker": "DE",
@@ -1533,7 +1749,10 @@
       "divYield": 1,
       "grossMargin": 26,
       "fcfYield": 0.7,
-      "peg": 0
+      "peg": 0,
+      "sma50": 577.97,
+      "sma200": 533.78,
+      "rsi14": 60.7
     },
     {
       "ticker": "ITW",
@@ -1554,7 +1773,10 @@
       "divYield": 2.4,
       "grossMargin": 44,
       "fcfYield": 2.8,
-      "peg": 2.11
+      "peg": 2.11,
+      "sma50": 257.72,
+      "sma200": 260.21,
+      "rsi14": 64.8
     },
     {
       "ticker": "TDG",
@@ -1575,7 +1797,10 @@
       "divYield": 0,
       "grossMargin": 60,
       "fcfYield": 2,
-      "peg": 3.5
+      "peg": 3.5,
+      "sma50": 1233.16,
+      "sma200": 1284.27,
+      "rsi14": 63.1
     },
     {
       "ticker": "ODFL",
@@ -1596,7 +1821,10 @@
       "divYield": 0.5,
       "grossMargin": 39,
       "fcfYield": 1.9,
-      "peg": 0
+      "peg": 0,
+      "sma50": 217.92,
+      "sma200": 179.63,
+      "rsi14": 44.9
     },
     {
       "ticker": "T",
@@ -1617,7 +1845,10 @@
       "divYield": 5.4,
       "grossMargin": 59,
       "fcfYield": 6.2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 24.09,
+      "sma200": 25.73,
+      "rsi14": 28.6
     },
     {
       "ticker": "VZ",
@@ -1638,7 +1869,10 @@
       "divYield": 6.7,
       "grossMargin": 59,
       "fcfYield": 11,
-      "peg": 2.6
+      "peg": 2.6,
+      "sma50": 46.65,
+      "sma200": 44.48,
+      "rsi14": 34.3
     },
     {
       "ticker": "TMUS",
@@ -1659,7 +1893,10 @@
       "divYield": 2.3,
       "grossMargin": 63,
       "fcfYield": 5.8,
-      "peg": 0
+      "peg": 0,
+      "sma50": 186.67,
+      "sma200": 204.05,
+      "rsi14": 44.6
     },
     {
       "ticker": "LIN",
@@ -1680,7 +1917,10 @@
       "divYield": 1.2,
       "grossMargin": 49,
       "fcfYield": 1.9,
-      "peg": 2.78
+      "peg": 2.78,
+      "sma50": 509.89,
+      "sma200": 469.59,
+      "rsi14": 68.4
     },
     {
       "ticker": "SHW",
@@ -1701,7 +1941,10 @@
       "divYield": 0.9,
       "grossMargin": 49,
       "fcfYield": 2.5,
-      "peg": 4.24
+      "peg": 4.24,
+      "sma50": 317.37,
+      "sma200": 333.58,
+      "rsi14": 72.3
     },
     {
       "ticker": "AMT",
@@ -1722,7 +1965,10 @@
       "divYield": 4.2,
       "grossMargin": 74,
       "fcfYield": 6,
-      "peg": 0.35
+      "peg": 0.35,
+      "sma50": 180.21,
+      "sma200": 181.24,
+      "rsi14": 36.5
     },
     {
       "ticker": "PLD",
@@ -1737,13 +1983,16 @@
       "fwdPe": 41.1,
       "epsGrowth": 65,
       "revGrowth": 8,
-      "fwdEpsGrowth": 42,
+      "fwdEpsGrowth": 0,
       "roe": 7,
       "de": 0.61,
       "divYield": 3.1,
       "grossMargin": 76,
       "fcfYield": 3.6,
-      "peg": 0.54
+      "peg": 0.54,
+      "sma50": 142.64,
+      "sma200": 132.25,
+      "rsi14": 45.3
     },
     {
       "ticker": "NEE",
@@ -1764,7 +2013,10 @@
       "divYield": 2.8,
       "grossMargin": 61,
       "fcfYield": -10,
-      "peg": 0.14
+      "peg": 0.14,
+      "sma50": 89.73,
+      "sma200": 86.55,
+      "rsi14": 53.2
     },
     {
       "ticker": "AEP",
@@ -1785,7 +2037,10 @@
       "divYield": 2.7,
       "grossMargin": 47,
       "fcfYield": -9.2,
-      "peg": 2.93
+      "peg": 2.93,
+      "sma50": 131.31,
+      "sma200": 124.12,
+      "rsi14": 64.6
     },
     {
       "ticker": "VST",
@@ -1806,7 +2061,10 @@
       "divYield": 0.6,
       "grossMargin": 39,
       "fcfYield": 0.9,
-      "peg": 0
+      "peg": 0,
+      "sma50": 154.41,
+      "sma200": 168.6,
+      "rsi14": 44.2
     },
     {
       "ticker": "CEG",
@@ -1827,7 +2085,10 @@
       "divYield": 0.7,
       "grossMargin": 23,
       "fcfYield": -5.2,
-      "peg": 0.02
+      "peg": 0.02,
+      "sma50": 278.83,
+      "sma200": 316.88,
+      "rsi14": 34.1
     },
     {
       "ticker": "GEV",
@@ -1848,7 +2109,10 @@
       "divYield": 0.2,
       "grossMargin": 20,
       "fcfYield": 3.1,
-      "peg": 0.02
+      "peg": 0.02,
+      "sma50": 1042.1,
+      "sma200": 794.53,
+      "rsi14": 57.2
     },
     {
       "ticker": "PWR",
@@ -1869,7 +2133,10 @@
       "divYield": 0.1,
       "grossMargin": 15,
       "fcfYield": 1,
-      "peg": 1.8
+      "peg": 1.8,
+      "sma50": 711.63,
+      "sma200": 538.12,
+      "rsi14": 42.7
     },
     {
       "ticker": "DRAM",
@@ -1890,7 +2157,10 @@
       "divYield": 0,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0
+      "peg": 0,
+      "sma50": 57.51,
+      "sma200": null,
+      "rsi14": 45.5
     },
     {
       "ticker": "ENB",
@@ -1911,7 +2181,10 @@
       "divYield": 5.2,
       "grossMargin": 39,
       "fcfYield": -1.2,
-      "peg": 0
+      "peg": 0,
+      "sma50": 55.2,
+      "sma200": 51.08,
+      "rsi14": 43
     },
     {
       "ticker": "CNQ",
@@ -1932,7 +2205,10 @@
       "divYield": 4.4,
       "grossMargin": 49,
       "fcfYield": 6.5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 45.04,
+      "sma200": 39.19,
+      "rsi14": 32.8
     },
     {
       "ticker": "SU.TO",
@@ -1953,7 +2229,10 @@
       "divYield": 3.1,
       "grossMargin": 59,
       "fcfYield": 7.2,
-      "peg": 0.49
+      "peg": 0.49,
+      "sma50": 86.72,
+      "sma200": 73.28,
+      "rsi14": 37.2
     },
     {
       "ticker": "CCO.TO",
@@ -1974,7 +2253,10 @@
       "divYield": 0.2,
       "grossMargin": 37,
       "fcfYield": 1,
-      "peg": 1.06
+      "peg": 1.06,
+      "sma50": 152.61,
+      "sma200": 144.3,
+      "rsi14": 40.9
     },
     {
       "ticker": "TD",
@@ -1995,7 +2277,10 @@
       "divYield": 2.7,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0
+      "peg": 0,
+      "sma50": 112.27,
+      "sma200": 95.5,
+      "rsi14": 60.1
     },
     {
       "ticker": "RY",
@@ -2016,7 +2301,10 @@
       "divYield": 2.5,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.68
+      "peg": 0.68,
+      "sma50": 190.2,
+      "sma200": 167.83,
+      "rsi14": 67.1
     },
     {
       "ticker": "BNS",
@@ -2037,7 +2325,10 @@
       "divYield": 3.9,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.48
+      "peg": 0.48,
+      "sma50": 80.6,
+      "sma200": 72.94,
+      "rsi14": 58.3
     },
     {
       "ticker": "BMO",
@@ -2058,7 +2349,10 @@
       "divYield": 2.8,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.46
+      "peg": 0.46,
+      "sma50": 161.4,
+      "sma200": 140.52,
+      "rsi14": 65.7
     },
     {
       "ticker": "CM",
@@ -2079,7 +2373,10 @@
       "divYield": 2.7,
       "grossMargin": 0,
       "fcfYield": 0,
-      "peg": 0.67
+      "peg": 0.67,
+      "sma50": 111.65,
+      "sma200": 96.2,
+      "rsi14": 54.1
     },
     {
       "ticker": "MFC",
@@ -2100,7 +2397,10 @@
       "divYield": 3.2,
       "grossMargin": 50,
       "fcfYield": 7.9,
-      "peg": 0.1
+      "peg": 0.1,
+      "sma50": 39.26,
+      "sma200": 35.96,
+      "rsi14": 64.5
     },
     {
       "ticker": "SLF",
@@ -2121,7 +2421,10 @@
       "divYield": 3.4,
       "grossMargin": 40,
       "fcfYield": -9.4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 73.75,
+      "sma200": 65.2,
+      "rsi14": 73.9
     },
     {
       "ticker": "ATD.TO",
@@ -2142,7 +2445,10 @@
       "divYield": 0.9,
       "grossMargin": 19,
       "fcfYield": 2.8,
-      "peg": 0
+      "peg": 0,
+      "sma50": 81.8,
+      "sma200": 77.27,
+      "rsi14": 67.8
     },
     {
       "ticker": "SHOP",
@@ -2163,7 +2469,10 @@
       "divYield": 0,
       "grossMargin": 48,
       "fcfYield": 0.8,
-      "peg": 0
+      "peg": 0,
+      "sma50": 112.33,
+      "sma200": 136.23,
+      "rsi14": 57.9
     },
     {
       "ticker": "TRP",
@@ -2184,7 +2493,10 @@
       "divYield": 3.7,
       "grossMargin": 69,
       "fcfYield": 0.4,
-      "peg": 0
+      "peg": 0,
+      "sma50": 67.23,
+      "sma200": 59.55,
+      "rsi14": 42.5
     },
     {
       "ticker": "BAM",
@@ -2205,7 +2517,10 @@
       "divYield": 4.4,
       "grossMargin": 71,
       "fcfYield": 4,
-      "peg": 4.9
+      "peg": 4.9,
+      "sma50": 47.37,
+      "sma200": 50.44,
+      "rsi14": 46.8
     },
     {
       "ticker": "CP.TO",
@@ -2226,7 +2541,10 @@
       "divYield": 0.8,
       "grossMargin": 54,
       "fcfYield": 1.7,
-      "peg": 0
+      "peg": 0,
+      "sma50": 121.05,
+      "sma200": 109.65,
+      "rsi14": 57.7
     },
     {
       "ticker": "CNR.TO",
@@ -2247,7 +2565,10 @@
       "divYield": 2.1,
       "grossMargin": 57,
       "fcfYield": 2.5,
-      "peg": 22.7
+      "peg": 22.7,
+      "sma50": 160.72,
+      "sma200": 143.91,
+      "rsi14": 67.2
     },
     {
       "ticker": "TFII",
@@ -2268,7 +2589,10 @@
       "divYield": 1.3,
       "grossMargin": 20,
       "fcfYield": 5,
-      "peg": 0
+      "peg": 0,
+      "sma50": 146.26,
+      "sma200": 114.1,
+      "rsi14": 37.3
     },
     {
       "ticker": "WSP.TO",
@@ -2289,7 +2613,34 @@
       "divYield": 0.8,
       "grossMargin": 21,
       "fcfYield": 7.1,
-      "peg": 0
+      "peg": 0,
+      "sma50": 195.33,
+      "sma200": 236.22,
+      "rsi14": 42.4
+    },
+    {
+      "ticker": "USCC.TO",
+      "name": "Global X S&P 500 Covered Call ETF",
+      "sector": "ETF",
+      "market": "CA",
+      "mktCap": "large",
+      "isBank": false,
+      "moat": "Covered Call Premium Income on S&P 500",
+      "price": 20.92,
+      "pe": 0,
+      "fwdPe": 0,
+      "epsGrowth": 0,
+      "revGrowth": 0,
+      "fwdEpsGrowth": 0,
+      "roe": 0,
+      "de": 0,
+      "divYield": 0,
+      "grossMargin": 0,
+      "fcfYield": 0,
+      "peg": 0,
+      "sma50": 20.48,
+      "sma200": 19.97,
+      "rsi14": 60.6
     }
   ]
 }

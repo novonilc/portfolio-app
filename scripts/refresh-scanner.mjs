@@ -51,13 +51,12 @@ const US_STOCKS = [
   { ticker:'ANET',  name:'Arista Networks',         sector:'Technology',            mktCap:'large' },
   { ticker:'FICO',  name:'Fair Isaac (FICO)',        sector:'Technology',            mktCap:'large' },
   { ticker:'INTC',  name:'Intel',                   sector:'Technology',            mktCap:'large' },
-  // Cyber Security (8)
+  // Cyber Security (7) — CYBR (CyberArk) removed: acquired by PANW, delisted 2026
   { ticker:'CRWD',  name:'CrowdStrike',             sector:'Cyber Security',        mktCap:'large' },
   { ticker:'PANW',  name:'Palo Alto Networks',      sector:'Cyber Security',        mktCap:'large' },
   { ticker:'FTNT',  name:'Fortinet',                sector:'Cyber Security',        mktCap:'large' },
   { ticker:'NET',   name:'Cloudflare',              sector:'Cyber Security',        mktCap:'large' },
   { ticker:'ZS',    name:'Zscaler',                 sector:'Cyber Security',        mktCap:'mid'   },
-  { ticker:'CYBR',  name:'CyberArk Software',       sector:'Cyber Security',        mktCap:'mid'   },
   { ticker:'OKTA',  name:'Okta',                    sector:'Cyber Security',        mktCap:'mid'   },
   { ticker:'S',     name:'SentinelOne',             sector:'Cyber Security',        mktCap:'mid'   },
   // Financials (12)
@@ -158,7 +157,7 @@ const CA_STOCKS = [
   { ticker:'CNR.TO', name:'Canadian National Railway',    sector:'Industrials',     market:'CA', mktCap:'large' },
   { ticker:'TFII',   name:'TFI International',            sector:'Industrials',     market:'CA', mktCap:'mid'   },
   { ticker:'WSP.TO', name:'WSP Global',                   sector:'Industrials',     market:'CA', mktCap:'mid'   },
-  { ticker:'USCC',   name:'Global X S&P 500 Covered Call ETF', sector:'ETF',        market:'CA', mktCap:'large' },
+  { ticker:'USCC.TO', name:'Global X S&P 500 Covered Call ETF', sector:'ETF',       market:'CA', mktCap:'large' },
 ];
 
 // ── Manually curated moat descriptions ───────────────────────────────────────
@@ -176,7 +175,7 @@ const CURATED_MOATS = {
   INTC:'x86 CPU + IFS Foundry',
   CRWD:'Endpoint Security Platform',   PANW:'Cybersecurity Platform Consolidation',
   FTNT:'Network Security Appliance Scale', NET:'Edge Network / Zero Trust Platform',
-  ZS:'Cloud Zero Trust Architecture',  CYBR:'Privileged Access Management Leader',
+  ZS:'Cloud Zero Trust Architecture',
   OKTA:'Identity & Access Management', S:'AI-Native Endpoint Security',
   JPM:'Global Banking Scale',          BAC:'Retail Banking Scale',
   GS:'Investment Banking Franchise',   V:'Global Payment Network',
@@ -223,7 +222,7 @@ const CURATED_MOATS = {
   CNQ:'Low-Cost Oil Sands',             'SU.TO':'$45/bbl Break-Even Advantage',
   'CCO.TO':'Tier-1 Uranium Reserves + Westinghouse Stake',
   TFII:'Trucking + Last Mile Scale',    'WSP.TO':'Global Engineering Consulting',
-  USCC:'Covered Call Premium Income on S&P 500',
+  'USCC.TO':'Covered Call Premium Income on S&P 500',
   SPCX:'Reusable Rocket + Starlink Constellation Dominance',
 };
 
@@ -291,6 +290,49 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   return { pe, fwdPe, epsGrowth, revGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
 }
 
+// ── Price-action technicals — same SMA/RSI math as api/refresh-options-signals.js ──
+function computeSMA(closes, period) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  return parseFloat((slice.reduce((a, b) => a + b, 0) / slice.length).toFixed(2));
+}
+
+function computeRSI(closes, period = 14) {
+  if (closes.length < period + 1) return null;
+  let avgGain = 0, avgLoss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) avgGain += d; else avgLoss -= d;
+  }
+  avgGain /= period;
+  avgLoss /= period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
+}
+
+async function fetchTechnicals(ticker) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  const result = json.chart?.result?.[0];
+  if (!result) throw new Error('empty chart result');
+
+  const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null);
+  if (closes.length < 50) return { sma50: null, sma200: null, rsi14: null };
+
+  return {
+    sma50:  computeSMA(closes, 50),
+    sma200: computeSMA(closes, 200),
+    rsi14:  computeRSI(closes, 14),
+  };
+}
+
 async function main() {
   const allStocks = [
     ...US_STOCKS.map(s => ({ ...s, market: 'US' })),
@@ -308,6 +350,12 @@ async function main() {
   for (const base of allStocks) {
     try {
       const live = await fetchFundamentals(base.ticker, crumb, cookies);
+      // Technicals are a bonus signal — a failed chart fetch shouldn't drop the
+      // whole ticker when fundamentals succeeded, so this is isolated.
+      let tech = { sma50: null, sma200: null, rsi14: null };
+      try {
+        tech = await fetchTechnicals(base.ticker);
+      } catch { /* leave technicals null — price-action score just skips this ticker */ }
       const stock = {
         ticker:      base.ticker,
         name:        base.name,
@@ -329,10 +377,14 @@ async function main() {
         grossMargin: live.grossMargin ?? 0,
         fcfYield:    live.fcfYield    ?? 0,
         peg:         live.peg         ?? 0,
+        // Price action (null when chart history is too short/unavailable)
+        sma50:       tech.sma50,
+        sma200:      tech.sma200,
+        rsi14:       tech.rsi14,
       };
       stocks.push(stock);
       updated++;
-      console.log(`✓  ${base.ticker.padEnd(9)} pe=${stock.pe} peg=${stock.peg} roe=${stock.roe}% div=${stock.divYield}%`);
+      console.log(`✓  ${base.ticker.padEnd(9)} pe=${stock.pe} peg=${stock.peg} roe=${stock.roe}% div=${stock.divYield}% rsi=${stock.rsi14 ?? "n/a"}`);
     } catch (err) {
       kept++;
       console.error(`✗  ${base.ticker.padEnd(9)} ${err.message} — skipped`);

@@ -1182,6 +1182,23 @@ function computeScanScore(s) {
   pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
   return Math.min(100, pts);
 }
+// Price-action / trend score — SMA50/SMA200 trend + RSI, independent of valuation.
+// Null when sma50/sma200/rsi14 haven't been populated yet by the scanner refresh
+// (existing rows keep working — computeScanScore/scanSignal treat null as neutral).
+function computeTrendScore(s) {
+  if (s.sma50 == null || s.sma200 == null || !s.price) return null;
+  let pts = 50;
+  // Price vs SMA50 — near-term trend (±20 pts)
+  const vsSma50 = (s.price - s.sma50) / s.sma50;
+  pts += vsSma50 > 0.08 ? 20 : vsSma50 > 0.02 ? 12 : vsSma50 > -0.02 ? 0 : vsSma50 > -0.08 ? -12 : -20;
+  // SMA50 vs SMA200 — golden cross (bullish) / death cross (bearish) (±20 pts)
+  pts += s.sma50 > s.sma200 ? 20 : -20;
+  // RSI14 — momentum, with overbought/oversold discounted rather than chased (±10 pts)
+  if (s.rsi14 != null) {
+    pts += s.rsi14 >= 45 && s.rsi14 <= 70 ? 10 : s.rsi14 > 70 ? 2 : s.rsi14 >= 35 ? -2 : -10;
+  }
+  return Math.max(0, Math.min(100, Math.round(pts)));
+}
 // Retirement wealth-building score — weights EPS growth + quality over cheapness
 function computeRetireScore(s) {
   let pts = 0;
@@ -1296,10 +1313,19 @@ function computeScanUpside(s) {
   if (!fair || !s.price || s.price <= 0) return null;
   return Math.round((fair - s.price) / s.price * 100);
 }
-function scanSignal(upside, score) {
+// trendScore is an optional confirmation check (null when price-action data isn't
+// populated yet, in which case the signal is fundamentals-only, same as before).
+// A clearly broken chart (death cross + price under both MAs) caps the call at
+// "Watch" — cheap-on-paper is not a Buy while the stock is actively falling.
+function scanSignal(upside, score, trendScore = null) {
   if (upside === null) return null;
-  if (upside >= 25 && score >= 60) return { label:"Strong Buy", color:"#22c55e", icon:"⬆" };
-  if (upside >= 12 && score >= 48) return { label:"Buy",        color:"#86efac", icon:"↑"  };
+  const brokenTrend = trendScore != null && trendScore <= 20;
+  if (upside >= 25 && score >= 60) return brokenTrend
+    ? { label:"Watch",      color:"#fbbf24", icon:"→"  }
+    : { label:"Strong Buy", color:"#22c55e", icon:"⬆" };
+  if (upside >= 12 && score >= 48) return brokenTrend
+    ? { label:"Watch",      color:"#fbbf24", icon:"→"  }
+    : { label:"Buy",        color:"#86efac", icon:"↑"  };
   if (upside >= 0  && score >= 38) return { label:"Watch",      color:"#fbbf24", icon:"→"  };
   if (upside < -20)                return { label:"Expensive",  color:"#ef4444", icon:"↓"  };
   return                                  { label:"Hold",       color:"#64748b", icon:"–"  };
@@ -12195,7 +12221,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const score       = computeScanScore(s);
           const fairPrice   = computeScanFairPrice(s);
           const upside      = computeScanUpside(s);
-          const signal      = scanSignal(upside, score);
+          const trendScore  = computeTrendScore(s);
+          const signal      = scanSignal(upside, score, trendScore);
           const hv          = holdingValueMap[s.ticker] || 0;
           const holdPct     = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
           const retireScore = computeRetireScore(s);
@@ -12205,7 +12232,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const insiderData      = insiderMap[s.ticker];
           const insiderScore     = insiderData?.score ?? 50;
           const fwdPFcf          = computeFwdPFcf(s);
-          return { ...s, score, fairPrice, upside, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
+          return { ...s, score, fairPrice, upside, trendScore, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12903,6 +12930,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                     border: `1px solid ${s.insiderData.signal === "Accumulating" ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
                                     color: s.insiderData.signal === "Accumulating" ? "#22c55e" : "#ef4444" }}>
                                   {s.insiderData.signal === "Accumulating" ? "▲ INS" : "▼ INS"}
+                                </span>
+                              )}
+                              {s.trendScore != null && (s.trendScore >= 70 || s.trendScore <= 30) && (
+                                <span title={`Price action ${s.trendScore}/100 — ${s.price > s.sma50 ? "above" : "below"} SMA50, ${s.sma50 > s.sma200 ? "golden cross" : "death cross"} (SMA50 vs SMA200)${s.rsi14 != null ? `, RSI14 ${s.rsi14}` : ""}`}
+                                  style={{ fontSize:9, fontWeight:800, padding:"0 5px", borderRadius:4, marginLeft:3,
+                                    verticalAlign:"middle", display:"inline-block",
+                                    background: s.trendScore >= 70 ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.12)",
+                                    border: `1px solid ${s.trendScore >= 70 ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
+                                    color: s.trendScore >= 70 ? "#22c55e" : "#ef4444" }}>
+                                  {s.trendScore >= 70 ? "▲ TREND" : "▼ TREND"}
                                 </span>
                               )}
                             </td>
