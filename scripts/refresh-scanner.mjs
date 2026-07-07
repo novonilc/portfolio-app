@@ -139,6 +139,10 @@ const US_STOCKS = [
   { ticker:'PWR',   name:'Quanta Services',         sector:'AI Power',              mktCap:'large' },
   // ETFs (1)
   { ticker:'DRAM',  name:'Roundhill Memory ETF',    sector:'ETF',                   mktCap:'large' },
+  // AI Infrastructure (1)
+  { ticker:'NBIS',  name:'Nebius Group',            sector:'AI Infrastructure',     mktCap:'large' },
+  // Drone & Autonomous Systems (1)
+  { ticker:'ONDS',  name:'Ondas Holdings',          sector:'Drone & Autonomous Systems', mktCap:'mid' },
 ];
 
 const CA_STOCKS = [
@@ -228,6 +232,8 @@ const CURATED_MOATS = {
   GEV:'Gas Turbine + Grid Equipment Duopoly',
   PWR:'Electric Grid Infrastructure Build-out',
   DRAM:'Pure-Play Memory Chip Basket (Samsung, SK Hynix, Micron)',
+  NBIS:'Neocloud AI GPU Infrastructure (Ex-Yandex)',
+  ONDS:'Drone Networks + Counter-UAS Defense Platform',
   ENB:'Regulated Pipeline Monopoly',    TRP:'Regulated Canadian Pipeline',
   TD:'Canadian Banking Oligopoly',      RY:'Canadian Banking Oligopoly',
   BNS:'LatAm Banking Franchise',        BMO:'Canadian Banking Oligopoly',
