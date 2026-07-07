@@ -2851,7 +2851,10 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         const pct    = totalCAD > 0 ? ((cadVal / totalCAD) * 100).toFixed(1) : "0.0";
 
         const uni        = stockUniverseData.stocks.find(s => s.ticker === h.ticker);
-        const scanScore  = uni ? computeScanScore(uni) : null;
+        const scanScore  = uni ? computeScanScore(uni)  : null;
+        const trendScore = uni ? computeTrendScore(uni) : null;
+        const upside     = uni ? computeScanUpside(uni) : null;
+        const signal     = uni ? scanSignal(upside, scanScore, trendScore) : null;
 
         const insider    = insiderMap[h.ticker];
         const insiderLbl = insider?.signal ?? null;
@@ -2861,8 +2864,11 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         const analystTrend = analyst?.trend ?? null;
 
         const extras = [
-          scanScore != null ? `scanScore:${scanScore}/100` : null,
-          insiderLbl         ? `insider:${insiderLbl}`      : null,
+          signal             ? `signal:${signal.label}`  : null,
+          scanScore != null  ? `score:${scanScore}/100`  : null,
+          trendScore != null ? `trend:${trendScore}/100` : null,
+          upside != null     ? `upside:${upside}%`       : null,
+          insiderLbl         ? `insider:${insiderLbl}`   : null,
           analystLbl         ? `analyst:${analystLbl}${analystTrend ? `(${analystTrend})` : ""}` : null,
         ].filter(Boolean).join(" | ");
 
@@ -2897,10 +2903,19 @@ Current holdings (ticker | name | currency | CAD value | divYield | currentTarge
 ${lines}
 
 Scanner signal key (when present):
-- scanScore/100: fundamental quality score (PEG, ROE, D/E, FCF yield, gross margin, EPS growth) — higher = stronger
+- signal: composite scanner call — Strong Buy / Buy / Watch / Hold / Expensive (blends valuation upside, fundamentals, and price trend; a broken chart caps a cheap stock at "Watch")
+- score/100: fundamental quality score (PEG, ROE, D/E, FCF yield, gross margin, EPS growth) — higher = stronger
+- trend/100: price-action score from SMA50/SMA200 trend + RSI momentum — higher = stronger uptrend, below ~30 = breaking down
+- upside: scanner's estimated % gap between current price and fair value (negative = looks expensive)
 - insider: Accumulating (insiders net buying) / Distributing (net selling) / Neutral
 - analyst: analyst consensus (buy/hold/sell) with recent trend (upgrading/downgrading/stable)
-Weight scanner signals alongside account-type rules — prefer higher-scoring stocks for larger targets; treat "Distributing" or "downgrading" as a reason to trim.
+
+How to weight scanner signals against account-type rules:
+- "Strong Buy" or "Buy" signals with trend ≥ 50 → favour a larger target, especially when insider/analyst signals agree
+- "Expensive" signal, upside well below 0, or trend ≤ 20 (broken chart) → favour trimming the target even if the fundamentals score is decent — a cheap-on-paper stock that's actively falling is not a reason to add
+- "Watch" or "Hold" → keep roughly at current weighting unless account rules or other signals argue otherwise
+- Treat "Distributing" or "downgrading" as an additional reason to trim, and "Accumulating" or "upgrading" as support for holding/adding
+- Scanner signals should never override the hard account-type and allocation rules below — use them to fine-tune targets within those constraints
 
 Instructions:
 - Assign a "target" integer % to each ticker — they must sum to EXACTLY 100

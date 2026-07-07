@@ -1488,8 +1488,9 @@ The **✨ Suggest Targets with AI** button (purple, in the Edit Targets tab head
    - **RRSP** — favour US dividend payers (WHT-exempt under the Canada-US treaty); balance income and growth
    - **RESP** — conservative; mirror current market-value proportions
    - **Crypto** — split proportionally by market value
-4. Returns targets that sum to exactly 100, a refreshed CAGR estimate, and a dividend yield per position
-5. Shows a **before/after diff modal** — every ticker shows its old target, new target, and delta (green = increased, red = decreased), plus a one-line rationale
+4. For every held ticker that's also in the scanner universe, attaches its current scanner read — the composite **signal** (Strong Buy / Buy / Watch / Hold / Expensive), fundamental **score**/100, price-action **trend**/100, and estimated **upside**% — plus insider-activity and analyst-consensus signals when available. Claude uses these to fine-tune targets within the account rules: Strong Buy/Buy with a healthy uptrend argues for a larger target, while an Expensive signal or a broken chart argues for trimming even when the fundamentals score looks fine
+5. Returns targets that sum to exactly 100, a refreshed CAGR estimate, and a dividend yield per position
+6. Shows a **before/after diff modal** — every ticker shows its old target, new target, and delta (green = increased, red = decreased), plus a one-line rationale
 
 ### Preview modal
 

@@ -73,7 +73,11 @@
       "Bash(python3 -c \"import json; d=json.load\\(open\\('/home/nchoudhu/portfolio-app/src/data/stockUniverse.json'\\)\\); print\\('keys:', list\\(d.keys\\(\\)\\)\\); print\\('generatedAt:', d.get\\('generatedAt','MISSING'\\)\\); print\\('lastUpdated:', d.get\\('lastUpdated','MISSING'\\)\\); print\\('stock count:', len\\(d.get\\('stocks',[]\\)\\)\\); print\\('first stock:', list\\(d.get\\('stocks',[]\\)[0].keys\\(\\)\\) if d.get\\('stocks'\\) else 'none'\\)\")",
       "Bash(git -C /home/nchoudhu/portfolio-app log --oneline -5 -- src/data/stockUniverse.json)",
       "WebSearch",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(git status *)",
+      "Bash(awk '{print $2, $NF}')",
+      "Bash(git stash *)",
+      "Bash(echo \"EXIT: $?\")"
     ],
     "additionalDirectories": [
       "/tmp"
