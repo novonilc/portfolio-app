@@ -2502,6 +2502,18 @@ Dividend yield: ${h.divYield || 0}%${pnlLine}`;
     return cells;
   }
 
+  // Some brokers export book values with 15-30+ significant decimal digits
+  // (floating-point noise). Left as-is, this bloats the AI prompt and makes it
+  // easy for the model to botch a number while echoing/computing derived values,
+  // which shows up as malformed JSON. Round any over-precise decimal literal
+  // to 4 places before it ever reaches the prompt.
+  function roundLongDecimalsInCsv(csvText) {
+    return csvText.replace(/-?\d+\.\d{7,}/g, m => {
+      const n = parseFloat(m);
+      return Number.isFinite(n) ? n.toFixed(4) : m;
+    });
+  }
+
   function parseCsvText(csvText) {
     const lines = csvText
       .replace(/\r\n/g, "\n")
@@ -2747,12 +2759,17 @@ Dividend yield: ${h.divYield || 0}%${pnlLine}`;
         }
         setBrokerImportMapping(initialMapping);
 
+        // Broker exports sometimes carry 15-30+ significant decimal digits of
+        // floating-point noise (e.g. "8941.033688180315710227272727"). Round
+        // those down before they reach the prompt — see roundLongDecimalsInCsv.
+        const cleanedCsvText = roundLongDecimalsInCsv(csvText);
+
         const prompt = `You are converting a Wealthsimple brokerage CSV export into portfolio app holdings.
 
 Current USD/CAD rate: ${rate}
 
 CSV data:
-${csvText}
+${cleanedCsvText}
 
 Rules:
 - Include holdings where Quantity > 0 EXCEPT:
@@ -2783,40 +2800,51 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
 
         // Client-side safety filter applied after Claude responds (see below)
 
-        const res = await callClaude({
-          model: "claude-sonnet-4-6",
-          max_tokens: 8000,
-          messages: [{ role: "user", content: prompt }],
-        });
+        // LLM JSON generation is non-deterministic — a malformed response is
+        // usually a one-off. Retry once automatically before surfacing an error.
+        let rows, lastParseErr, lastStripped;
+        for (let attempt = 1; attempt <= 2 && !rows; attempt++) {
+          const res = await callClaude({
+            model: "claude-sonnet-4-6",
+            max_tokens: 8000,
+            messages: [{ role: "user", content: prompt }],
+          });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error?.message || err.error || `API error ${res.status}`);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || err.error || `API error ${res.status}`);
+          }
+
+          const data = await res.json();
+          const rawText = (data.content?.[0]?.text || "").trim();
+
+          // Strip markdown fences Claude sometimes adds despite instructions
+          let stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+
+          // Extract just the [...] array in case Claude wrapped it in explanation text
+          const arrStart = stripped.indexOf("[");
+          const arrEnd   = stripped.lastIndexOf("]");
+          if (arrStart !== -1 && arrEnd > arrStart) stripped = stripped.slice(arrStart, arrEnd + 1);
+
+          // Sanitize common LLM JSON mistakes before parsing:
+          // 1. Literal newlines/tabs inside string values → space
+          // 2. Trailing commas before } or ] (invalid JSON but common from LLMs)
+          stripped = stripped
+            .replace(/[\r\n\t]+/g, " ")
+            .replace(/,(\s*[}\]])/g, "$1");
+
+          try {
+            rows = JSON.parse(stripped);
+          } catch (parseErr) {
+            lastParseErr = parseErr;
+            lastStripped = stripped;
+            console.warn(`Broker import: JSON parse failed on attempt ${attempt}`, parseErr.message, stripped);
+          }
         }
 
-        const data = await res.json();
-        const rawText = (data.content?.[0]?.text || "").trim();
-
-        // Strip markdown fences Claude sometimes adds despite instructions
-        let stripped = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-
-        // Extract just the [...] array in case Claude wrapped it in explanation text
-        const arrStart = stripped.indexOf("[");
-        const arrEnd   = stripped.lastIndexOf("]");
-        if (arrStart !== -1 && arrEnd > arrStart) stripped = stripped.slice(arrStart, arrEnd + 1);
-
-        // Sanitize common LLM JSON mistakes before parsing:
-        // 1. Literal newlines/tabs inside string values → space
-        // 2. Trailing commas before } or ] (invalid JSON but common from LLMs)
-        stripped = stripped
-          .replace(/[\r\n\t]+/g, " ")
-          .replace(/,(\s*[}\]])/g, "$1");
-
-        let rows;
-        try {
-          rows = JSON.parse(stripped);
-        } catch (parseErr) {
-          throw new Error(`AI returned malformed JSON (${parseErr.message}). Try re-uploading the CSV.`);
+        if (!rows) {
+          const snippet = (lastStripped || "").slice(0, 160);
+          throw new Error(`AI returned malformed JSON after 2 attempts (${lastParseErr?.message}). Try re-uploading the CSV. [${snippet}${lastStripped?.length > 160 ? "…" : ""}]`);
         }
 
         if (!Array.isArray(rows) || !rows.length) throw new Error("Claude returned no holdings");
