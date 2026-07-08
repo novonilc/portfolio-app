@@ -27,7 +27,7 @@ async function getYahooCrumb() {
   return { crumb, cookies };
 }
 
-// ── Curated universe — 77 US + 18 CA = 95 tickers ───────────────────────────
+// ── Curated universe — 98 US + 25 CA = 123 tickers ──────────────────────────
 // Only mega, large, and select mid-cap names. Intentionally < 100 tickers so
 // the full scan finishes in ~35 s and the git push window stays tiny.
 const US_STOCKS = [
@@ -115,6 +115,9 @@ const US_STOCKS = [
   { ticker:'ITW',   name:'Illinois Tool Works',     sector:'Industrials',           mktCap:'large' },
   { ticker:'TDG',   name:'TransDigm Group',         sector:'Industrials',           mktCap:'large' },
   { ticker:'ODFL',  name:'Old Dominion Freight',    sector:'Industrials',           mktCap:'large' },
+  // Aerospace / Space (2)
+  { ticker:'RKLB',  name:'Rocket Lab',              sector:'Aerospace/Space',       mktCap:'mid'   },
+  { ticker:'ASTS',  name:'AST SpaceMobile',         sector:'Aerospace/Space',       mktCap:'mid'   },
   // Telecom (3)
   { ticker:'T',     name:'AT&T',                    sector:'Telecom',               mktCap:'large' },
   { ticker:'VZ',    name:'Verizon',                 sector:'Telecom',               mktCap:'large' },
