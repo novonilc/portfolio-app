@@ -81,7 +81,8 @@
       "WebFetch(domain:stockanalysis.com)",
       "WebFetch(domain:finviz.com)",
       "Bash(grep -n \"signal:\\\\${signal.label}\" /home/nchoudhu/portfolio-app/src/App.jsx)",
-      "Bash(grep -n \"scanScore:\\\\${scanScore}\\\\|score:\\\\${scanScore}\" src/App.jsx)"
+      "Bash(grep -n \"scanScore:\\\\${scanScore}\\\\|score:\\\\${scanScore}\" src/App.jsx)",
+      "Bash(command -v node npm)"
     ],
     "additionalDirectories": [
       "/tmp"

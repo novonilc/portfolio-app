@@ -337,6 +337,36 @@ function computeRSI(closes, period = 14) {
   return parseFloat((100 - 100 / (1 + avgGain / avgLoss)).toFixed(1));
 }
 
+// Trading days since the most recent 1y-low close — proxy for "has this stock
+// stopped making new lows", the core signal behind a Wyckoff-style accumulation base.
+function computeDaysSinceLow(closes) {
+  let lowIdx = 0, lowVal = Infinity;
+  closes.forEach((c, i) => { if (c < lowVal) { lowVal = c; lowIdx = i; } });
+  return closes.length - 1 - lowIdx;
+}
+
+// High-low range over the trailing `period` closes, as a % of the period low —
+// used to compare recent vs. prior volatility (range compression = base forming).
+function computeRange(closes, period) {
+  if (closes.length < period) return null;
+  const slice = closes.slice(-period);
+  const hi = Math.max(...slice), lo = Math.min(...slice);
+  return lo > 0 ? parseFloat(((hi - lo) / lo * 100).toFixed(1)) : null;
+}
+
+// Recent (20d) vs prior (20-80d ago) average volume — <1 means volume is drying up,
+// a classic late-stage-base characteristic ("nobody is talking about it anymore").
+function computeVolRatio(volumes) {
+  const clean = volumes.filter(v => v != null);
+  if (clean.length < 80) return null;
+  const recent20 = clean.slice(-20);
+  const prior60  = clean.slice(-80, -20);
+  if (recent20.length < 10 || prior60.length < 30) return null;
+  const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const priorAvg = avg(prior60);
+  return priorAvg > 0 ? parseFloat((avg(recent20) / priorAvg).toFixed(2)) : null;
+}
+
 async function fetchTechnicals(ticker) {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
   const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
@@ -345,13 +375,24 @@ async function fetchTechnicals(ticker) {
   const result = json.chart?.result?.[0];
   if (!result) throw new Error('empty chart result');
 
-  const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null);
-  if (closes.length < 50) return { sma50: null, sma200: null, rsi14: null };
+  const quote  = result.indicators?.quote?.[0] || {};
+  const closes = (quote.close || []).filter(c => c != null);
+  const empty  = { sma50: null, sma200: null, rsi14: null, daysSinceLow: null, range20d: null, range60d: null, volRatio: null, pctOffHigh: null };
+  if (closes.length < 50) return empty;
+
+  const high52w    = Math.max(...closes);
+  const lastClose  = closes[closes.length - 1];
+  const pctOffHigh = high52w > 0 ? parseFloat(((high52w - lastClose) / high52w * 100).toFixed(1)) : null;
 
   return {
-    sma50:  computeSMA(closes, 50),
-    sma200: computeSMA(closes, 200),
-    rsi14:  computeRSI(closes, 14),
+    sma50:        computeSMA(closes, 50),
+    sma200:       computeSMA(closes, 200),
+    rsi14:        computeRSI(closes, 14),
+    daysSinceLow: computeDaysSinceLow(closes),
+    range20d:     computeRange(closes, 20),
+    range60d:     computeRange(closes, 60),
+    volRatio:     computeVolRatio(quote.volume || []),
+    pctOffHigh,
   };
 }
 
@@ -374,7 +415,7 @@ async function main() {
       const live = await fetchFundamentals(base.ticker, crumb, cookies);
       // Technicals are a bonus signal — a failed chart fetch shouldn't drop the
       // whole ticker when fundamentals succeeded, so this is isolated.
-      let tech = { sma50: null, sma200: null, rsi14: null };
+      let tech = { sma50: null, sma200: null, rsi14: null, daysSinceLow: null, range20d: null, range60d: null, volRatio: null, pctOffHigh: null };
       try {
         tech = await fetchTechnicals(base.ticker);
       } catch { /* leave technicals null — price-action score just skips this ticker */ }
@@ -403,6 +444,12 @@ async function main() {
         sma50:       tech.sma50,
         sma200:      tech.sma200,
         rsi14:       tech.rsi14,
+        // Base/accumulation inputs — see computeBaseScore in App.jsx
+        daysSinceLow:tech.daysSinceLow,
+        range20d:    tech.range20d,
+        range60d:    tech.range60d,
+        volRatio:    tech.volRatio,
+        pctOffHigh:  tech.pctOffHigh,
       };
       stocks.push(stock);
       updated++;

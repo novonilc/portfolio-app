@@ -1144,6 +1144,7 @@ const SCAN_PRESET_FILTERS = {
   canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
   retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
   insider:    { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  basebuild:  { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
   { key:"all",        icon:"🌐", label:"Show All",       desc:"All stocks, no filter"               },
@@ -1158,6 +1159,7 @@ const SCAN_PRESETS = [
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
   { key:"retire",     icon:"🏖️", label:"Retire in 10-15yr", desc:"High-growth compounders for a 45yr wealth plan" },
   { key:"insider",    icon:"🕵️", label:"Insider Buying",  desc:"Stocks where insiders are net buyers of their own shares (Form 4)" },
+  { key:"basebuild",  icon:"🎯", label:"Base Building",   desc:"Fell hard, stopped making new lows, volume drying up — accumulation zone" },
 ];
 function computeScanScore(s) {
   let pts = 0;
@@ -1330,6 +1332,37 @@ function scanSignal(upside, score, trendScore = null) {
   if (upside < -20)                return { label:"Expensive",  color:"#ef4444", icon:"↓"  };
   return                                  { label:"Hold",       color:"#64748b", icon:"–"  };
 }
+// Base/accumulation detector — "never buy a downtrend; wait for the stock to stop
+// making new lows, go quiet, and let volume dry up before buying the base."
+// Distinct from computeTrendScore: trend confirms an established up/down move,
+// this looks for the quiet, low-volatility, low-volume pause AFTER a decline —
+// the setup, not the move. Only meaningful for a stock that has actually fallen
+// (pctOffHigh < 15 means "near its highs", where "base" isn't a relevant concept).
+// Null when the underlying technicals haven't been populated by the scanner refresh.
+function computeBaseScore(s) {
+  if (s.daysSinceLow == null || s.range20d == null || s.range60d == null || s.pctOffHigh == null) return null;
+  if (s.pctOffHigh < 15) return null;
+  let pts = 0;
+  // No new lows recently — the core "stopped falling" signal (0-45 pts)
+  pts += s.daysSinceLow >= 40 ? 45 : s.daysSinceLow >= 20 ? 30 : s.daysSinceLow >= 10 ? 15 : 0;
+  // Range compression — 20d range tighter than 60d range = volatility drying up (0-30 pts)
+  if (s.range60d > 0) {
+    const compression = s.range20d / s.range60d;
+    pts += compression <= 0.5 ? 30 : compression <= 0.7 ? 18 : compression <= 0.9 ? 8 : 0;
+  }
+  // Volume drying up — "nobody is talking about it anymore" (0-25 pts)
+  if (s.volRatio != null) pts += s.volRatio <= 0.7 ? 25 : s.volRatio <= 0.9 ? 12 : 0;
+  return Math.min(100, pts);
+}
+// Combines trend + base into one call: "Base Building" (accumulation zone — the
+// setup the screenshot philosophy says to wait for) vs "Falling Knife" (still making
+// new lows / no base evidence yet — the thing NOT to buy). Null = neither applies
+// (stock is trending normally, or too near its highs for "base" to mean anything).
+function baseSignalLabel(trendScore, baseScore) {
+  if (baseScore != null && baseScore >= 60) return "Base Building";
+  if (trendScore != null && trendScore <= 20 && (baseScore == null || baseScore < 25)) return "Falling Knife";
+  return null;
+}
 // ──────────────────────────────────────────────────────────────────────────────
 
 function AppLogo() {
@@ -1397,6 +1430,7 @@ export default function App() {
   const [scanSigFilter,     setScanSigFilter]     = useState("all");
   const [scanMornStarMin,   setScanMornStarMin]   = useState(0); // 0 = off, 1-5 = min stars required
   const [scanInsiderFilter, setScanInsiderFilter] = useState("all"); // "all" | "buying" | "distributing"
+  const [scanBaseFilter,    setScanBaseFilter]    = useState("all"); // "all" | "basing" | "falling"
   const [stockScanResults,  setStockScanResults]  = useState(null);
   const [stockScanProgress, setStockScanProgress] = useState(null);
   const [stockScanError,    setStockScanError]    = useState(null);
@@ -2853,6 +2887,8 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         const uni        = stockUniverseData.stocks.find(s => s.ticker === h.ticker);
         const scanScore  = uni ? computeScanScore(uni)  : null;
         const trendScore = uni ? computeTrendScore(uni) : null;
+        const baseScore  = uni ? computeBaseScore(uni)  : null;
+        const baseSignal = baseSignalLabel(trendScore, baseScore);
         const upside     = uni ? computeScanUpside(uni) : null;
         const signal     = uni ? scanSignal(upside, scanScore, trendScore) : null;
 
@@ -2867,6 +2903,7 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
           signal             ? `signal:${signal.label}`  : null,
           scanScore != null  ? `score:${scanScore}/100`  : null,
           trendScore != null ? `trend:${trendScore}/100` : null,
+          baseSignal         ? `base:${baseSignal}`       : null,
           upside != null     ? `upside:${upside}%`       : null,
           insiderLbl         ? `insider:${insiderLbl}`   : null,
           analystLbl         ? `analyst:${analystLbl}${analystTrend ? `(${analystTrend})` : ""}` : null,
@@ -2906,6 +2943,7 @@ Scanner signal key (when present):
 - signal: composite scanner call — Strong Buy / Buy / Watch / Hold / Expensive (blends valuation upside, fundamentals, and price trend; a broken chart caps a cheap stock at "Watch")
 - score/100: fundamental quality score (PEG, ROE, D/E, FCF yield, gross margin, EPS growth) — higher = stronger
 - trend/100: price-action score from SMA50/SMA200 trend + RSI momentum — higher = stronger uptrend, below ~30 = breaking down
+- base: "Base Building" (fell hard, stopped making new lows, volatility/volume drying up — an accumulation zone forming) or "Falling Knife" (still making new lows, no base formed — actively falling)
 - upside: scanner's estimated % gap between current price and fair value (negative = looks expensive)
 - insider: Accumulating (insiders net buying) / Distributing (net selling) / Neutral
 - analyst: analyst consensus (buy/hold/sell) with recent trend (upgrading/downgrading/stable)
@@ -2913,6 +2951,8 @@ Scanner signal key (when present):
 How to weight scanner signals against account-type rules:
 - "Strong Buy" or "Buy" signals with trend ≥ 50 → favour a larger target, especially when insider/analyst signals agree
 - "Expensive" signal, upside well below 0, or trend ≤ 20 (broken chart) → favour trimming the target even if the fundamentals score is decent — a cheap-on-paper stock that's actively falling is not a reason to add
+- base:"Falling Knife" → never raise this target on cheapness alone; a stock still making new lows has not finished falling. Hold or trim, and wait for it to stop before adding.
+- base:"Base Building" → this is the entry signal a "buy the dip" call should actually wait for; it supports raising the target or adding, even if trend/100 hasn't turned positive yet, since accumulation precedes the trend turning
 - "Watch" or "Hold" → keep roughly at current weighting unless account rules or other signals argue otherwise
 - Treat "Distributing" or "downgrading" as an additional reason to trim, and "Accumulating" or "upgrading" as support for holding/adding
 - Scanner signals should never override the hard account-type and allocation rules below — use them to fine-tune targets within those constraints
@@ -3058,8 +3098,8 @@ Return ONLY a JSON array, no markdown:
       const radarInZone   = buyRadarData.inZone.filter(s => !heldTickers.has(s.ticker)).slice(0, 10);
       const radarNearZone = buyRadarData.nearZone.filter(s => !heldTickers.has(s.ticker)).slice(0, 5);
       const radarLines = [
-        ...radarInZone.map(s   => `  ${s.ticker} | ${s.name} | +${s.upside}% upside | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%`),
-        ...radarNearZone.map(s => `  ${s.ticker} | ${s.name} | ${s.upside}% upside (near zone) | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%`),
+        ...radarInZone.map(s   => `  ${s.ticker} | ${s.name} | +${s.upside}% upside | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%${s.baseSignal ? ` | base:${s.baseSignal}` : ""}`),
+        ...radarNearZone.map(s => `  ${s.ticker} | ${s.name} | ${s.upside}% upside (near zone) | score:${s.score}/100 | ${s.sector} | div:${s.divYield ?? 0}%${s.baseSignal ? ` | base:${s.baseSignal}` : ""}`),
       ];
 
       const regime    = marketPulse?.regime?.label    || "Unknown";
@@ -3125,6 +3165,7 @@ From the Buy Radar list above, select up to 3 stocks that:
 - Suit the current market regime
 - Are NOT already in the held list
 These are quantitatively screened — they can overlap with TASK A; that's fine. If none qualify, return [].
+Where a "base" tag is present: a cheap stock tagged base:"Falling Knife" is still making new lows — do not pick it, no matter how large its upside looks, until it shows up as base:"Base Building" or the tag disappears (trend no longer broken). A stock tagged base:"Base Building" (fell hard, stopped making new lows, volatility/volume drying up) is a stronger pick than an equally-cheap stock with no base tag, since it means the decline has likely already been absorbed. Mention the base signal in the thesis when it influenced the pick.
 
 Return ONLY a valid JSON object, no markdown, no trailing commas:
 {
@@ -3748,9 +3789,12 @@ Return ONLY a valid JSON object, no markdown:
       .filter(s => s.price > 0)
       .map(s => {
         const st = livePriceMap[s.ticker] != null ? { ...s, price: livePriceMap[s.ticker] } : s;
-        const fairPrice = computeScanFairPrice(st);
-        const upside    = computeScanUpside(st);
-        return { ...st, fairPrice, upside, score: computeScanScore(st), held: heldSet.has(st.ticker) };
+        const fairPrice  = computeScanFairPrice(st);
+        const upside     = computeScanUpside(st);
+        const trendScore = computeTrendScore(st);
+        const baseScore  = computeBaseScore(st);
+        const baseSignal = baseSignalLabel(trendScore, baseScore);
+        return { ...st, fairPrice, upside, trendScore, baseScore, baseSignal, score: computeScanScore(st), held: heldSet.has(st.ticker) };
       })
       .filter(s => s.fairPrice != null && s.score >= 35);
     return {
@@ -12245,6 +12289,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const fairPrice   = computeScanFairPrice(s);
           const upside      = computeScanUpside(s);
           const trendScore  = computeTrendScore(s);
+          const baseScore   = computeBaseScore(s);
+          const baseSignal  = baseSignalLabel(trendScore, baseScore);
           const signal      = scanSignal(upside, score, trendScore);
           const hv          = holdingValueMap[s.ticker] || 0;
           const holdPct     = hv > 0 && totalHeldValue > 0 ? hv / totalHeldValue * 100 : 0;
@@ -12255,7 +12301,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const insiderData      = insiderMap[s.ticker];
           const insiderScore     = insiderData?.score ?? 50;
           const fwdPFcf          = computeFwdPFcf(s);
-          return { ...s, score, fairPrice, upside, trendScore, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
+          return { ...s, score, fairPrice, upside, trendScore, baseScore, baseSignal, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12310,6 +12356,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (scanMornStarMin > 0 && (s.morningStarScore ?? 0) < scanMornStarMin) return false;
           if (scanInsiderFilter === "buying"      && (s.insiderScore ?? 50) < 65)  return false;
           if (scanInsiderFilter === "distributing" && (s.insiderScore ?? 50) > 35) return false;
+          if (scanBaseFilter === "basing"  && s.baseSignal !== "Base Building") return false;
+          if (scanBaseFilter === "falling" && s.baseSignal !== "Falling Knife") return false;
           return true;
         });
 
@@ -12610,6 +12658,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       setScanCommitted(pf);
                       setScanDirty(false);
                       setScanInsiderFilter(key === "insider" ? "buying" : "all");
+                      setScanBaseFilter(key === "basebuild" ? "basing" : "all");
                     }}
                     style={{ fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:6 }}>
                     <span>{icon}</span>
@@ -12637,6 +12686,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     setScanCommitted(def);
                     setScanDirty(false);
                     setScanInsiderFilter("all");
+                    setScanBaseFilter("all");
                   }}
                   style={{ marginLeft:"auto", fontSize:11, color:"#64748b", background:"none",
                     border:"1px solid rgba(255,255,255,0.08)", borderRadius:6, padding:"3px 10px", cursor:"pointer" }}>
@@ -12812,6 +12862,34 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 </div>
               )}
 
+              {/* Base/accumulation filter — only shown once technicals are populated */}
+              {scanned.some(s => s.baseSignal != null) && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>Base</span>
+                  {[
+                    { v:"all",     label:"All",           color:"#94a3b8" },
+                    { v:"basing",  label:"🎯 Base Building", color:"#a78bfa" },
+                    { v:"falling", label:"⚠ Falling Knife", color:"#ef4444" },
+                  ].map(({ v, label, color }) => {
+                    const active = scanBaseFilter === v;
+                    const count  = v === "all" ? null
+                      : v === "basing" ? scanned.filter(s => s.baseSignal === "Base Building").length
+                      : scanned.filter(s => s.baseSignal === "Falling Knife").length;
+                    return (
+                      <button key={v}
+                        onClick={() => setScanBaseFilter(v)}
+                        style={{ padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          fontFamily:"inherit", fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                          border:`1px solid ${active ? `${color}80` : "rgba(255,255,255,0.1)"}`,
+                          background: active ? `${color}18` : "rgba(255,255,255,0.04)",
+                          color: active ? color : "#94a3b8" }}>
+                        {label}{count !== null ? ` (${count})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Morning Star star filter — only available after a live scan */}
               {Object.keys(morningStarMap).length > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:7 }}>
@@ -12963,6 +13041,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                     border: `1px solid ${s.trendScore >= 70 ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
                                     color: s.trendScore >= 70 ? "#22c55e" : "#ef4444" }}>
                                   {s.trendScore >= 70 ? "▲ TREND" : "▼ TREND"}
+                                </span>
+                              )}
+                              {s.baseSignal && (
+                                <span title={s.baseSignal === "Base Building"
+                                    ? `Base Building ${s.baseScore}/100 — ${s.pctOffHigh}% off high, ${s.daysSinceLow}d since last new low, range/volume contracting. Accumulation zone — the setup to buy INTO, not before.`
+                                    : `Falling Knife — still making new lows (${s.daysSinceLow}d since last low), no base formed yet. Don't buy the downtrend; wait for it to stop falling first.`}
+                                  style={{ fontSize:9, fontWeight:800, padding:"0 5px", borderRadius:4, marginLeft:3,
+                                    verticalAlign:"middle", display:"inline-block",
+                                    background: s.baseSignal === "Base Building" ? "rgba(167,139,250,0.15)" : "rgba(239,68,68,0.12)",
+                                    border: `1px solid ${s.baseSignal === "Base Building" ? "rgba(167,139,250,0.45)" : "rgba(239,68,68,0.35)"}`,
+                                    color: s.baseSignal === "Base Building" ? "#a78bfa" : "#ef4444" }}>
+                                  {s.baseSignal === "Base Building" ? "🎯 BASE" : "⚠ KNIFE"}
                                 </span>
                               )}
                             </td>
