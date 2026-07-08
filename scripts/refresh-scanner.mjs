@@ -27,7 +27,7 @@ async function getYahooCrumb() {
   return { crumb, cookies };
 }
 
-// ── Curated universe — 98 US + 25 CA = 123 tickers ──────────────────────────
+// ── Curated universe — 103 US + 25 CA = 128 tickers ─────────────────────────
 // Only mega, large, and select mid-cap names. Intentionally < 100 tickers so
 // the full scan finishes in ~35 s and the git push window stays tiny.
 const US_STOCKS = [
@@ -118,6 +118,11 @@ const US_STOCKS = [
   // Aerospace / Space (2)
   { ticker:'RKLB',  name:'Rocket Lab',              sector:'Aerospace/Space',       mktCap:'mid'   },
   { ticker:'ASTS',  name:'AST SpaceMobile',         sector:'Aerospace/Space',       mktCap:'mid'   },
+  // Robotics (4)
+  { ticker:'ROK',   name:'Rockwell Automation',     sector:'Robotics',              mktCap:'large' },
+  { ticker:'ABB',   name:'ABB Ltd',                 sector:'Robotics',              mktCap:'large' },
+  { ticker:'TER',   name:'Teradyne',                sector:'Robotics',              mktCap:'large' },
+  { ticker:'SYM',   name:'Symbotic',                sector:'Robotics',              mktCap:'mid'   },
   // Telecom (3)
   { ticker:'T',     name:'AT&T',                    sector:'Telecom',               mktCap:'large' },
   { ticker:'VZ',    name:'Verizon',                 sector:'Telecom',               mktCap:'large' },
@@ -135,11 +140,12 @@ const US_STOCKS = [
   // Utilities (2)
   { ticker:'NEE',   name:'NextEra Energy',          sector:'Utilities',             mktCap:'large' },
   { ticker:'AEP',   name:'American Electric Power', sector:'Utilities',             mktCap:'large' },
-  // AI Power (4)
+  // AI Power (5)
   { ticker:'VST',   name:'Vistra Energy',           sector:'AI Power',              mktCap:'large' },
   { ticker:'CEG',   name:'Constellation Energy',    sector:'AI Power',              mktCap:'large' },
   { ticker:'GEV',   name:'GE Vernova',              sector:'AI Power',              mktCap:'large' },
   { ticker:'PWR',   name:'Quanta Services',         sector:'AI Power',              mktCap:'large' },
+  { ticker:'VRT',   name:'Vertiv Holdings',         sector:'AI Power',              mktCap:'large' },
   // ETFs (1)
   { ticker:'DRAM',  name:'Roundhill Memory ETF',    sector:'ETF',                   mktCap:'large' },
   // AI Infrastructure (1)
