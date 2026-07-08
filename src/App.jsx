@@ -855,6 +855,34 @@ function buildTradeSetup(s) {
   return null;
 }
 
+// ─── Black-Scholes Greeks (r ≈ 0 — reasonable for short-dated premium-selling estimates) ───
+function _bsNormCDF(x) {
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x) / Math.SQRT2;
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const t = 1 / (1 + p * ax);
+  const y = 1 - (((((a5*t + a4)*t) + a3)*t + a2)*t + a1) * t * Math.exp(-ax*ax);
+  return 0.5 * (1 + sign * y);
+}
+function _bsNormPDF(x) { return Math.exp(-x*x / 2) / Math.sqrt(2 * Math.PI); }
+
+// type: "call" | "put". Returns delta (±0–1), thetaPerDay ($/share, always ≤0 for a long option),
+// and popOTM (%) — probability the option finishes out-of-the-money (the premium seller's "win" odds).
+function bsGreeks(price, strike, daysToExpiry, ivPct, type) {
+  const S = Math.max(price, 0.01), K = Math.max(strike, 0.01);
+  const T = Math.max(daysToExpiry, 1) / 365;
+  const sigma = Math.max(ivPct, 1) / 100;
+  const sqrtT = Math.sqrt(T);
+  const d1 = (Math.log(S / K) + 0.5 * sigma * sigma * T) / (sigma * sqrtT);
+  const d2 = d1 - sigma * sqrtT;
+  const isCall = type === "call";
+  const delta = isCall ? _bsNormCDF(d1) : _bsNormCDF(d1) - 1;
+  const gamma = _bsNormPDF(d1) / (S * sigma * sqrtT);
+  const thetaPerDay = -(S * _bsNormPDF(d1) * sigma) / (2 * sqrtT) / 365;
+  const popOTM = (isCall ? (1 - _bsNormCDF(d2)) : _bsNormCDF(d2)) * 100;
+  return { delta, gamma, thetaPerDay, popOTM };
+}
+
 // Options constants
 const SECTOR_IV_MULT = {
   "Semiconductor":3.0, "Technology":2.4, "Aerospace/Defense":1.6,
@@ -2116,6 +2144,7 @@ export default function App() {
       const contractPremium = premiumPerShare * 100;
       const collateral = type === "csp" ? strike * 100 : price * 100;
       const monthlyYield = (contractPremium / collateral) * (30 / daysToExpiry) * 100;
+      const greeks = bsGreeks(price, strike, daysToExpiry, iv, type === "cc" ? "call" : "put");
       return {
         label: ["Conservative","Moderate","Aggressive"][i],
         strike,
@@ -2124,6 +2153,9 @@ export default function App() {
         contractPremium: Math.round(contractPremium),
         monthlyYield: Math.round(monthlyYield * 10) / 10,
         annualYield:  Math.round(monthlyYield * 12 * 10) / 10,
+        delta: Math.round(greeks.delta * 100) / 100,
+        thetaPerDay: Math.round(greeks.thetaPerDay * 100 * 100) / 100, // $/contract/day
+        popOTM: Math.round(greeks.popOTM),
       };
     });
   }
@@ -10650,8 +10682,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   <th style={ts}></th>
                                   <SortTh col="strike"  label="Strike"          sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="pct"     label="OTM %"           sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="delta"   label="Δ Delta"         sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="pop"     label="POP"             sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="premium" label="Est. premium/sh" sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="perContract" label="Per contract" sort={ccStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="theta"   label="Θ/day"           sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="monthly" label="Monthly yield"   sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="annual"  label="Ann. yield"      sort={ccStrikeSort} onSort={onSort} style={ts} />
                                   <th style={ts}>Action</th>
@@ -10663,14 +10698,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             {sortRows(strikes, ccStrikeSort.col, ccStrikeSort.dir, (s, col) => ({
                               strike: s.strike, pct: s.pct, premium: s.premiumPerShare,
                               perContract: s.contractPremium, monthly: parseFloat(s.monthlyYield),
-                              annual: parseFloat(s.annualYield),
+                              annual: parseFloat(s.annualYield), delta: s.delta, theta: s.thetaPerDay, pop: s.popOTM,
                             }[col] ?? null)).map(s => (
                               <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                                 <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.4)", fontWeight:600, fontSize:9 }}>{s.label}</td>
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee", fontWeight:700 }}>${s.strike}</td>
                                 <td style={{ padding:"6px 8px", color:"rgba(255,255,255,0.5)" }}>+{s.pct}%</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.6)" }}>{s.delta.toFixed(2)}</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace",
+                                  color: s.popOTM >= 70 ? "#22c55e" : s.popOTM >= 55 ? "#fbbf24" : "#ef4444", fontWeight:600 }}>{s.popOTM}%</td>
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(s.premiumPerShare)}</td>
                                 <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${s.contractPremium}</td>
+                                <td style={{ padding:"6px 8px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>+${Math.abs(s.thetaPerDay).toFixed(2)}</td>
                                 <td style={{ padding:"6px 8px", color:"#fbbf24", fontWeight:600 }}>{s.monthlyYield}%</td>
                                 <td style={{ padding:"6px 8px", color:"#a78bfa", fontWeight:600 }}>{s.annualYield}%</td>
                                 <td style={{ padding:"6px 8px" }}>
@@ -10692,7 +10731,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </tbody>
                         </table>
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:6, fontStyle:"italic" }}>
-                          ★ Premiums estimated from IV≈VIX×{(h.iv/vix).toFixed(1)} · 30 DTE · verify with your broker before trading
+                          ★ Premiums estimated from IV≈VIX×{(h.iv/vix).toFixed(1)} · 30 DTE · verify with your broker before trading ·
+                          Δ/Θ/POP are Black-Scholes estimates (r≈0), not live chain data
                         </p>
                       </div>
                     ) : !h.price ? (
@@ -10891,8 +10931,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   <th style={ts}></th>
                                   <SortTh col="strike"     label="Strike"        sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="pct"        label="OTM %"         sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="delta"      label="Δ Delta"       sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="pop"        label="POP"           sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="premium"    label="Premium/sh"    sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="collateral" label="Collateral"    sort={cspStrikeSort} onSort={onSort} style={ts} />
+                                  <SortTh col="theta"      label="Θ/day"         sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="monthly"    label="Monthly yield" sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <SortTh col="annual"     label="Ann. yield"    sort={cspStrikeSort} onSort={onSort} style={ts} />
                                   <th style={ts}>Action</th>
@@ -10904,14 +10947,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             {sortRows(strikes, cspStrikeSort.col, cspStrikeSort.dir, (s, col) => ({
                               strike: s.strike, pct: s.pct, premium: s.premiumPerShare,
                               collateral: s.strike * 100, monthly: parseFloat(s.monthlyYield),
-                              annual: parseFloat(s.annualYield),
+                              annual: parseFloat(s.annualYield), delta: s.delta, theta: s.thetaPerDay, pop: s.popOTM,
                             }[col] ?? null)).map(s => (
                               <tr key={s.label} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                                 <td style={{ padding:"5px 6px", fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{s.label}</td>
                                 <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa", fontWeight:700 }}>${s.strike}</td>
                                 <td style={{ padding:"5px 6px", color:"rgba(255,255,255,0.4)" }}>-{s.pct}%</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.6)" }}>{s.delta.toFixed(2)}</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace",
+                                  color: s.popOTM >= 70 ? "#22c55e" : s.popOTM >= 55 ? "#fbbf24" : "#ef4444", fontWeight:600 }}>{s.popOTM}%</td>
                                 <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>${fmt2(s.premiumPerShare)}</td>
                                 <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.5)" }}>{fmtK(s.strike * 100)}</td>
+                                <td style={{ padding:"5px 6px", fontFamily:"'JetBrains Mono',monospace", color:"#22c55e" }}>+${Math.abs(s.thetaPerDay).toFixed(2)}</td>
                                 <td style={{ padding:"5px 6px", color:"#fbbf24", fontWeight:600 }}>{s.monthlyYield}%</td>
                                 <td style={{ padding:"5px 6px", color:"#a78bfa", fontWeight:600 }}>{s.annualYield}%</td>
                                 <td style={{ padding:"5px 6px" }}>
@@ -10932,6 +10979,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         </table>
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:5, fontStyle:"italic" }}>
                           ★ Estimated premiums — confirm with your broker. Collateral = strike × 100 per contract.
+                          Δ/Θ/POP are Black-Scholes estimates (r≈0), not live chain data.
                         </p>
                       </>
                     ) : (
@@ -12142,6 +12190,21 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           );
         };
 
+        // ─ Desk-level Greeks exposure across all open positions ────────────────
+        const deskNow = new Date();
+        const deskGreeks = openTrades.reduce((acc, t) => {
+          const S = optionPrices[t.ticker] || Number(t.underlyingPrice) || Number(t.strike);
+          const dte = Math.max(1, Math.ceil((new Date(t.expiry) - deskNow) / 864e5));
+          const ivPct = estimateIV(t.ticker, vix);
+          const contracts = Number(t.contracts) || 0;
+          const g = bsGreeks(S, Number(t.strike), dte, ivPct, t.type === "cc" ? "call" : "put");
+          acc.netDelta   += -g.delta * 100 * contracts;          // short option: negate raw delta
+          acc.dailyTheta += -g.thetaPerDay * 100 * contracts;     // short option: theta is income
+          if (t.type === "csp") acc.capitalAtRisk += Number(t.strike) * 100 * contracts;
+          if (dte <= 7) acc.expiringSoon += 1;
+          return acc;
+        }, { netDelta: 0, dailyTheta: 0, capitalAtRisk: 0, expiringSoon: 0 });
+
         return (
           <div style={{ padding:"22px 28px" }}>
 
@@ -12161,6 +12224,45 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   letterSpacing:"0.06em", marginBottom:4 }}>Regime bias · {mp.regime?.label}</p>
                 <p style={{ fontSize:11, color:"rgba(255,255,255,0.55)", lineHeight:1.5 }}>{regimeBias}</p>
               </div>
+            </div>
+
+            {/* ── Risk Desk: aggregate Greeks exposure across open positions ── */}
+            <div className="card" style={{ padding:"14px 18px", marginBottom:16,
+              background:"rgba(255,255,255,0.02)", borderColor:"rgba(255,255,255,0.08)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12 }}>
+                <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                  textTransform:"uppercase", letterSpacing:"0.08em" }}>🏦 Risk Desk</span>
+                <span style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>
+                  · aggregate Greeks across {openTrades.length} open position{openTrades.length === 1 ? "" : "s"}
+                </span>
+              </div>
+              {openTrades.length === 0 ? (
+                <p style={{ fontSize:10, color:"rgba(255,255,255,0.3)", fontStyle:"italic" }}>
+                  No open positions — Greeks populate once you log a trade in the Trade Log tab.
+                </p>
+              ) : (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(170px, 1fr))", gap:10 }}>
+                  {[
+                    { label:"Net Delta (share-equiv)", value:`${deskGreeks.netDelta >= 0 ? "+" : ""}${Math.round(deskGreeks.netDelta)}`,
+                      sub: deskGreeks.netDelta >= 0 ? "net long bias" : "net short bias",
+                      color: Math.abs(deskGreeks.netDelta) < 50 ? "#fbbf24" : deskGreeks.netDelta >= 0 ? "#22c55e" : "#ef4444" },
+                    { label:"Daily Theta income", value:`+$${deskGreeks.dailyTheta.toFixed(2)}`,
+                      sub:"decay collected per day", color:"#22c55e" },
+                    { label:"CSP capital at risk", value: fmtK(deskGreeks.capitalAtRisk),
+                      sub:"collateral if all assigned", color:"#a78bfa" },
+                    { label:"Expiring ≤ 7 days", value: deskGreeks.expiringSoon,
+                      sub: deskGreeks.expiringSoon > 0 ? "gamma risk — watch closely" : "no near-term expiries",
+                      color: deskGreeks.expiringSoon > 0 ? "#ef4444" : "rgba(255,255,255,0.4)" },
+                  ].map(s => (
+                    <div key={s.label} style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.06)",
+                      borderRadius:8, padding:"9px 12px" }}>
+                      <p style={{ fontSize:8.5, color:"rgba(255,255,255,0.3)", textTransform:"uppercase", letterSpacing:"0.05em", marginBottom:4 }}>{s.label}</p>
+                      <p style={{ fontSize:17, fontFamily:"'JetBrains Mono',monospace", fontWeight:700, color: s.color }}>{s.value}</p>
+                      <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)", marginTop:2 }}>{s.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── Sub-tab navigation ── */}
