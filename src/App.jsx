@@ -3988,7 +3988,9 @@ Current portfolio holdings (use these to generate specific, personalised actions
 ${holdingsBlock || "(no holdings data available)"}
 ${bnnBlock || ""}
 
-Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators, credit spreads, DXY, copper, global macro. Weight the live numbers heavily; they override your training data.
+Using the live data as your anchor, apply your macro knowledge to fill in anything not directly measured above: Fed/BoC policy stance, full yield curve shape (3M/2Y/5Y/10Y/30Y), CPI trend, unemployment, sector rotation, geopolitical context, earnings revisions, sentiment indicators, credit spreads, private credit market conditions (direct lending spreads, BDC NAV marks, non-bank lender leverage/PIK usage), DXY, copper, global macro. Weight the live numbers heavily; they override your training data.
+
+For the Private Credit category: private credit has grown into a multi-trillion-dollar shadow-banking channel with limited transparency — treat rising BDC NAV markdowns, widening direct-lending spreads, or clustering PIK (payment-in-kind) interest as an early stress signal even when public credit spreads (CDX HY/IG) look calm, since private marks lag public markets. Reflect material private-credit stress in the overall regime/riskMeter score and, where relevant, in a bearish catalyst or portfolioImplication action.
 
 For the yieldCurve section: classify the curve shape, report all five benchmark yields, compute spreads in bps, estimate the NY Fed 12-month recession probability, describe the inversion history, and give a trajectory outlook.
 
@@ -4067,6 +4069,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         { "label": "IG Credit Spread",          "value": "~XX bps",  "trend": "...", "status": "...", "note": "..." },
         { "label": "US HY Default Rate",        "value": "X.X%",     "trend": "...", "status": "...", "note": "..." },
         { "label": "Bank Lending Standards",    "value": "...",       "trend": "...", "status": "...", "note": "..." }
+    ]},
+    { "category": "Private Credit", "icon": "🏛️", "signals": [
+        { "label": "Private Credit AUM",         "value": "~$X.XT", "trend": "up|down|sideways", "status": "bullish|caution|bearish", "note": "one line — total direct-lending/private-debt market size and growth pace" },
+        { "label": "BDC Discount/Premium to NAV","value": "±X.X%",  "trend": "...", "status": "bullish (premium) | caution (near par) | bearish (wide discount)", "note": "one line — public BDC pricing vs NAV signals market's read on private-credit marks" },
+        { "label": "Direct Lending Spread",      "value": "SOFR+XXX bps", "trend": "...", "status": "...", "note": "one line — spread demanded on new middle-market direct loans" },
+        { "label": "Private Credit Stress",      "value": "...",    "trend": "...", "status": "bullish (low)|caution (rising)|bearish (elevated)", "note": "one line on non-bank lender leverage, PIK usage, or watch-list names signaling stress" }
     ]},
     { "category": "Global & Commodities", "icon": "🌍", "signals": [
         { "label": "DXY (US Dollar Index)", "value": "~XXX",  "trend": "...", "status": "...", "note": "strong USD = headwind for EM, commodities, and CAD" },
