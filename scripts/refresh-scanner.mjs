@@ -103,7 +103,7 @@ const US_STOCKS = [
   { ticker:'OXY',   name:'Occidental Petroleum',    sector:'Energy',                mktCap:'large' },
   { ticker:'COP',   name:'ConocoPhillips',          sector:'Energy',                mktCap:'large' },
   { ticker:'SLB',   name:'SLB (Schlumberger)',      sector:'Energy',                mktCap:'large' },
-  // Defense & Industrials (11)
+  // Defense & Industrials (12)
   { ticker:'RTX',   name:'RTX Corporation',         sector:'Defense',               mktCap:'large' },
   { ticker:'LMT',   name:'Lockheed Martin',         sector:'Defense',               mktCap:'large' },
   { ticker:'GE',    name:'GE Aerospace',            sector:'Industrials',           mktCap:'large' },
@@ -114,6 +114,7 @@ const US_STOCKS = [
   { ticker:'ITW',   name:'Illinois Tool Works',     sector:'Industrials',           mktCap:'large' },
   { ticker:'TDG',   name:'TransDigm Group',         sector:'Industrials',           mktCap:'large' },
   { ticker:'ODFL',  name:'Old Dominion Freight',    sector:'Industrials',           mktCap:'large' },
+  { ticker:'DOV',   name:'Dover Corporation',       sector:'Industrials',           mktCap:'large' },
   // Aerospace / Space (3)
   { ticker:'SPCX',  name:'SpaceX',                  sector:'Aerospace/Space',       mktCap:'mega'  },
   { ticker:'RKLB',  name:'Rocket Lab',              sector:'Aerospace/Space',       mktCap:'mid'   },
@@ -224,6 +225,7 @@ const CURATED_MOATS = {
   AXON:'Police Tech Ecosystem Lock-in', CAT:'Heavy Equipment + Aftermarket',
   DE:'Precision Ag Equipment',          ITW:'80/20 Industrial Niche',
   TDG:'FAA Sole-Source Aerospace Parts', ODFL:'LTL Service Excellence',
+  DOV:'Niche Industrial Leadership + Disciplined M&A',
   T:'Wireless Network Infrastructure',  VZ:'Wireless Network Infrastructure',
   TMUS:'Network + Spectrum Assets',     LIN:'Industrial Gas Oligopoly',
   SHW:'Architectural Coatings Leader',
@@ -295,6 +297,7 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const rawGm    = fd.grossMargins?.raw;
   const rawFcf   = fd.freeCashflow?.raw;
   const rawMcap  = sd.marketCap?.raw;
+  const rawPs    = sd.priceToSalesTrailing12Months?.raw ?? ks.priceToSalesTrailing12Months?.raw;
   const rawPrice = fd.currentPrice?.raw ?? sd.regularMarketPrice?.raw ?? sd.previousClose?.raw;
   // Forward EPS growth (next fiscal year consensus) — far less distorted by one-time
   // GAAP items (SBC, M&A integration costs, buyback timing) than trailing earningsGrowth.
@@ -317,8 +320,9 @@ async function fetchFundamentals(ticker, crumb, cookies) {
   const peg         = (pe != null && epsGrowth != null && epsGrowth > 0)
                       ? r2(pe / epsGrowth) : null;
   const price       = rawPrice != null ? r2(rawPrice)            : null;
+  const ps          = rawPs    != null ? r2(rawPs)                : null;
 
-  return { pe, fwdPe, epsGrowth, revGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price };
+  return { pe, fwdPe, epsGrowth, revGrowth, fwdEpsGrowth, roe, de, divYield, grossMargin, fcfYield, peg, price, ps };
 }
 
 // ── Price-action technicals — same SMA/RSI math as api/refresh-options-signals.js ──
@@ -449,6 +453,7 @@ async function main() {
         grossMargin: live.grossMargin ?? 0,
         fcfYield:    live.fcfYield    ?? 0,
         peg:         live.peg         ?? 0,
+        ps:          live.ps          ?? 0,
         // Price action (null when chart history is too short/unavailable)
         sma50:       tech.sma50,
         sma200:      tech.sma200,
@@ -462,7 +467,7 @@ async function main() {
       };
       stocks.push(stock);
       updated++;
-      console.log(`✓  ${base.ticker.padEnd(9)} pe=${stock.pe} peg=${stock.peg} roe=${stock.roe}% div=${stock.divYield}% rsi=${stock.rsi14 ?? "n/a"}`);
+      console.log(`✓  ${base.ticker.padEnd(9)} pe=${stock.pe} peg=${stock.peg} ps=${stock.ps} roe=${stock.roe}% div=${stock.divYield}% rsi=${stock.rsi14 ?? "n/a"}`);
     } catch (err) {
       kept++;
       console.error(`✗  ${base.ticker.padEnd(9)} ${err.message} — skipped`);

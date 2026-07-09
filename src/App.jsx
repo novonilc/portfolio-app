@@ -1196,20 +1196,25 @@ function computeScanScore(s) {
   const pegGrowth = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : null);
   const fwdPeg = (s.fwdPe > 0 && pegGrowth) ? s.fwdPe / pegGrowth : null;
   const p = fwdPeg ?? s.peg;
-  pts += (p != null && p > 0) ? (p<=0.8?25:p<=1.2?20:p<=1.5?14:p<=2.0?8:p<=3.0?3:0) : 0;
+  pts += (p != null && p > 0) ? (p<=0.8?20:p<=1.2?16:p<=1.5?11:p<=2.0?6:p<=3.0?2:0) : 0;
   const r = s.roe != null ? Math.min(s.roe, 100) : null;
-  pts += r != null ? (r>=40?20:r>=25?16:r>=18?12:r>=12?7:2) : 0;
-  if (s.isBank) { pts += 8; } else { const d=s.de; pts += d != null ? (d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?5:d<2.5?2:0) : 0; }
+  pts += r != null ? (r>=40?18:r>=25?14:r>=18?11:r>=12?6:2) : 0;
+  if (s.isBank) { pts += 7; } else { const d=s.de; pts += d != null ? (d<0.2?13:d<0.5?10:d<1.0?7:d<1.5?4:d<2.5?1:0) : 0; }
   // FCF: use forward FCF yield (estimated) when EPS growth is available — more predictive
   const fcfGrowth    = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
   const fwdFcfYield  = (s.fcfYield > 0 && fcfGrowth > 0) ? s.fcfYield * (1 + fcfGrowth / 100) : s.fcfYield;
   const f = fwdFcfYield;
-  pts += f != null && f > 0 ? (f>=8?20:f>=6?16:f>=4?11:f>=2?6:1) : 0;
+  pts += f != null && f > 0 ? (f>=8?15:f>=6?12:f>=4?8:f>=2?4:1) : 0;
   const g = s.grossMargin;
   pts += g != null ? (g>=70?10:g>=50?8:g>=35?5:2) : 0;
   // Growth: epsGrowth for profitable companies; revGrowth fallback for pre-profitable
   const e = s.epsGrowth > 0 ? s.epsGrowth : (s.revGrowth > 0 ? s.revGrowth : 0);
   pts += e>=25?10:e>=15?8:e>=8?5:e>=3?3:0;
+  // Price/Sales — how much you're paying per $1 of revenue. Catches expensive,
+  // pre-profitable growth names that PEG can't score (PEG needs positive EPS
+  // growth; P/S works even at 0 or negative earnings).
+  const ps = s.ps;
+  pts += (ps != null && ps > 0) ? (ps<=1?14:ps<=2?11:ps<=4?7:ps<=8?3:ps<=15?1:0) : 0;
   return Math.min(100, pts);
 }
 // Price-action / trend score — SMA50/SMA200 trend + RSI, independent of valuation.
@@ -12542,6 +12547,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
         const peC    = v => v<=12?"#22c55e":v<=18?"#86efac":v<=25?"#fbbf24":v<=35?"#fb923c":"#ef4444";
         const pegC   = v => v<=1.0?"#22c55e":v<=1.5?"#86efac":v<=2.0?"#fbbf24":v<=3.0?"#fb923c":"#ef4444";
+        const psC    = v => v<=1?"#22c55e":v<=2?"#86efac":v<=4?"#fbbf24":v<=8?"#fb923c":"#ef4444";
         const roeC   = v => { const r=Math.min(v,100); return r>=40?"#22c55e":r>=25?"#86efac":r>=15?"#fbbf24":r>=10?"#fb923c":"#ef4444"; };
         const deC    = v => v<0.3?"#22c55e":v<0.7?"#86efac":v<1.2?"#fbbf24":v<2.0?"#fb923c":"#ef4444";
         const fcfC   = v => v>=7?"#22c55e":v>=4?"#86efac":v>=2?"#fbbf24":v>=0.5?"#fb923c":"#ef4444";
@@ -12555,6 +12561,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             why:"How much you pay per $1 of profit. S&P avg ~21×. Under 15 is cheap — but always ask why it's cheap." },
           { icon:"📐", label:"Forward PEG",  good:"< 1.5",  color:"#a78bfa",
             why:"Forward P/E ÷ EPS Growth. The score uses forward P/E (next 12m estimated earnings) not trailing — so you're pricing in where the business is going, not where it's been. fwd PEG < 1 = you're not paying full price for the growth." },
+          { icon:"📦", label:"Price/Sales",  good:"< 2×",   color:"#f472b6",
+            why:"Price ÷ revenue per share. Unlike PEG, it works even when EPS growth is 0% or negative — catches pre-profitable growth names PEG can't score. Under 2× is cheap for the revenue you're buying; over 8× means the market has priced in years of flawless execution." },
           { icon:"🏆", label:"ROE",          good:"> 15%",  color:"#34d399",
             why:"How efficiently the company uses shareholders' money. ROE > 15–20% is the signature of a business with a durable competitive moat." },
           { icon:"💰", label:"FCF Yield",    good:"> 4%",   color:"#fbbf24",
@@ -13100,7 +13108,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             ) : (
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1510 }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1580 }}>
                   <thead>
                     <tr>
                       {th("ticker","Ticker")}
@@ -13109,6 +13117,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("sector","Sector")}
                       {th("pe","P/E")}
                       {th("peg","PEG")}
+                      {th("ps","P/S")}
                       {th("roe","ROE %")}
                       {th("de","D/E")}
                       {th("fcfYield","FCF Yld")}
@@ -13310,6 +13319,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                   </div>
                                 );
                               })()}
+                            </td>
+                            <td className="td" style={{ textAlign:"right" }}>
+                              {s.ps ? <ScanPill value={`${s.ps.toFixed(1)}×`} color={psC(s.ps)} />
+                                : <span style={{ fontSize:10, color:"#334155" }}>—</span>}
                             </td>
                             <td className="td" style={{ textAlign:"right" }}>
                               {s.roe != null ? <ScanPill value={`${Math.min(s.roe,350)}%`} color={roeC(s.roe)} />
