@@ -4,6 +4,26 @@ import marketPulseData from "./data/marketPulse.json";
 import stockUniverseData from "./data/stockUniverse.json";
 const RECOMMENDATIONS = portfolioIdeas.recommendations;
 
+// Sector-rotation alignment — single source of truth for the "Regime aligned" /
+// "Regime avoid" signal shown on Ideas-tab cards, the Ideas "pulse" filter, and
+// AI Target Suggestions. All three must read the same Market Pulse Base Case
+// sectorRotation text the same way, or they'll silently disagree with each other.
+function getSectorRotationText(marketPulse) {
+  return marketPulse?.outlooks?.[0]?.scenarios
+    ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+}
+function sectorRegimeAlignment(sector, rotation) {
+  if (!rotation || !sector) return null;
+  const sectorWord = sector.toLowerCase().split(" ")[0];
+  const isAligned = ["overweight","add","rotate into","favor","tilt to"]
+    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+  if (isAligned) return "aligned";
+  const isAvoid = ["underweight","avoid","reduce","trim","rotate out"]
+    .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
+  if (isAvoid) return "avoid";
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LICENSE CONFIGURATION
 // Two tiers:
@@ -2971,6 +2991,13 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
       const insiderMap  = insiderSignals?.signals  || {};
       const analystMap  = analystRatings?.ratings  || {};
 
+      // Same sector-rotation text and alignment logic the Ideas tab uses for its
+      // ✓ Regime aligned / ✗ Regime avoid badges — reused here so target
+      // suggestions can't disagree with what the Ideas tab is showing.
+      const rotationRaw  = marketPulse?.outlooks?.[0]?.scenarios
+        ?.find(s => s.label === "Base case")?.sectorRotation || "";
+      const rotationText = getSectorRotationText(marketPulse);
+
       const lines = snap.map(h => {
         const cur    = getTickerCurrency(h.ticker, h.currencyOverride);
         const cadVal = cur === "USD" ? h.current * fxRate : h.current;
@@ -2983,6 +3010,7 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         const baseSignal = baseSignalLabel(trendScore, baseScore);
         const upside     = uni ? computeScanUpside(uni) : null;
         const signal     = uni ? scanSignal(upside, scanScore, trendScore) : null;
+        const regimeAlign= uni ? sectorRegimeAlignment(uni.sector, rotationText) : null;
 
         const insider    = insiderMap[h.ticker];
         const insiderLbl = insider?.signal ?? null;
@@ -2990,6 +3018,10 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
         const analyst    = analystMap[h.ticker];
         const analystLbl = analyst?.consensus ?? null;
         const analystTrend = analyst?.trend ?? null;
+
+        // If this ticker is also a curated Ideas-tab pick, surface its conviction
+        // so a currently-held Idea doesn't get a target that contradicts its own card.
+        const idea       = RECOMMENDATIONS.find(r => r.ticker === h.ticker);
 
         const extras = [
           signal             ? `signal:${signal.label}`  : null,
@@ -2999,6 +3031,8 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
           upside != null     ? `upside:${upside}%`       : null,
           insiderLbl         ? `insider:${insiderLbl}`   : null,
           analystLbl         ? `analyst:${analystLbl}${analystTrend ? `(${analystTrend})` : ""}` : null,
+          regimeAlign        ? `regime:${regimeAlign}`   : null,
+          idea               ? `idea:${idea.conviction} conviction (${idea.role})` : null,
         ].filter(Boolean).join(" | ");
 
         return `${h.ticker} | ${h.name} | ${cur} | C$${Math.round(cadVal).toLocaleString()} (${pct}% of portfolio) | divYield:${h.divYield ?? 0}% | currentTarget:${h.target}%${extras ? ` | ${extras}` : ""}`;
@@ -3021,6 +3055,7 @@ Example element (NVDA USD stock: Market Value = 1767.91 USD → current=1767.91;
       const prompt = `You are a Canadian portfolio advisor. Suggest optimal target allocations for a ${account} account.
 ${profCtxTargets ? `\n${profCtxTargets}\n` : ""}
 Market regime: ${regime} | Risk score: ${riskScore}/100 (${riskLabel})
+${rotationRaw ? `Market Pulse Base Case sector rotation: "${rotationRaw}"` : ""}
 Account: ${account}
 Total value: C$${Math.round(totalCAD).toLocaleString()}
 USD/CAD: ${fxRate}
@@ -3039,6 +3074,8 @@ Scanner signal key (when present):
 - upside: scanner's estimated % gap between current price and fair value (negative = looks expensive)
 - insider: Accumulating (insiders net buying) / Distributing (net selling) / Neutral
 - analyst: analyst consensus (buy/hold/sell) with recent trend (upgrading/downgrading/stable)
+- regime: aligned/avoid — this ticker's sector matches the Market Pulse Base Case sector-rotation call above to overweight/add (aligned) or underweight/trim (avoid). This is the exact same signal shown as the ✓ Regime aligned / ✗ Regime avoid badge on this ticker's Ideas-tab card — your target must not contradict it.
+- idea: High/Medium/Low conviction (role) — this ticker is also a curated pick on the Ideas tab with this conviction rating; treat it as the Ideas tab's own endorsement of the position.
 
 How to weight scanner signals against account-type rules:
 - "Strong Buy" or "Buy" signals with trend ≥ 50 → favour a larger target, especially when insider/analyst signals agree
@@ -3047,6 +3084,9 @@ How to weight scanner signals against account-type rules:
 - base:"Base Building" → this is the entry signal a "buy the dip" call should actually wait for; it supports raising the target or adding, even if trend/100 hasn't turned positive yet, since accumulation precedes the trend turning
 - "Watch" or "Hold" → keep roughly at current weighting unless account rules or other signals argue otherwise
 - Treat "Distributing" or "downgrading" as an additional reason to trim, and "Accumulating" or "upgrading" as support for holding/adding
+- regime:avoid → this is a headwind independent of fundamentals; do not raise this target on scanner cheapness alone while the current Market Pulse rotation calls for underweighting this sector
+- regime:aligned + idea:High conviction → the strongest tailwind case in this prompt; these two signals agreeing is exactly the setup the Ideas tab itself highlights as its best ideas — weight it accordingly
+- idea:(any conviction) with no regime signal → still reflects the Ideas tab's own thesis for the ticker; don't cut the target to near-zero without a scanner or account-rule reason that outweighs that thesis
 - Scanner signals should never override the hard account-type and allocation rules below — use them to fine-tune targets within those constraints
 
 Instructions:
@@ -3955,13 +3995,7 @@ Return ONLY a valid JSON object, no markdown:
     if (recFilter === "gaps")  return r.fills.some(f => gaps.includes(f));
     if (recFilter === "pulse") {
       // Keep ideas whose sector is explicitly aligned with the base-case 3M sector rotation
-      const rotation = marketPulse?.outlooks?.[0]?.scenarios
-        ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
-      const sectorWord = (r.sector || "").toLowerCase().split(" ")[0];
-      return ["overweight", "add", "rotate into", "favor", "tilt to"].some(term => {
-        const idx = rotation.indexOf(term);
-        return idx !== -1 && rotation.slice(idx, idx + 90).includes(sectorWord);
-      });
+      return sectorRegimeAlignment(r.sector, getSectorRotationText(marketPulse)) === "aligned";
     }
     return true;
   }).filter(r => {
@@ -7046,18 +7080,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const recStocks = sortByRole(filteredRecs);
 
             const renderCard = (rec) => {
-              const rotation = marketPulse?.outlooks?.[0]?.scenarios
-                ?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
-              const sectorWord = (rec.sector || "").toLowerCase().split(" ")[0];
-              let alignment = null;
-              if (rotation) {
-                const isAligned = ["overweight","add","rotate into","favor","tilt to"]
-                  .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
-                const isAvoid = ["underweight","avoid","reduce","trim","rotate out"]
-                  .some(t => { const i = rotation.indexOf(t); return i !== -1 && rotation.slice(i, i+90).includes(sectorWord); });
-                if (isAligned) alignment = { label:"Regime aligned", color:"#22c55e" };
-                else if (isAvoid) alignment = { label:"Regime avoid", color:"#ef4444" };
-              }
+              const regimeAlign = sectorRegimeAlignment(rec.sector, getSectorRotationText(marketPulse));
+              const alignment = regimeAlign === "aligned" ? { label:"Regime aligned", color:"#22c55e" }
+                : regimeAlign === "avoid" ? { label:"Regime avoid", color:"#ef4444" }
+                : null;
               const moatColor = rec.moat ? (MOAT_COLOR[rec.moat] || "#94a3b8") : null;
 
               return (
@@ -10451,7 +10477,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           : riskScore >= 40
           ? "Neutral: balanced premium selling. CCs on full positions, CSPs on names you want to own."
           : "Risk-Off: favour CSPs on quality at a discount. Avoid CCs that cap upside during recovery.";
-        const baseRotation = mp.outlooks?.[0]?.scenarios?.find(s => s.label === "Base case")?.sectorRotation?.toLowerCase() || "";
+        const baseRotation = getSectorRotationText(mp);
 
         const fmt2 = n => Number(n).toFixed(2);
         const fmtK = n => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${Number(n).toFixed(0)}`;
@@ -10466,10 +10492,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const estShares  = price ? Math.round(h.current / price) : null;
             const contracts  = estShares ? Math.floor(estShares / 100) : null;
             const iv         = estimateIV(h.ticker, vix);
-            const sectorWord = (TICKER_DB[h.ticker]?.sector || "").toLowerCase().split(" ")[0];
-            const ccSuggested = !baseRotation || !["underweight","avoid"].some(t => {
-              const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+80).includes(sectorWord);
-            });
+            const ccSuggested = sectorRegimeAlignment(TICKER_DB[h.ticker]?.sector, baseRotation) !== "avoid";
             return { ticker: h.ticker, name: TICKER_DB[h.ticker]?.name || h.ticker, acct, price, estShares, contracts, iv, ccSuggested, fromHolding: true };
           })
         ).filter((h, idx, arr) => arr.findIndex(x => x.ticker === h.ticker) === idx);
