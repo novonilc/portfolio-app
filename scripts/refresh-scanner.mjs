@@ -106,7 +106,6 @@ const US_STOCKS = [
   // Defense & Industrials (11)
   { ticker:'RTX',   name:'RTX Corporation',         sector:'Defense',               mktCap:'large' },
   { ticker:'LMT',   name:'Lockheed Martin',         sector:'Defense',               mktCap:'large' },
-  { ticker:'SPCX',  name:'SpaceX',                  sector:'Defense',               mktCap:'mega'  },
   { ticker:'GE',    name:'GE Aerospace',            sector:'Industrials',           mktCap:'large' },
   { ticker:'HON',   name:'Honeywell',               sector:'Industrials',           mktCap:'large' },
   { ticker:'AXON',  name:'Axon Enterprise',         sector:'Defense',               mktCap:'mid'   },
@@ -115,7 +114,8 @@ const US_STOCKS = [
   { ticker:'ITW',   name:'Illinois Tool Works',     sector:'Industrials',           mktCap:'large' },
   { ticker:'TDG',   name:'TransDigm Group',         sector:'Industrials',           mktCap:'large' },
   { ticker:'ODFL',  name:'Old Dominion Freight',    sector:'Industrials',           mktCap:'large' },
-  // Aerospace / Space (2)
+  // Aerospace / Space (3)
+  { ticker:'SPCX',  name:'SpaceX',                  sector:'Aerospace/Space',       mktCap:'mega'  },
   { ticker:'RKLB',  name:'Rocket Lab',              sector:'Aerospace/Space',       mktCap:'mid'   },
   { ticker:'ASTS',  name:'AST SpaceMobile',         sector:'Aerospace/Space',       mktCap:'mid'   },
   // Robotics (4)
