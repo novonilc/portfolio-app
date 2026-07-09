@@ -1259,6 +1259,33 @@ function computeR40(s) {
   const eg = Math.min(Math.max(s.epsGrowth || 0, 0), 50);
   return Math.round(eg + s.grossMargin);
 }
+// Quality / Moat score — pure business-quality composite, deliberately excludes
+// P/E, PEG, and FCF yield (all valuation-linked) so a richly-priced category
+// leader (e.g. PANW, CRWD) isn't penalized for trading at a premium multiple.
+// Measures the underlying business: pricing power, growth durability, capital
+// efficiency, and balance-sheet strength.
+function computeMoatScore(s) {
+  let pts = 0;
+  // Gross margin — pricing power, the clearest structural moat signal (30 pts)
+  const gm = s.grossMargin;
+  pts += gm != null ? (gm>=70?30:gm>=50?23:gm>=35?14:gm>=20?6:0) : 0;
+  // Revenue growth — demand durability; steadier than EPS for reinvestment-heavy
+  // growth companies whose GAAP earnings are muted by stock-based comp (25 pts)
+  const rg = s.revGrowth ?? 0;
+  pts += rg>=25?25:rg>=18?20:rg>=12?14:rg>=8?8:rg>=3?3:0;
+  // ROE — capital efficiency (20 pts)
+  const r = s.roe != null ? Math.min(s.roe, 100) : null;
+  pts += r != null ? (r>=40?20:r>=25?16:r>=18?12:r>=12?7:2) : 0;
+  // Balance-sheet strength — low leverage lets a moat compound through downturns (15 pts)
+  if (s.isBank) { pts += 9; } else { const d = s.de; pts += d != null ? (d<0.2?15:d<0.5?12:d<1.0?8:d<1.5?4:0) : 0; }
+  // Rule-of-40-style bonus — revenue growth + gross margin, rewards elite compounders
+  // even when reported ROE is depressed by SBC (10 pts)
+  if (gm != null) {
+    const r40ish = rg + gm;
+    pts += r40ish>=100?10:r40ish>=80?7:r40ish>=60?4:0;
+  }
+  return Math.min(100, pts);
+}
 // Estimate realistic long-run CAGR — uses forward EPS growth as primary signal
 function estimateRetireCagr(s) {
   const rawG = s.fwdEpsGrowth > 0 ? s.fwdEpsGrowth : (s.epsGrowth > 0 ? s.epsGrowth : 0);
@@ -12427,11 +12454,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const retireScore = computeRetireScore(s);
           const estCagr     = estimateRetireCagr(s);
           const r40         = computeR40(s);
+          const moatScore   = computeMoatScore(s);
           const morningStarScore = morningStarMap[s.ticker] ?? 0;
           const insiderData      = insiderMap[s.ticker];
           const insiderScore     = insiderData?.score ?? 50;
           const fwdPFcf          = computeFwdPFcf(s);
-          return { ...s, score, fairPrice, upside, trendScore, baseScore, baseSignal, signal, holdPct, retireScore, estCagr, r40, morningStarScore, insiderScore, insiderData, fwdPFcf };
+          return { ...s, score, fairPrice, upside, trendScore, baseScore, baseSignal, signal, holdPct, retireScore, estCagr, r40, moatScore, morningStarScore, insiderScore, insiderData, fwdPFcf };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12520,6 +12548,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const pfcfC  = v => v<=15?"#22c55e":v<=22?"#86efac":v<=30?"#fbbf24":v<=40?"#fb923c":"#ef4444";
         const sC     = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
         const r40C   = v => v>=100?"#22c55e":v>=80?"#86efac":v>=60?"#fbbf24":v>=40?"#fb923c":"#64748b";
+        const moatC  = v => v>=75?"#22c55e":v>=60?"#86efac":v>=45?"#fbbf24":v>=30?"#fb923c":"#ef4444";
 
         const METRIC_INFO = [
           { icon:"💵", label:"P/E Ratio",    good:"< 15",   color:"#22d3ee",
@@ -12534,6 +12563,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             why:"Forward Price-to-Free-Cash-Flow. Estimated by applying consensus EPS growth to trailing FCF — a more predictive valuation than trailing P/FCF since it prices in the cash the business should generate next year. Under 22× is well-priced; over 40× is expensive relative to cash generation." },
           { icon:"🔟", label:"R40 Score",    good:"≥ 80",   color:"#86efac",
             why:"Rule of 40 proxy: EPS Growth (capped 50%) + Gross Margin. A score ≥ 80 means the business either grows fast, has high-quality margins, or both — the hallmark of elite tech and compounders. Banks excluded." },
+          { icon:"🏰", label:"Quality/Moat",  good:"≥ 75",   color:"#34d399",
+            why:"Pure business-quality composite — gross margin, revenue growth, ROE, and leverage. Deliberately excludes P/E, PEG, and FCF yield so a richly-priced category leader (e.g. a stock with a 100×+ forward P/E) isn't marked down just for being expensive. High Score but low Quality/Moat = weak business at any price. Low Score but high Quality/Moat = strong business, priced for perfection." },
         ];
 
         const QUALITY_RULES = [
@@ -13069,7 +13100,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               </div>
             ) : (
               <div style={{ overflowX:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1430 }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1510 }}>
                   <thead>
                     <tr>
                       {th("ticker","Ticker")}
@@ -13086,6 +13117,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       {th("epsGrowth","EPS Grw")}
                       {th("r40","R40")}
                       {th("score","Score")}
+                      {th("moatScore","Quality")}
                       {th("retireScore","Retire")}
                       {th("estCagr","Est. CAGR")}
                       {th("price","Price")}
@@ -13336,6 +13368,26 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 fontFamily:"'JetBrains Mono',monospace" }}>
                                 {s.score}
                               </div>
+                            </td>
+                            {/* Quality / Moat Score */}
+                            <td className="td" style={{ textAlign:"center" }}>
+                              {(() => {
+                                const ms = s.moatScore;
+                                const mc = moatC(ms);
+                                const label = ms >= 75 ? "Elite" : ms >= 60 ? "Strong" : ms >= 45 ? "Fair" : ms >= 30 ? "Weak" : "Poor";
+                                return (
+                                  <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", gap:2 }}>
+                                    <div style={{ width:34, height:34, borderRadius:"50%",
+                                      border:`2px solid ${mc}`, background:`${mc}12`,
+                                      display:"inline-flex", alignItems:"center", justifyContent:"center",
+                                      fontSize:10, fontWeight:800, color:mc,
+                                      fontFamily:"'JetBrains Mono',monospace" }}>
+                                      {ms}
+                                    </div>
+                                    <span style={{ fontSize:8, color:mc, fontWeight:700, letterSpacing:"0.03em" }}>{label}</span>
+                                  </div>
+                                );
+                              })()}
                             </td>
                             {/* Retire Score */}
                             <td className="td" style={{ textAlign:"center" }}>
