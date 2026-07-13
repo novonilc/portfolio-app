@@ -875,6 +875,145 @@ function buildTradeSetup(s) {
   return null;
 }
 
+// ─── Directional / volatility trade constructor ─────────────────────────────
+// Alternative to buildTradeSetup() for traders who want outright directional or
+// volatility exposure (debit trades) instead of premium-selling credit spreads.
+// Reuses the exact score/direction/hvPct fields _ssScore (client) and
+// scoreForSpreads (server cron, api/refresh-options-signals.js) already compute
+// and store on every signal — so this works for both live and cached scans with
+// no changes to the scan/cache schema.
+function pickDirectionalRecommendation(score, direction, hvPct) {
+  if (score == null || score < 48) return { recommendation: "Skip", recommendationColor: "rgba(255,255,255,0.3)" };
+  if (direction === "bullish" && score >= 65)
+    return { recommendation: "Long Call", recommendationColor: "#22c55e" };
+  if (direction === "bearish" && score >= 65)
+    return { recommendation: "Short Call", recommendationColor: "#ef4444" };
+  if (direction === "neutral" && score >= 65 && hvPct != null && hvPct < 20)
+    return { recommendation: "Long Straddle", recommendationColor: "#a78bfa" };
+  if (direction === "neutral" && score >= 65 && hvPct != null && hvPct < 35)
+    return { recommendation: "Long Strangle", recommendationColor: "#22d3ee" };
+  return { recommendation: "Caution", recommendationColor: "#fbbf24" };
+}
+
+// Returns a debit-trade setup object (Long Call / Short Call / Long Straddle /
+// Long Strangle), or null when the signal doesn't clear a directional/vol setup.
+function buildDirectionalTradeSetup(s) {
+  const { price, sma50, vwap, hvPct, score, direction } = s;
+  if (!price) return null;
+  const { recommendation, recommendationColor } = pickDirectionalRecommendation(score, direction, hvPct);
+  if (recommendation === "Caution" || recommendation === "Skip") return null;
+
+  const roundStrike = (v) => {
+    if (price < 10)  return Math.round(v * 2) / 2;
+    if (price < 100) return Math.round(v);
+    if (price < 300) return Math.round(v / 5) * 5;
+    return Math.round(v / 10) * 10;
+  };
+
+  // Same simplified BSM approximation as buildTradeSetup() — IV ≈ HV20 × 1.25
+  const ivDecimal = Math.min(Math.max(((hvPct || 30) * 1.25) / 100, 0.12), 1.20);
+  const DTE = 35;
+  const atmBase = price * ivDecimal * Math.sqrt(DTE / 365) * 0.4;
+  const legPremium = (strike) =>
+    parseFloat(Math.max(0.01, atmBase * Math.exp(-3.8 * Math.abs(price - strike) / price)).toFixed(2));
+
+  const expTarget = new Date();
+  expTarget.setDate(expTarget.getDate() + DTE);
+  const expiryStr = expTarget.toLocaleDateString("en-US", { month:"short", day:"numeric" });
+  const fmt = (v) => v.toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const hvLabel = hvPct != null ? `${hvPct.toFixed(0)}%` : "n/a";
+
+  if (recommendation === "Long Call") {
+    const resistance = Math.max(sma50 || price, vwap || price);
+    const callStrike = roundStrike(Math.max(price * 1.02, resistance * 1.005));
+    const debit = legPremium(callStrike);
+    const be = parseFloat((callStrike + debit).toFixed(2));
+    return {
+      type: "long_call", recommendation, recommendationColor,
+      legs: [{ action:"BUY", contract:`$${fmt(callStrike)} Call`, role:"long" }],
+      widthLabel: "STRIKE", width: `$${fmt(callStrike)}`,
+      premiumLabel: "DEBIT",
+      creditEst: debit, creditPerContract: Math.round(debit * 100),
+      maxLoss: debit, maxLossPerContract: Math.round(debit * 100),
+      maxGainUnlimited: true,
+      breakEven: `$${fmt(be)}`, breakEvenNums: [be],
+      strikesRaw: { callStrike },
+      expiry: `~${DTE} DTE · target ${expiryStr}`,
+      rationale: "Strong bullish trend — leveraged upside via a single long call; risk capped at the debit paid",
+    };
+  }
+
+  if (recommendation === "Short Call") {
+    const resistance = Math.max(sma50 || price, vwap || price);
+    const callStrike = roundStrike(Math.max(price * 1.05, resistance * 1.01));
+    const credit = legPremium(callStrike);
+    const be = parseFloat((callStrike + credit).toFixed(2));
+    return {
+      type: "short_call", recommendation, recommendationColor,
+      legs: [{ action:"SELL", contract:`$${fmt(callStrike)} Call`, role:"short" }],
+      widthLabel: "STRIKE", width: `$${fmt(callStrike)}`,
+      premiumLabel: "CREDIT",
+      creditEst: credit, creditPerContract: Math.round(credit * 100),
+      maxLossUnlimited: true,
+      maxGain: credit, maxGainPerContract: Math.round(credit * 100),
+      breakEven: `$${fmt(be)}`, breakEvenNums: [be],
+      strikesRaw: { callStrike },
+      expiry: `~${DTE} DTE · target ${expiryStr}`,
+      rationale: "Strong bearish trend — naked short call collects premium against a continued decline",
+      undefinedRisk: true,
+    };
+  }
+
+  if (recommendation === "Long Straddle") {
+    const strike = roundStrike(price);
+    const debit  = parseFloat((legPremium(strike) * 2).toFixed(2));
+    const beLow  = parseFloat((strike - debit).toFixed(2));
+    const beHigh = parseFloat((strike + debit).toFixed(2));
+    return {
+      type: "long_straddle", recommendation, recommendationColor,
+      legs: [
+        { action:"BUY", contract:`$${fmt(strike)} Call`, role:"long" },
+        { action:"BUY", contract:`$${fmt(strike)} Put`,  role:"long" },
+      ],
+      widthLabel: "STRIKE", width: `$${fmt(strike)} ATM (both legs)`,
+      premiumLabel: "DEBIT",
+      creditEst: debit, creditPerContract: Math.round(debit * 100),
+      maxLoss: debit, maxLossPerContract: Math.round(debit * 100),
+      maxGainUnlimited: true,
+      breakEven: `$${fmt(beLow)} – $${fmt(beHigh)}`, breakEvenNums: [beLow, beHigh],
+      strikesRaw: { putStrike: strike, callStrike: strike },
+      expiry: `~${DTE} DTE · target ${expiryStr}`,
+      rationale: `Low realized vol (HV20 ${hvLabel}) + no clear trend — cheap options positioned for a breakout either direction`,
+    };
+  }
+
+  if (recommendation === "Long Strangle") {
+    const putStrike  = roundStrike(price * 0.95);
+    const callStrike = roundStrike(price * 1.05);
+    const debit  = parseFloat((legPremium(putStrike) + legPremium(callStrike)).toFixed(2));
+    const beLow  = parseFloat((putStrike - debit).toFixed(2));
+    const beHigh = parseFloat((callStrike + debit).toFixed(2));
+    return {
+      type: "long_strangle", recommendation, recommendationColor,
+      legs: [
+        { action:"BUY", contract:`$${fmt(callStrike)} Call`, role:"long" },
+        { action:"BUY", contract:`$${fmt(putStrike)}  Put`,  role:"long" },
+      ],
+      widthLabel: "STRIKES", width: `$${fmt(putStrike)}P / $${fmt(callStrike)}C`,
+      premiumLabel: "DEBIT",
+      creditEst: debit, creditPerContract: Math.round(debit * 100),
+      maxLoss: debit, maxLossPerContract: Math.round(debit * 100),
+      maxGainUnlimited: true,
+      breakEven: `$${fmt(beLow)} – $${fmt(beHigh)}`, breakEvenNums: [beLow, beHigh],
+      strikesRaw: { putStrike, callStrike },
+      expiry: `~${DTE} DTE · target ${expiryStr}`,
+      rationale: `Low realized vol (HV20 ${hvLabel}) + no clear trend — cheaper entry than a straddle, needs a bigger move to profit`,
+    };
+  }
+
+  return null;
+}
+
 // ─── Black-Scholes Greeks (r ≈ 0 — reasonable for short-dated premium-selling estimates) ───
 function _bsNormCDF(x) {
   const sign = x < 0 ? -1 : 1;
@@ -1548,6 +1687,7 @@ export default function App() {
   const [spreadSignalsLoading, setSpreadSignalsLoading] = useState(false);
   const [spreadSignalsError,   setSpreadSignalsError]   = useState(null);
   const [spreadScanProgress,   setSpreadScanProgress]   = useState(null); // { done, total, ticker } | null
+  const [spreadStyle,          setSpreadStyle]          = useState("premium"); // "premium" (credit spreads) | "directional" (long call/short call/straddle/strangle)
   const [cspCcPicks,           setCspCcPicks]           = useState(null);
   const [cspCcPicksLoading,    setCspCcPicksLoading]    = useState(false);
   const [cspCcScanProgress,    setCspCcScanProgress]    = useState(null); // { done, total, ticker } | null
@@ -7285,7 +7425,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     const result = q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null;
                     setSearchResult(result);
                     setSearchFinancials(null);
-                    if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }
+                    if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? { error: true, message: error } : data); setSearchFinLoading(false); }); }
                   }
                 }}
                 placeholder="Type ticker and press Enter — e.g. NVDA, COST, BRK.B…"
@@ -7296,7 +7436,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 const result = q ? (TICKER_DB[q] || { ticker:q, notFound:true }) : null;
                 setSearchResult(result);
                 setSearchFinancials(null);
-                if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }
+                if (q) { setSearchFinLoading(true); loadFinancials(q).then(({data,error}) => { setSearchFinancials(error ? { error: true, message: error } : data); setSearchFinLoading(false); }); }
               }}>Search</button>
               {searchResult && (
                 <button className="btn" onClick={() => { setSearchResult(null); setSearchQuery(""); setSearchFinancials(null); }}>✕ Clear</button>
@@ -7311,7 +7451,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       setSearchQuery(r.ticker); setSearchResult(r);
                       setSearchFinancials(null);
                       setSearchFinLoading(true);
-                      loadFinancials(r.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); });
+                      loadFinancials(r.ticker).then(({data,error}) => { setSearchFinancials(error ? { error: true, message: error } : data); setSearchFinLoading(false); });
                     }}
                     style={{ padding:"3px 10px", fontSize:11,
                       borderColor: r.bestFor==="TFSA" ? "rgba(251,191,36,0.25)" : "rgba(34,211,238,0.25)",
@@ -7489,8 +7629,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
               {searchFinancials && searchFinancials.error && !searchFinLoading && (
                 <p style={{ fontSize:11, color:"rgba(148,163,184,0.6)", margin:0 }}>
-                  No FMP data available for {searchResult.ticker}. May be a Canadian/OTC ticker or not yet covered.
-                  <button onClick={() => { setSearchFinLoading(true); loadFinancials(searchResult.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); }); }}
+                  No FMP data available for {searchResult.ticker}{searchFinancials.message ? ` (${searchFinancials.message})` : ""}. May be a Canadian/OTC ticker or not yet covered.
+                  <button onClick={() => { setSearchFinLoading(true); loadFinancials(searchResult.ticker).then(({data,error}) => { setSearchFinancials(error ? { error: true, message: error } : data); setSearchFinLoading(false); }); }}
                     style={{ marginLeft:8, fontSize:10, padding:"2px 8px", borderRadius:5, cursor:"pointer",
                       background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
                       color:"rgba(255,255,255,0.4)" }}>Retry</button>
@@ -7616,7 +7756,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       setSearchQuery(rec.ticker); setSearchResult(rec);
                       setSearchFinancials(null);
                       setSearchFinLoading(true);
-                      loadFinancials(rec.ticker).then(({data,error}) => { setSearchFinancials(error ? {error:true} : data); setSearchFinLoading(false); });
+                      loadFinancials(rec.ticker).then(({data,error}) => { setSearchFinancials(error ? { error: true, message: error } : data); setSearchFinLoading(false); });
                     }}
                     style={{ background:"rgba(255,255,255,0.02)", border:"1px solid rgba(255,255,255,0.06)",
                       borderRadius:10, padding:"12px 14px", cursor:"pointer", textAlign:"left",
@@ -11367,13 +11507,24 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const ss = spreadSignals;
           const signals = ss?.signals || [];
 
-          const recColors = {
+          const recColorsPremium = {
             "Bull Put Spread":  { bg:"rgba(34,197,94,0.10)",  border:"rgba(34,197,94,0.28)",  text:"#22c55e" },
             "Bear Call Spread": { bg:"rgba(239,68,68,0.10)",  border:"rgba(239,68,68,0.28)",  text:"#ef4444" },
             "Iron Condor":      { bg:"rgba(167,139,250,0.10)",border:"rgba(167,139,250,0.28)",text:"#a78bfa" },
             "Caution":          { bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)", text:"#fbbf24" },
             "Skip":             { bg:"rgba(255,255,255,0.02)",border:"rgba(255,255,255,0.08)",text:"rgba(255,255,255,0.3)" },
           };
+          // Directional/volatility style — debit trades (Long Call/Straddle/Strangle)
+          // plus the one credit trade with undefined risk (Short Call).
+          const recColorsDirectional = {
+            "Long Call":      { bg:"rgba(34,197,94,0.10)",  border:"rgba(34,197,94,0.28)",  text:"#22c55e" },
+            "Short Call":     { bg:"rgba(239,68,68,0.10)",  border:"rgba(239,68,68,0.28)",  text:"#ef4444" },
+            "Long Straddle":  { bg:"rgba(167,139,250,0.10)",border:"rgba(167,139,250,0.28)",text:"#a78bfa" },
+            "Long Strangle":  { bg:"rgba(34,211,238,0.10)", border:"rgba(34,211,238,0.28)", text:"#22d3ee" },
+            "Caution":        { bg:"rgba(251,191,36,0.08)", border:"rgba(251,191,36,0.25)", text:"#fbbf24" },
+            "Skip":           { bg:"rgba(255,255,255,0.02)",border:"rgba(255,255,255,0.08)",text:"rgba(255,255,255,0.3)" },
+          };
+          const recColors = spreadStyle === "directional" ? recColorsDirectional : recColorsPremium;
           const dirIcon = { bullish:"▲", bearish:"▼", neutral:"◈" };
           const dirColor= { bullish:"#22c55e", bearish:"#ef4444", neutral:"rgba(255,255,255,0.35)" };
 
@@ -11408,15 +11559,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const pad = { l: 38, r: 6, t: 6, b: 22 };
             const iW = W - pad.l - pad.r, iH = H - pad.t - pad.b;
             const { type, strikesRaw, creditEst, maxLoss, breakEvenNums } = setup;
-            const { longPut = 0, shortPut = 0, shortCall = 0, longCall = 0 } = strikesRaw;
-            const pMin = Math.min(longPut || currentPrice * 0.82, currentPrice * 0.82);
-            const pMax = Math.max(longCall || currentPrice * 1.18, currentPrice * 1.18);
+            const { longPut = 0, shortPut = 0, shortCall = 0, longCall = 0, putStrike = 0, callStrike = 0 } = strikesRaw;
+            const definedStrikes = Object.values(strikesRaw).filter(v => v > 0);
+            const pMin = Math.min(currentPrice * 0.82, ...definedStrikes);
+            const pMax = Math.max(currentPrice * 1.18, ...definedStrikes);
             const xS = (p) => pad.l + ((p - pMin) / (pMax - pMin)) * iW;
-            const yPad = Math.max(creditEst, maxLoss) * 0.18;
-            const yMin = -(maxLoss + yPad), yMax = creditEst + yPad;
-            const yR = yMax - yMin;
-            const yS = (v) => pad.t + ((yMax - v) / yR) * iH;
-            const y0 = yS(0);
             const payoff = (p) => {
               if (type === "bull_put") {
                 if (p <= longPut)  return -maxLoss;
@@ -11435,19 +11582,37 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                 if (p <= longCall)  return creditEst - (p - shortCall) * (creditEst + maxLoss) / (longCall - shortCall);
                 return -maxLoss;
               }
+              // Debit/undefined-risk types — evaluated directly, no manual maxGain/maxLoss
+              // clamp needed since the sampled range below derives the chart scale from
+              // these values, so an unbounded leg simply runs off the edge of the frame.
+              if (type === "long_call")  return Math.max(p - callStrike, 0) - creditEst;
+              if (type === "short_call") return creditEst - Math.max(p - callStrike, 0);
+              if (type === "long_straddle" || type === "long_strangle")
+                return Math.max(p - callStrike, 0) + Math.max(putStrike - p, 0) - creditEst;
               return 0;
             };
             const N = 80;
-            const pts = Array.from({ length: N + 1 }, (_, i) => {
+            const sampled = Array.from({ length: N + 1 }, (_, i) => {
               const p = pMin + (pMax - pMin) * i / N;
-              return { x: xS(p), y: yS(payoff(p)) };
+              return { p, raw: payoff(p) };
             });
+            const rawMin = Math.min(0, ...sampled.map(d => d.raw));
+            const rawMax = Math.max(0, ...sampled.map(d => d.raw));
+            const yPad = Math.max(0.02, (rawMax - rawMin) * 0.15);
+            const yMin = rawMin - yPad, yMax = rawMax + yPad;
+            const yR = yMax - yMin;
+            const yS = (v) => pad.t + ((yMax - v) / yR) * iH;
+            const y0 = yS(0);
+            const pts = sampled.map(d => ({ x: xS(d.p), y: yS(d.raw) }));
             const poly = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
             const closePoly = (toY) => `${poly} ${(pad.l + iW).toFixed(1)},${toY.toFixed(1)} ${pad.l.toFixed(1)},${toY.toFixed(1)}`;
             const uid = (ticker || "").replace(/[^a-z0-9]/gi, "");
             const fmtY = (v) => Math.abs(v) >= 10 ? `$${Math.round(v)}` : `$${v.toFixed(1)}`;
             const fmtX = (v) => v >= 1000 ? `${(v/1000).toFixed(1)}k` : `${Math.round(v)}`;
-            const keyStrikes = [longPut, shortPut, shortCall, longCall].filter(Boolean);
+            const keyStrikes = [longPut, shortPut, shortCall, longCall, putStrike, callStrike].filter(Boolean);
+            // "+" suffix marks an edge that keeps running past the visible window (unbounded)
+            const gainSuffix = setup.maxGainUnlimited ? "+" : "";
+            const lossSuffix = setup.maxLossUnlimited ? "+" : "";
             return (
               <svg viewBox={`0 0 ${W} ${H}`} style={{ width:"100%", height:"auto", display:"block", overflow:"visible" }}>
                 <defs>
@@ -11476,11 +11641,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   <circle key={i} cx={xS(be)} cy={y0} r={3.5} fill="#fbbf24" stroke="rgba(0,0,0,0.5)" strokeWidth={1} />
                 ))}
                 {/* Y axis labels */}
-                <text x={pad.l - 4} y={yS(creditEst) + 3.5} textAnchor="end" fontSize={8} fill="#22c55e" fontFamily="monospace">
-                  +{fmtY(creditEst)}
+                <text x={pad.l - 4} y={yS(rawMax) + 3.5} textAnchor="end" fontSize={8} fill="#22c55e" fontFamily="monospace">
+                  +{fmtY(rawMax)}{gainSuffix}
                 </text>
-                <text x={pad.l - 4} y={yS(-maxLoss) + 3.5} textAnchor="end" fontSize={8} fill="#ef4444" fontFamily="monospace">
-                  -{fmtY(maxLoss)}
+                <text x={pad.l - 4} y={yS(rawMin) + 3.5} textAnchor="end" fontSize={8} fill="#ef4444" fontFamily="monospace">
+                  {rawMin < 0 ? "-" : ""}{fmtY(Math.abs(rawMin))}{lossSuffix}
                 </text>
                 <text x={pad.l - 4} y={y0 + 3.5} textAnchor="end" fontSize={7} fill="rgba(255,255,255,0.25)" fontFamily="monospace">0</text>
                 {/* X axis: key strikes */}
@@ -11502,8 +11667,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                   now
                 </text>
                 {/* Corner labels */}
-                <text x={pad.l + iW - 2} y={pad.t + 9} textAnchor="end" fontSize={7} fill="rgba(34,197,94,0.6)">MAX GAIN</text>
-                <text x={pad.l + iW - 2} y={H - pad.b - 3} textAnchor="end" fontSize={7} fill="rgba(239,68,68,0.6)">MAX LOSS</text>
+                <text x={pad.l + iW - 2} y={pad.t + 9} textAnchor="end" fontSize={7} fill="rgba(34,197,94,0.6)">MAX GAIN{gainSuffix}</text>
+                <text x={pad.l + iW - 2} y={H - pad.b - 3} textAnchor="end" fontSize={7} fill="rgba(239,68,68,0.6)">MAX LOSS{lossSuffix}</text>
               </svg>
             );
           };
@@ -11513,12 +11678,40 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
           return (
             <div>
+              {/* Strategy style toggle */}
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:12, flexWrap:"wrap" }}>
+                <span style={{ fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.4)", letterSpacing:"0.04em" }}>
+                  STRATEGY STYLE
+                </span>
+                <div style={{ display:"flex", borderRadius:8, border:"1px solid rgba(255,255,255,0.1)", overflow:"hidden" }}>
+                  {[
+                    { key:"premium",     label:"Premium Selling",   desc:"Bull Put / Bear Call / Iron Condor" },
+                    { key:"directional", label:"Directional / Vol", desc:"Long Call / Short Call / Straddle / Strangle" },
+                  ].map(opt => (
+                    <button key={opt.key} onClick={() => setSpreadStyle(opt.key)}
+                      title={opt.desc}
+                      style={{ fontSize:10, fontWeight:700, padding:"6px 12px", cursor:"pointer", border:"none",
+                        background: spreadStyle === opt.key ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.03)",
+                        color:      spreadStyle === opt.key ? "#22c55e" : "rgba(255,255,255,0.4)" }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {spreadStyle === "directional" && (
+                  <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                    Debit trades (you pay premium) except Short Call — flagged separately for undefined risk.
+                  </span>
+                )}
+              </div>
+
               {/* Header row */}
               <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:14, flexWrap:"wrap" }}>
                 <div style={{ flex:1, minWidth:240 }}>
                   <p style={{ fontSize:11, color:"rgba(255,255,255,0.4)", lineHeight:1.6, margin:0 }}>
                     Scores {signals.length || SPREAD_SCAN_TICKERS.length}+ liquid tickers on <strong style={{ color:"rgba(255,255,255,0.6)" }}>8 signals</strong>: Volume, RSI, MACD, SMA 50/200, VWAP, ATR%, HV20, Bollinger Bands.
-                    Higher score = better conditions for vertical spreads.
+                    {spreadStyle === "directional"
+                      ? " Higher score = stronger trend (Long/Short Call) or a tighter, quieter range ready to expand (Straddle/Strangle)."
+                      : " Higher score = better conditions for vertical spreads."}
                     Cron auto-refresh runs daily at <strong style={{ color:"rgba(255,255,255,0.6)" }}>5:30 PM ET (after close)</strong>.
                   </p>
                   {/* Source + timestamp row */}
@@ -11636,7 +11829,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               {signals.length > 0 && (
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(380px, 1fr))", gap:10 }}>
                   {signals.map(s => {
-                    const rc = recColors[s.recommendation] || recColors["Skip"];
+                    // Directional style computes its own recommendation from the same
+                    // score/direction/hvPct the cached signal already carries — the
+                    // premium-selling recommendation baked into `s` is left untouched.
+                    const recLabel = spreadStyle === "directional"
+                      ? pickDirectionalRecommendation(s.score, s.direction, s.hvPct).recommendation
+                      : s.recommendation;
+                    const rc = recColors[recLabel] || recColors["Skip"];
                     const priceVsSma50   = s.sma50  ? ((s.price - s.sma50)  / s.sma50  * 100).toFixed(1) : null;
                     const priceVsSma200  = s.sma200 ? ((s.price - s.sma200) / s.sma200 * 100).toFixed(1) : null;
                     const priceVsVwap    = s.vwap   ? ((s.price - s.vwap)   / s.vwap   * 100).toFixed(1) : null;
@@ -11644,7 +11843,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     const goldenCross    = s.sma50 && s.sma200 && s.sma50 > s.sma200;
                     const deathCross     = s.sma50 && s.sma200 && s.sma50 < s.sma200;
 
-                    const tradeSetup = buildTradeSetup(s);
+                    const tradeSetup = spreadStyle === "directional"
+                      ? buildDirectionalTradeSetup(s)
+                      : buildTradeSetup(s);
 
                     return (
                       <div key={s.ticker} className="card" style={{ padding:"14px 16px",
@@ -11664,7 +11865,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               <span style={{ fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:4,
                                 background:rc.bg, color:rc.text, border:`1px solid ${rc.border}`,
                                 textTransform:"uppercase", letterSpacing:"0.04em" }}>
-                                {s.recommendation}
+                                {recLabel}
                               </span>
                               {/* Golden / Death cross */}
                               {goldenCross && (
@@ -11914,37 +12115,65 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               );
                             })()}
 
+                            {/* Undefined-risk warning (naked short call) */}
+                            {tradeSetup.undefinedRisk && (
+                              <div style={{ padding:"6px 10px", borderRadius:6, marginBottom:8,
+                                background:"rgba(239,68,68,0.12)", border:"1px solid rgba(239,68,68,0.35)" }}>
+                                <span style={{ fontSize:9, fontWeight:700, color:"#ef4444" }}>
+                                  ⚠ UNDEFINED RISK — theoretically unlimited loss if the stock rallies through the strike. Requires margin approval; not a defined-risk trade.
+                                </span>
+                              </div>
+                            )}
+
                             {/* Metrics row */}
                             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"5px 8px",
                               padding:"8px 10px", borderRadius:6, marginBottom:10,
                               background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.06)" }}>
                               <div>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>WIDTH</p>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>{tradeSetup.widthLabel || "WIDTH"}</p>
                                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
                                   color:"rgba(255,255,255,0.6)" }}>{tradeSetup.width}</span>
                               </div>
                               <div>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>CREDIT / CONTRACT</p>
+                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>
+                                  {tradeSetup.premiumLabel === "DEBIT" ? "DEBIT PAID / CONTRACT" : "CREDIT / CONTRACT"}
+                                </p>
                                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                  fontWeight:700, color:"#22c55e" }}>
+                                  fontWeight:700, color: tradeSetup.premiumLabel === "DEBIT" ? "#fbbf24" : "#22c55e" }}>
                                   ~${tradeSetup.creditEst}/sh
                                 </span>
                                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
-                                  color:"rgba(34,197,94,0.6)", marginLeft:4 }}>
+                                  color: tradeSetup.premiumLabel === "DEBIT" ? "rgba(251,191,36,0.6)" : "rgba(34,197,94,0.6)", marginLeft:4 }}>
                                   (~${tradeSetup.creditPerContract})
                                 </span>
                               </div>
-                              <div>
-                                <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS / CONTRACT</p>
-                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                  color:"#ef4444" }}>
-                                  ${tradeSetup.maxLoss}/sh
-                                </span>
-                                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
-                                  color:"rgba(239,68,68,0.6)", marginLeft:4 }}>
-                                  (${tradeSetup.maxLossPerContract})
-                                </span>
-                              </div>
+                              {tradeSetup.maxLossUnlimited ? (
+                                <div>
+                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS / CONTRACT</p>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700, color:"#ef4444" }}>
+                                    Unlimited
+                                  </span>
+                                </div>
+                              ) : tradeSetup.maxGainUnlimited ? (
+                                <div>
+                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX GAIN / CONTRACT</p>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700, color:"#22c55e" }}>
+                                    Unlimited
+                                  </span>
+                                </div>
+                              ) : (
+                                <div>
+                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>MAX LOSS / CONTRACT</p>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                    color:"#ef4444" }}>
+                                    ${tradeSetup.maxLoss}/sh
+                                  </span>
+                                  <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9,
+                                    color:"rgba(239,68,68,0.6)", marginLeft:4 }}>
+                                    (${tradeSetup.maxLossPerContract})
+                                  </span>
+                                </div>
+                              )}
                               <div style={{ gridColumn:"1/-1", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
                                 <div>
                                   <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BREAK-EVEN</p>
@@ -11952,17 +12181,42 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                     color:"#fbbf24" }}>{tradeSetup.breakEven}</span>
                                 </div>
                                 <div style={{ textAlign:"right" }}>
-                                  <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>CREDIT-TO-WIDTH</p>
-                                  {(() => {
-                                    const widthNum = tradeSetup.maxLoss + tradeSetup.creditEst;
-                                    const ratio = widthNum > 0 ? tradeSetup.creditEst / widthNum : 0;
-                                    return (
-                                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-                                        color: ratio >= 0.25 ? "#22c55e" : "#fbbf24" }}>
-                                        {(ratio * 100).toFixed(0)}%
+                                  {tradeSetup.undefinedRisk ? (
+                                    <>
+                                      <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>RISK</p>
+                                      <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, fontWeight:700, color:"#ef4444" }}>
+                                        UNDEFINED
                                       </span>
-                                    );
-                                  })()}
+                                    </>
+                                  ) : tradeSetup.maxGainUnlimited ? (
+                                    <>
+                                      <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>BREAKEVEN MOVE</p>
+                                      {(() => {
+                                        const nearest = tradeSetup.breakEvenNums
+                                          .reduce((a, b) => Math.abs(b - s.price) < Math.abs(a - s.price) ? b : a);
+                                        const movePct = ((nearest - s.price) / s.price * 100);
+                                        return (
+                                          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#fbbf24" }}>
+                                            {movePct >= 0 ? "+" : ""}{movePct.toFixed(1)}%
+                                          </span>
+                                        );
+                                      })()}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p style={{ fontSize:7, color:"rgba(255,255,255,0.3)", marginBottom:2 }}>CREDIT-TO-WIDTH</p>
+                                      {(() => {
+                                        const widthNum = tradeSetup.maxLoss + tradeSetup.creditEst;
+                                        const ratio = widthNum > 0 ? tradeSetup.creditEst / widthNum : 0;
+                                        return (
+                                          <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
+                                            color: ratio >= 0.25 ? "#22c55e" : "#fbbf24" }}>
+                                            {(ratio * 100).toFixed(0)}%
+                                          </span>
+                                        );
+                                      })()}
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -11992,7 +12246,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             {/* 52w context */}
                             <p style={{ fontSize:7, color:"rgba(255,255,255,0.15)", marginTop:6 }}>
                               52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)} &nbsp;·&nbsp;
-                              Credits are estimates; verify against live chain & IV.
+                              {tradeSetup.premiumLabel === "DEBIT" ? "Debits" : "Credits"} are estimates; verify against live chain & IV.
                             </p>
                           </div>
                         ) : (
@@ -12002,7 +12256,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)}
                             </span>
                             <span style={{ fontSize:8, color:"rgba(255,255,255,0.2)" }}>
-                              {s.recommendation === "Caution" ? "Conditions borderline — wait for clearer setup" : "No trade setup — skip this ticker"}
+                              {recLabel === "Caution" ? "Conditions borderline — wait for clearer setup" : "No trade setup — skip this ticker"}
                             </span>
                           </div>
                         )}
@@ -12015,8 +12269,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               <p style={{ fontSize:9, color:"rgba(255,255,255,0.15)", marginTop:16, lineHeight:1.6 }}>
                 Signals computed from 1-year daily OHLCV data (Yahoo Finance).
                 Score combines: Volume ratio, RSI zone, MACD momentum, SMA 50/200 trend, VWAP proximity, ATR% (volatility), HV20 (realised vol), Bollinger Band position.
-                ATR% &lt;2.5% = good for tight spreads · HV20 18–45% = premium-selling sweet spot · BB mid-range = Iron Condor territory.
-                Not financial advice — always verify strikes, credits, and IV against your live broker chain before placing trades.
+                {spreadStyle === "directional"
+                  ? " Strong trend + score ≥65 = Long Call (bullish) or Short Call (bearish, undefined risk) · neutral + low HV20 = Long Straddle/Strangle, betting on a move out of a quiet range."
+                  : " ATR% <2.5% = good for tight spreads · HV20 18–45% = premium-selling sweet spot · BB mid-range = Iron Condor territory."}
+                {" "}Not financial advice — always verify strikes, credits, and IV against your live broker chain before placing trades.
               </p>
             </div>
           );
@@ -14027,7 +14283,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setAdvisorFinLoading(true);
           setAdvisorFinancials(null);
           const { data, error } = await loadFinancials(ticker);
-          setAdvisorFinancials(error ? { error: true } : data);
+          setAdvisorFinancials(error ? { error: true, message: error } : data);
           setAdvisorFinLoading(false);
         }
 
@@ -14503,7 +14759,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       )}
                       {advisorFinancials?.error && !advisorFinLoading && (
                         <span style={{ fontSize:10, color:"rgba(244,63,94,0.7)" }}>
-                          ⚠ No live data — analysis uses training knowledge only
+                          ⚠ No live data{advisorFinancials.message ? ` (${advisorFinancials.message})` : ""} — analysis uses training knowledge only
                         </span>
                       )}
                       {!advisorFinancials && !advisorFinLoading && advisorTicker && (
@@ -14618,7 +14874,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           setResearchFinLoading(true);
           setResearchFinancials(null);
           const { data, error } = await loadFinancials(ticker);
-          setResearchFinancials(error ? { error: true } : data);
+          setResearchFinancials(error ? { error: true, message: error } : data);
           setResearchFinLoading(false);
         }
 
@@ -15069,7 +15325,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       )}
                       {researchFinancials?.error && !researchFinLoading && (
                         <span style={{ fontSize:10, color:"rgba(244,63,94,0.7)" }}>
-                          ⚠ Could not fetch live financials — report will use training data only
+                          ⚠ Could not fetch live financials{researchFinancials.message ? ` (${researchFinancials.message})` : ""} — report will use training data only
                         </span>
                       )}
                       {!researchFinancials && !researchFinLoading && primaryTicker && (
@@ -15309,7 +15565,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <H2 icon="⚡" title="Options" />
             <P>Generate income from positions you already own using two conservative strategies, find the best tickers to trade spreads on, and track every trade in one place.</P>
             <H3>📊 Spread Scanner — daily vertical spread signals</H3>
-            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 69 liquid optionable tickers and scores each one 0–100 for vertical spread suitability. The score combines five signals: Volume ratio (options liquidity), RSI in the 35–65 premium-selling sweet spot, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. Each ticker gets a recommendation: <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, <strong style={{color:"#a78bfa"}}>Iron Condor</strong>, <strong style={{color:"#fbbf24"}}>Caution</strong>, or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong>. No setup required — the data loads automatically when you open the scanner tab.</P>
+            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 69 liquid optionable tickers and scores each one 0–100 for options suitability. The score combines five signals: Volume ratio (options liquidity), RSI, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. A <strong>Strategy style</strong> toggle at the top of the scanner switches what each score turns into: <strong style={{color:"#22c55e"}}>Premium Selling</strong> (the default) recommends <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, or <strong style={{color:"#a78bfa"}}>Iron Condor</strong> — defined-risk credit trades. <strong style={{color:"#22d3ee"}}>Directional / Vol</strong> recommends debit trades instead: <strong style={{color:"#22c55e"}}>Long Call</strong> on a strong bullish score, <strong style={{color:"#a78bfa"}}>Long Straddle</strong> or <strong style={{color:"#22d3ee"}}>Long Strangle</strong> when the setup is neutral but historical volatility is unusually low (cheap options, coiled for a breakout), and <strong style={{color:"#ef4444"}}>Short Call</strong> on a strong bearish score — flagged with an explicit undefined-risk warning since it's a naked short position. Every ticker still gets <strong style={{color:"#fbbf24"}}>Caution</strong> or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong> when conditions don't clear the bar. No setup required — the data loads automatically when you open the scanner tab.</P>
             <H3>Covered Calls (CC)</H3>
             <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
             <H3>Cash-Secured Puts (CSP)</H3>

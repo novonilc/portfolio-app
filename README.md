@@ -881,6 +881,7 @@ npm run preview
    | Name | Value | Notes |
    |---|---|---|
    | `ANTHROPIC_API_KEY` | `sk-ant-...` | From [console.anthropic.com](https://console.anthropic.com) |
+   | `FMP_API_KEY` | your key | From [financialmodelingprep.com](https://financialmodelingprep.com/developer/docs) (free tier works). Powers live quarterly financials on the Search, AI Advisor, and Research tabs — without it, `/api/financials` returns an error and those tabs fall back to AI training data only. |
    | `GATE_ENABLED` | `true` | Enables license validation on all non-localhost requests |
    | `LS_PRODUCT_ID_BASIC` | e.g. `1234567` | Your Basic plan product ID from LS dashboard — leave blank until Basic product is created |
    | `BLOB_READ_WRITE_TOKEN` | auto-filled | Added automatically when you connect a Vercel Blob store to the project (see step 5) |
