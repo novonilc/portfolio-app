@@ -153,6 +153,10 @@ const US_STOCKS = [
   { ticker:'NBIS',  name:'Nebius Group',            sector:'AI Infrastructure',     mktCap:'large' },
   // Drone & Autonomous Systems (1)
   { ticker:'ONDS',  name:'Ondas Holdings',          sector:'Drone & Autonomous Systems', mktCap:'mid' },
+  // Mobility & Delivery (3)
+  { ticker:'UBER',  name:'Uber Technologies',       sector:'Mobility & Delivery',   mktCap:'large' },
+  { ticker:'LYFT',  name:'Lyft',                    sector:'Mobility & Delivery',   mktCap:'mid'   },
+  { ticker:'DASH',  name:'DoorDash',                sector:'Mobility & Delivery',   mktCap:'large' },
 ];
 
 const CA_STOCKS = [
@@ -245,6 +249,8 @@ const CURATED_MOATS = {
   DRAM:'Pure-Play Memory Chip Basket (Samsung, SK Hynix, Micron)',
   NBIS:'Neocloud AI GPU Infrastructure (Ex-Yandex)',
   ONDS:'Drone Networks + Counter-UAS Defense Platform',
+  UBER:'Two-Sided Marketplace Network Effect', LYFT:'US Ride-Hailing Duopoly Position',
+  DASH:'Local Delivery Density Network',
   ENB:'Regulated Pipeline Monopoly',    TRP:'Regulated Canadian Pipeline',
   TD:'Canadian Banking Oligopoly',      RY:'Canadian Banking Oligopoly',
   BNS:'LatAm Banking Franchise',        BMO:'Canadian Banking Oligopoly',
