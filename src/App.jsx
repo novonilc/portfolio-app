@@ -24,6 +24,61 @@ function sectorRegimeAlignment(sector, rotation) {
   return null;
 }
 
+// Hard per-ticker cap for "Suggest Targets with AI" — the prompt also instructs
+// this, but a prompt instruction alone isn't a guarantee, so the result is
+// re-capped client-side. Redistributes any excess proportionally across the
+// tickers still under the cap ("water-filling") so the targets still sum to
+// 100 whenever that's mathematically possible under the cap. The cap always
+// wins over the 100% sum — with fewer than 10 holdings, capping every ticker
+// at 10% can't reach 100%, and that's the correct, honest outcome (the Edit
+// Targets tab will show "off by X%", signalling more tickers are needed to
+// fully allocate under this cap — not that the cap should be relaxed).
+const AI_TARGET_MAX_PCT = 10;
+function capTargetsAtMax(items, capPct) {
+  const n = items.length;
+  if (n === 0) return items;
+  const total = items.reduce((s, it) => s + it.target, 0);
+  if (total <= 0) return items;
+
+  let vals;
+  if (capPct * n < 100) {
+    // Cap is mathematically infeasible for this many tickers (n × cap < 100) —
+    // simply cap each one; don't inflate weaker convictions just to hit 100%.
+    vals = items.map(it => Math.min(it.target, capPct));
+  } else {
+    vals = items.map(it => it.target / total * 100);
+    for (let pass = 0; pass < n; pass++) {
+      const overIdx = vals.reduce((a, v, i) => (v > capPct + 1e-9 ? [...a, i] : a), []);
+      if (overIdx.length === 0) break;
+      let freed = 0;
+      overIdx.forEach(i => { freed += vals[i] - capPct; vals[i] = capPct; });
+      const underIdx = vals.reduce((a, v, i) => (!overIdx.includes(i) && v < capPct - 1e-9 ? [...a, i] : a), []);
+      if (underIdx.length === 0) break; // everyone else is already exactly at the cap
+      // Redistribute proportionally to current weight — but if every remaining
+      // candidate is currently at 0 (underTotal === 0), an even split is the
+      // only way to actually place the freed amount instead of dropping it.
+      const underTotal = underIdx.reduce((s, i) => s + vals[i], 0);
+      underIdx.forEach(i => {
+        vals[i] += underTotal > 0 ? freed * (vals[i] / underTotal) : freed / underIdx.length;
+      });
+    }
+    vals = vals.map(v => Math.round(v));
+    // Fix integer rounding drift so the total is exactly 100 again
+    let diff = 100 - vals.reduce((a, b) => a + b, 0);
+    let guard = 0;
+    while (diff !== 0 && guard++ < n * 2) {
+      const candidates = vals
+        .map((v, i) => ({ i, room: capPct - v }))
+        .filter(c => diff > 0 ? c.room > 0 : vals[c.i] > 0)
+        .sort((a, b) => diff > 0 ? b.room - a.room : vals[b.i] - vals[a.i]);
+      if (!candidates.length) break;
+      vals[candidates[0].i] += diff > 0 ? 1 : -1;
+      diff += diff > 0 ? -1 : 1;
+    }
+  }
+  return items.map((it, i) => ({ ...it, target: vals[i] }));
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // LICENSE CONFIGURATION
 // Two tiers:
@@ -3231,13 +3286,13 @@ How to weight scanner signals against account-type rules:
 
 Instructions:
 - Assign a "target" integer % to each ticker — they must sum to EXACTLY 100
-- Maximum 25% for any single equity position
+- Maximum 10% for any single equity position — this is a hard cap, not a guideline. If your allocation logic wants to give a ticker more than 10%, cap it at 10% and distribute the remainder across the other tickers instead.
 - Set target to 0 only if you have a strong reason to exit the position
 - Also provide updated "cagr" (5-yr estimate, integer 5-25) and "divYield" (%, one decimal) per ticker
 - "rationale": one sharp sentence — what drives the target change (reference scanner signals when they influenced the decision)
 
 Return ONLY a JSON array, no markdown:
-[{"ticker":"NVDA","target":18,"cagr":18,"divYield":0.0,"rationale":"AI compute moat; TFSA-optimal growth with minimal WHT drag"}]`;
+[{"ticker":"NVDA","target":10,"cagr":18,"divYield":0.0,"rationale":"AI compute moat; TFSA-optimal growth with minimal WHT drag"}]`;
 
       const res = await callClaude({
         model: "claude-sonnet-4-6",
@@ -3271,7 +3326,10 @@ Return ONLY a JSON array, no markdown:
         };
       });
 
-      setAiTargetsPreview({ suggestions, account });
+      // Hard-cap every ticker at AI_TARGET_MAX_PCT regardless of what the model
+      // returned — the prompt already asks for this, but this is what actually
+      // guarantees it, redistributing any excess across the other tickers.
+      setAiTargetsPreview({ suggestions: capTargetsAtMax(suggestions, AI_TARGET_MAX_PCT), account });
     } catch (err) {
       setAiTargetsError(err.message || "Failed to get AI suggestions");
     } finally {
