@@ -1674,6 +1674,7 @@ export default function App() {
   const [optionClosing,       setOptionClosing]      = useState(null);
   const [optionWatchlist,     setOptionWatchlist]    = useState(() => JSON.parse(localStorage.getItem("portfolio:options:watchlist") || "[]"));
   const [optionWatchInput,    setOptionWatchInput]   = useState("");
+  const [measuredIVCache,     setMeasuredIVCache]    = useState({}); // ticker -> { hvPct, hvRank, fetchedAt } — real HV20 fetched on demand for tickers outside the scan universe
   const [tab,              setTab]             = useState(() => localStorage.getItem("portfolio:helpSeen") ? "dashboard" : "help");
   const [helpUnlocked,     setHelpUnlocked]    = useState(() => !!localStorage.getItem("portfolio:helpSeen"));
   const [helpNudge,        setHelpNudge]       = useState(false);
@@ -1746,6 +1747,7 @@ export default function App() {
   const [cspCcPicks,           setCspCcPicks]           = useState(null);
   const [cspCcPicksLoading,    setCspCcPicksLoading]    = useState(false);
   const [cspCcScanProgress,    setCspCcScanProgress]    = useState(null); // { done, total, ticker } | null
+  const [earningsCalendar,     setEarningsCalendar]     = useState(null); // { earningsByTicker: { AAPL: "2026-07-31", ... }, windowDays } | null
   const spreadScanAbortRef = useRef(null);
 
   // Proxy helper — all AI calls route through /api/claude (key never in browser)
@@ -2151,6 +2153,19 @@ export default function App() {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Load upcoming earnings dates on startup (refreshed weekly by cron) — used to flag
+  // CC/CSP picks and spread trade tickets whose expiry window overlaps an earnings report
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/public-data?key=earnings-calendar");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.earningsByTicker) setEarningsCalendar(data);
+      } catch { /* silently skip — earnings badges stay hidden */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 // ── Persist helpers ────────────────────────────────────────────────────
   function persist(acct, data) {
     try {
@@ -2358,6 +2373,16 @@ export default function App() {
     setOptionPrices(prices);
     setOptionPricesLoading(false);
     if (!Object.keys(prices).length) setOptionPriceError("Could not fetch prices — check your connection.");
+
+    // Backfill real HV20 for any ticker without cached scanner data or an on-demand fetch yet
+    // (e.g. custom watchlist adds outside the 69-ticker scan universe) — runs in the background,
+    // strike tables fall back to the sector estimate until it resolves.
+    const scannedTickers = new Set([
+      ...(cspCcPicks?.ccPicks || []).map(p => p.ticker),
+      ...(cspCcPicks?.cspPicks || []).map(p => p.ticker),
+    ]);
+    const needsMeasuredIV = tickers.filter(t => !scannedTickers.has(t) && !measuredIVCache[t]);
+    needsMeasuredIV.forEach(t => loadMeasuredIV(t));
   }
 
   function estimateIV(ticker, vix = 17) {
@@ -2365,6 +2390,55 @@ export default function App() {
     const sector = rec?.sector || "";
     const mult = SECTOR_IV_MULT[sector] || 1.8;
     return vix * mult;
+  }
+
+  // Prefers real per-ticker HV20 (from the scanner cache or an on-demand fetch) over the
+  // static sector×VIX guess. IV ≈ HV20 × 1.25 mirrors the same heuristic buildTradeSetup()
+  // uses for the spread scanner, so the two scanners agree with each other.
+  function getMeasuredIV(ticker, hvByTicker, vix) {
+    const hv = hvByTicker[ticker];
+    if (hv?.hvPct != null) return { iv: hv.hvPct * 1.25, hvRank: hv.hvRank ?? null, source: "measured" };
+    return { iv: estimateIV(ticker, vix), hvRank: null, source: "estimated" };
+  }
+
+  // Merges the cached scanner results with any on-demand HV fetches into one ticker -> {hvPct, hvRank} lookup.
+  function buildHvByTicker() {
+    const map = {};
+    for (const p of [...(cspCcPicks?.ccPicks || []), ...(cspCcPicks?.cspPicks || [])]) {
+      if (p.hvPct != null) map[p.ticker] = { hvPct: p.hvPct, hvRank: p.hvRank };
+    }
+    for (const [ticker, hv] of Object.entries(measuredIVCache)) {
+      if (!map[ticker]) map[ticker] = hv;
+    }
+    return map;
+  }
+
+  // On-demand HV20/HV-Rank fetch for tickers outside the fixed scan universe (e.g. custom
+  // watchlist adds). Reuses the same /api/yahoo-chart proxy and _ssHV/_ssHVRank helpers the
+  // manual scanner scans already use.
+  async function loadMeasuredIV(ticker) {
+    try {
+      const res = await fetch(`/api/yahoo-chart?ticker=${encodeURIComponent(ticker)}&range=6mo&interval=1d`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const result = data.chart?.result?.[0];
+      const closes = (result?.indicators?.quote?.[0]?.close || []).filter(c => c != null);
+      if (closes.length < 22) return;
+      const hvPct  = _ssHV(closes);
+      const hvRank = _ssHVRank(closes);
+      if (hvPct == null) return;
+      setMeasuredIVCache(prev => ({ ...prev, [ticker]: { hvPct, hvRank, fetchedAt: Date.now() } }));
+    } catch { /* silent — falls back to the sector estimate */ }
+  }
+
+  // Returns { date, daysAway } if `ticker` has an earnings report within `dteDays` of today
+  // (i.e. inside a trade's expiry window), else null. Presentation-only — does not affect scoring.
+  function earningsWarning(ticker, dteDays = 35) {
+    const dateStr = earningsCalendar?.earningsByTicker?.[ticker];
+    if (!dateStr) return null;
+    const daysAway = Math.round((new Date(dateStr) - new Date(new Date().toDateString())) / 864e5);
+    if (daysAway < 0 || daysAway > dteDays) return null;
+    return { date: dateStr, daysAway };
   }
 
   // Simplified Black-Scholes inspired premium estimate (annualised IV in %)
@@ -3605,6 +3679,7 @@ Return ONLY a valid JSON object, no markdown, no trailing commas:
 
       // ── Pre-compute CC candidates ──────────────────────────────────────
       // TFSA = non-registered-linked, so TFSA + RRSP are both options-eligible
+      const hvByTicker = buildHvByTicker();
       const ccCandidates = portfolios.flatMap(acct =>
         (holdings[acct] || []).map(h => {
           const price = optionPrices[h.ticker];
@@ -3612,7 +3687,7 @@ Return ONLY a valid JSON object, no markdown, no trailing commas:
           const estShares = Math.round(h.current / price);
           const contracts = Math.floor(estShares / 100);
           if (contracts < 1) return null;
-          const iv      = estimateIV(h.ticker, vix);
+          const iv      = getMeasuredIV(h.ticker, hvByTicker, vix).iv;
           const strikes = getStrikeSuggestions(price, "cc", 30, iv);
           const cur     = getTickerCurrency(h.ticker, h.currencyOverride);
           return { ticker: h.ticker, name: h.name || h.ticker, acct, cur, price, estShares, contracts, iv: Math.round(iv), strikes };
@@ -10680,6 +10755,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const fmt2 = n => Number(n).toFixed(2);
         const fmtK = n => n >= 1000 ? `$${(n/1000).toFixed(1)}k` : `$${Number(n).toFixed(0)}`;
 
+        // ─ Real per-ticker HV20/HV-Rank: merge the cached scanner results with any
+        // on-demand fetches for tickers outside the fixed scan universe.
+        const hvByTicker = buildHvByTicker();
+
         // ─ Covered call candidates: held positions + any watchlist tickers
         const heldTickers = new Set(
           portfolios.flatMap(acct => (holdings[acct] || []).map(h => h.ticker))
@@ -10689,9 +10768,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const price      = optionPrices[h.ticker];
             const estShares  = price ? Math.round(h.current / price) : null;
             const contracts  = estShares ? Math.floor(estShares / 100) : null;
-            const iv         = estimateIV(h.ticker, vix);
+            const { iv, hvRank, source } = getMeasuredIV(h.ticker, hvByTicker, vix);
             const ccSuggested = sectorRegimeAlignment(TICKER_DB[h.ticker]?.sector, baseRotation) !== "avoid";
-            return { ticker: h.ticker, name: TICKER_DB[h.ticker]?.name || h.ticker, acct, price, estShares, contracts, iv, ccSuggested, fromHolding: true };
+            return { ticker: h.ticker, name: TICKER_DB[h.ticker]?.name || h.ticker, acct, price, estShares, contracts, iv, ivHvRank: hvRank, ivSource: source, ccSuggested, fromHolding: true };
           })
         ).filter((h, idx, arr) => arr.findIndex(x => x.ticker === h.ticker) === idx);
 
@@ -10699,9 +10778,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           .filter(sym => !heldTickers.has(sym))
           .map(sym => {
             const price      = optionPrices[sym];
-            const iv         = estimateIV(sym, vix);
+            const { iv, hvRank, source } = getMeasuredIV(sym, hvByTicker, vix);
             const ccSuggested = true;
-            return { ticker: sym, name: TICKER_DB[sym]?.name || sym, acct: "—", price, estShares: null, contracts: null, iv, ccSuggested, fromHolding: false };
+            return { ticker: sym, name: TICKER_DB[sym]?.name || sym, acct: "—", price, estShares: null, contracts: null, iv, ivHvRank: hvRank, ivSource: source, ccSuggested, fromHolding: false };
           });
 
         const ccCandidates = [...ccFromHoldings, ...ccFromWatchlist]
@@ -10714,25 +10793,26 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             const i = baseRotation.indexOf(t); return i !== -1 && baseRotation.slice(i,i+90).includes(sectorWord);
           });
           return isAligned;
-        }).map(r => ({
-          ...r,
-          price: optionPrices[r.ticker],
-          iv: estimateIV(r.ticker, vix),
-          fromWatchlist: false,
-        })).slice(0, 12);
+        }).map(r => {
+          const { iv, hvRank, source } = getMeasuredIV(r.ticker, hvByTicker, vix);
+          return { ...r, price: optionPrices[r.ticker], iv, ivHvRank: hvRank, ivSource: source, fromWatchlist: false };
+        }).slice(0, 12);
 
         const cspRecTickers = new Set(cspFromRecs.map(r => r.ticker));
         const cspFromWatchlist = optionWatchlist
           .filter(sym => !cspRecTickers.has(sym))
-          .map(sym => ({
-            ticker: sym, name: TICKER_DB[sym]?.name || sym,
-            sector: TICKER_DB[sym]?.sector || "—",
-            thesis: "Custom watchlist ticker.",
-            bestFor: "TFSA",
-            price: optionPrices[sym],
-            iv: estimateIV(sym, vix),
-            fromWatchlist: true,
-          }));
+          .map(sym => {
+            const { iv, hvRank, source } = getMeasuredIV(sym, hvByTicker, vix);
+            return {
+              ticker: sym, name: TICKER_DB[sym]?.name || sym,
+              sector: TICKER_DB[sym]?.sector || "—",
+              thesis: "Custom watchlist ticker.",
+              bestFor: "TFSA",
+              price: optionPrices[sym],
+              iv, ivHvRank: hvRank, ivSource: source,
+              fromWatchlist: true,
+            };
+          });
 
         const cspCandidates = [...cspFromRecs, ...cspFromWatchlist];
 
@@ -10858,15 +10938,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
                       {cspCcPicks.ccPicks.slice(0, 12).map(p => {
                         const rc = p.ccRating === "Strong" ? "#22c55e" : p.ccRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
+                        const earn = earningsWarning(p.ticker, 30);
                         return (
-                          <div key={p.ticker} title="Click to add to watchlist"
+                          <div key={p.ticker} title={earn ? `Earnings ${earn.date} — inside a 30 DTE window` : "Click to add to watchlist"}
                             onClick={() => addWatchlistTicker(p.ticker)}
                             style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
-                              background:"rgba(34,211,238,0.05)", border:"1px solid rgba(34,211,238,0.15)",
+                              background:"rgba(34,211,238,0.05)", border: earn ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(34,211,238,0.15)",
                               borderRadius:8, padding:"10px 12px" }}>
                             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                               <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
-                                {p.ticker}
+                                {p.ticker}{earn && <span style={{ marginLeft:4 }}>🗓</span>}
                               </span>
                               <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.ccScore}</span>
                             </div>
@@ -10878,6 +10959,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 </span>
                               )}
                             </div>
+                            {earn && (
+                              <p style={{ fontSize:8, color:"#fbbf24", marginBottom:5 }}>⚠ Earnings {earn.date} ({earn.daysAway}d)</p>
+                            )}
                             <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
                               {(p.ccSignals || []).slice(0, 3).map(sig => (
                                 <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
@@ -10906,9 +10990,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
               {ccCandidates.map(h => {
                 const selectedDTE = 30;
                 const strikes = h.price ? getStrikeSuggestions(h.price, "cc", selectedDTE, h.iv) : [];
+                const earn = earningsWarning(h.ticker, selectedDTE);
                 return (
                   <div key={h.ticker + h.acct} className="card" style={{ padding:"14px 18px",
-                    borderColor: h.ccSuggested ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.06)" }}>
+                    borderColor: earn ? "rgba(251,191,36,0.3)" : h.ccSuggested ? "rgba(34,211,238,0.12)" : "rgba(255,255,255,0.06)" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:8, marginBottom:10 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                         <span style={{ fontSize:18, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#22d3ee" }}>
@@ -10926,6 +11011,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               background:"rgba(255,255,255,0.04)", color:"rgba(255,255,255,0.3)",
                               border:"1px solid rgba(255,255,255,0.08)" }}>Regime: hold / no CC</span>
                         }
+                        {earn && (
+                          <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
+                            background:"rgba(251,191,36,0.1)", color:"#fbbf24",
+                            border:"1px solid rgba(251,191,36,0.3)" }}>
+                            🗓 Earnings {earn.date} ({earn.daysAway}d) — inside {selectedDTE} DTE window
+                          </span>
+                        )}
                       </div>
                       <div style={{ textAlign:"right" }}>
                         <p style={{ fontSize:12, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)" }}>
@@ -10946,7 +11038,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             {" "}enter contracts when logging
                           </p>
                         )}
-                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Est. IV {Math.round(h.iv)}% · VIX×{(h.iv/vix).toFixed(1)}</p>
+                        <p style={{ fontSize:9, color: h.ivSource === "measured" ? "rgba(34,211,238,0.55)" : "rgba(255,255,255,0.25)" }}>
+                          {h.ivSource === "measured"
+                            ? <>IV {Math.round(h.iv)}% (measured{h.ivHvRank != null ? ` · IVR ${Math.round(h.ivHvRank)}%` : ""})</>
+                            : <>Est. IV {Math.round(h.iv)}% · VIX×{(h.iv/vix).toFixed(1)}</>}
+                        </p>
                       </div>
                     </div>
 
@@ -11012,8 +11108,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </tbody>
                         </table>
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:6, fontStyle:"italic" }}>
-                          ★ Premiums estimated from IV≈VIX×{(h.iv/vix).toFixed(1)} · 30 DTE · verify with your broker before trading ·
-                          Δ/Θ/POP are Black-Scholes estimates (r≈0), not live chain data
+                          {h.ivSource === "measured"
+                            ? <>★ Premiums from IV≈{Math.round(h.iv)}% (measured HV20×1.25{h.ivHvRank != null ? `, IVR ${Math.round(h.ivHvRank)}%` : ""}) · 30 DTE · verify with your broker before trading ·</>
+                            : <>★ Premiums estimated from IV≈VIX×{(h.iv/vix).toFixed(1)} (sector proxy — no price history yet) · 30 DTE · verify with your broker before trading ·</>}
+                          {" "}Δ/Θ/POP are Black-Scholes estimates (r≈0), not live chain data
                         </p>
                       </div>
                     ) : !h.price ? (
@@ -11110,15 +11208,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
                       {cspCcPicks.cspPicks.slice(0, 12).map(p => {
                         const rc = p.cspRating === "Strong" ? "#22c55e" : p.cspRating === "Good" ? "#fbbf24" : "rgba(255,255,255,0.35)";
+                        const earn = earningsWarning(p.ticker, 30);
                         return (
-                          <div key={p.ticker} title="Click to add to watchlist"
+                          <div key={p.ticker} title={earn ? `Earnings ${earn.date} — inside a 30 DTE window` : "Click to add to watchlist"}
                             onClick={() => addWatchlistTicker(p.ticker)}
                             style={{ minWidth:158, maxWidth:158, flexShrink:0, cursor:"pointer",
-                              background:"rgba(167,139,250,0.05)", border:"1px solid rgba(167,139,250,0.15)",
+                              background:"rgba(167,139,250,0.05)", border: earn ? "1px solid rgba(251,191,36,0.35)" : "1px solid rgba(167,139,250,0.15)",
                               borderRadius:8, padding:"10px 12px" }}>
                             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:5 }}>
                               <span style={{ fontSize:13, fontWeight:700, fontFamily:"'JetBrains Mono',monospace", color:"#a78bfa" }}>
-                                {p.ticker}
+                                {p.ticker}{earn && <span style={{ marginLeft:4 }}>🗓</span>}
                               </span>
                               <span style={{ fontSize:11, fontWeight:700, color: rc }}>{p.cspScore}</span>
                             </div>
@@ -11130,6 +11229,9 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 </span>
                               )}
                             </div>
+                            {earn && (
+                              <p style={{ fontSize:8, color:"#fbbf24", marginBottom:5 }}>⚠ Earnings {earn.date} ({earn.daysAway}d)</p>
+                            )}
                             <div style={{ display:"flex", flexWrap:"wrap", gap:3, marginBottom:5 }}>
                               {(p.cspSignals || []).slice(0, 3).map(sig => (
                                 <span key={sig} style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
@@ -11157,9 +11259,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(460px, 1fr))", gap:12 }}>
               {cspCandidates.map(r => {
                 const strikes = r.price ? getStrikeSuggestions(r.price, "csp", 30, r.iv) : [];
+                const earn = earningsWarning(r.ticker, 30);
                 return (
                   <div key={r.ticker} className="card" style={{ padding:"14px 18px",
-                    background:"rgba(167,139,250,0.03)", borderColor:"rgba(167,139,250,0.1)" }}>
+                    background:"rgba(167,139,250,0.03)", borderColor: earn ? "rgba(251,191,36,0.3)" : "rgba(167,139,250,0.1)" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
                       <div>
                         <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:3, flexWrap:"wrap" }}>
@@ -11174,6 +11277,13 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             <span style={{ fontSize:9, padding:"2px 6px", borderRadius:4,
                               background:"rgba(167,139,250,0.1)", color:"rgba(167,139,250,0.7)",
                               border:"1px solid rgba(167,139,250,0.2)" }}>✓ Regime aligned</span>
+                          )}
+                          {earn && (
+                            <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, fontWeight:600,
+                              background:"rgba(251,191,36,0.1)", color:"#fbbf24",
+                              border:"1px solid rgba(251,191,36,0.3)" }}>
+                              🗓 Earnings {earn.date} ({earn.daysAway}d) — inside 30 DTE window
+                            </span>
                           )}
                           <button onClick={() => removeWatchlistTicker(r.ticker)}
                             style={{ display: r.fromWatchlist ? "inline" : "none",
@@ -11190,7 +11300,11 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                         <p style={{ fontSize:13, fontFamily:"'JetBrains Mono',monospace", color:"rgba(255,255,255,0.7)", fontWeight:600 }}>
                           {r.price ? `$${fmt2(r.price)}` : "—"}
                         </p>
-                        <p style={{ fontSize:9, color:"rgba(255,255,255,0.25)" }}>Est. IV {Math.round(r.iv)}%</p>
+                        <p style={{ fontSize:9, color: r.ivSource === "measured" ? "rgba(167,139,250,0.6)" : "rgba(255,255,255,0.25)" }}>
+                          {r.ivSource === "measured"
+                            ? <>IV {Math.round(r.iv)}% (measured{r.ivHvRank != null ? ` · IVR ${Math.round(r.ivHvRank)}%` : ""})</>
+                            : <>Est. IV {Math.round(r.iv)}%</>}
+                        </p>
                         <span style={{ fontSize:9, padding:"2px 7px", borderRadius:4, display:"inline-block", marginTop:3,
                           background: r.bestFor === "TFSA" ? "rgba(251,191,36,0.1)" : "rgba(34,211,238,0.1)",
                           color: r.bestFor === "TFSA" ? "#fbbf24" : "#22d3ee",
@@ -11259,7 +11373,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                           </tbody>
                         </table>
                         <p style={{ fontSize:9, color:"rgba(255,255,255,0.2)", marginTop:5, fontStyle:"italic" }}>
-                          ★ Estimated premiums — confirm with your broker. Collateral = strike × 100 per contract.
+                          {r.ivSource === "measured"
+                            ? <>★ Premiums from IV≈{Math.round(r.iv)}% (measured HV20×1.25{r.ivHvRank != null ? `, IVR ${Math.round(r.ivHvRank)}%` : ""}) — confirm with your broker.</>
+                            : <>★ Estimated premiums (sector proxy — no price history yet) — confirm with your broker.</>}
+                          {" "}Collateral = strike × 100 per contract.
                           Δ/Θ/POP are Black-Scholes estimates (r≈0), not live chain data.
                         </p>
                       </>
@@ -11904,6 +12021,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     const tradeSetup = spreadStyle === "directional"
                       ? buildDirectionalTradeSetup(s)
                       : buildTradeSetup(s);
+                    const earn = earningsWarning(s.ticker, 35);
 
                     return (
                       <div key={s.ticker} className="card" style={{ padding:"14px 16px",
@@ -11935,6 +12053,12 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                 <span style={{ fontSize:8, padding:"1px 5px", borderRadius:3,
                                   background:"rgba(239,68,68,0.08)", color:"#ef4444",
                                   border:"1px solid rgba(239,68,68,0.2)" }}>Death ✕</span>
+                              )}
+                              {earn && tradeSetup && (
+                                <span title={`Earnings ${earn.date} — inside this trade's ~35 DTE window`}
+                                  style={{ fontSize:8, padding:"1px 5px", borderRadius:3, fontWeight:700,
+                                  background:"rgba(251,191,36,0.12)", color:"#fbbf24",
+                                  border:"1px solid rgba(251,191,36,0.3)" }}>🗓 Earnings {earn.date}</span>
                               )}
                             </div>
                             {/* Price line */}
@@ -12301,6 +12425,14 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                               </span>
                             </div>
 
+                            {earn && (
+                              <p style={{ fontSize:9, color:"#fbbf24", marginTop:6, padding:"5px 8px",
+                                borderRadius:5, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.25)" }}>
+                                ⚠ Earnings {earn.date} ({earn.daysAway}d away) — inside this trade's expiry window.
+                                Expect an IV crush / gap risk; consider a shorter DTE or skip.
+                              </p>
+                            )}
+
                             {/* 52w context */}
                             <p style={{ fontSize:7, color:"rgba(255,255,255,0.15)", marginTop:6 }}>
                               52w: ${s.low52w?.toFixed(2)} – ${s.high52w?.toFixed(2)} &nbsp;·&nbsp;
@@ -12592,7 +12724,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
         const deskGreeks = openTrades.reduce((acc, t) => {
           const S = optionPrices[t.ticker] || Number(t.underlyingPrice) || Number(t.strike);
           const dte = Math.max(1, Math.ceil((new Date(t.expiry) - deskNow) / 864e5));
-          const ivPct = estimateIV(t.ticker, vix);
+          const ivPct = getMeasuredIV(t.ticker, hvByTicker, vix).iv;
           const contracts = Number(t.contracts) || 0;
           const g = bsGreeks(S, Number(t.strike), dte, ivPct, t.type === "cc" ? "call" : "put");
           acc.netDelta   += -g.delta * 100 * contracts;          // short option: negate raw delta
@@ -15623,16 +15755,18 @@ Required schema (fill every field; scenario probabilities within each outlook mu
             <H2 icon="⚡" title="Options" />
             <P>Generate income from positions you already own using two conservative strategies, find the best tickers to trade spreads on, and track every trade in one place.</P>
             <H3>📊 Spread Scanner — daily vertical spread signals</H3>
-            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 69 liquid optionable tickers and scores each one 0–100 for options suitability. The score combines five signals: Volume ratio (options liquidity), RSI, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, and 20-day VWAP proximity. A <strong>Strategy style</strong> toggle at the top of the scanner switches what each score turns into: <strong style={{color:"#22c55e"}}>Premium Selling</strong> (the default) recommends <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, or <strong style={{color:"#a78bfa"}}>Iron Condor</strong> — defined-risk credit trades. <strong style={{color:"#22d3ee"}}>Directional / Vol</strong> recommends debit trades instead: <strong style={{color:"#22c55e"}}>Long Call</strong> on a strong bullish score, <strong style={{color:"#a78bfa"}}>Long Straddle</strong> or <strong style={{color:"#22d3ee"}}>Long Strangle</strong> when the setup is neutral but historical volatility is unusually low (cheap options, coiled for a breakout), and <strong style={{color:"#ef4444"}}>Short Call</strong> on a strong bearish score — flagged with an explicit undefined-risk warning since it's a naked short position. Every ticker still gets <strong style={{color:"#fbbf24"}}>Caution</strong> or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong> when conditions don't clear the bar. No setup required — the data loads automatically when you open the scanner tab.</P>
+            <P>Every morning at 5:30 PM ET (after close) the app runs a full technical scan across 69 liquid optionable tickers and scores each one 0–100 for options suitability. The score combines eight signals: Volume ratio (options liquidity), RSI, MACD histogram direction and magnitude, price position relative to SMA 50 and SMA 200, 20-day VWAP proximity, ATR% (daily range), 20-day historical volatility, and Bollinger Band position. A <strong>Strategy style</strong> toggle at the top of the scanner switches what each score turns into: <strong style={{color:"#22c55e"}}>Premium Selling</strong> (the default) recommends <strong style={{color:"#22c55e"}}>Bull Put Spread</strong>, <strong style={{color:"#ef4444"}}>Bear Call Spread</strong>, or <strong style={{color:"#a78bfa"}}>Iron Condor</strong> — defined-risk credit trades. <strong style={{color:"#22d3ee"}}>Directional / Vol</strong> recommends debit trades instead: <strong style={{color:"#22c55e"}}>Long Call</strong> on a strong bullish score, <strong style={{color:"#a78bfa"}}>Long Straddle</strong> or <strong style={{color:"#22d3ee"}}>Long Strangle</strong> when the setup is neutral but historical volatility is unusually low (cheap options, coiled for a breakout), and <strong style={{color:"#ef4444"}}>Short Call</strong> on a strong bearish score — flagged with an explicit undefined-risk warning since it's a naked short position. Every ticker still gets <strong style={{color:"#fbbf24"}}>Caution</strong> or <strong style={{color:"rgba(255,255,255,0.4)"}}>Skip</strong> when conditions don't clear the bar. No setup required — the data loads automatically when you open the scanner tab.</P>
             <H3>Covered Calls (CC)</H3>
             <P>You own 100+ shares of a stock. You sell someone the right to buy them from you at a higher price (the strike) by a set date. If the stock stays below the strike, you keep the premium as pure income. If it rises above, your shares get called away at the strike — you still profit, just miss the upside above that level.</P>
             <H3>Cash-Secured Puts (CSP)</H3>
             <P>You set aside cash equal to 100 shares × the strike price. You sell someone the right to sell shares to you at that price. If the stock stays above the strike, you keep the premium. If it falls below, you buy the shares at the strike — essentially getting paid to buy a stock you wanted anyway at a discount.</P>
             <H3>Strike calculator</H3>
-            <P>Enter a ticker, number of contracts, and expiry. The app suggests three strikes (conservative, moderate, aggressive) with estimated premium ranges based on the current VIX environment. Always verify with your broker — these are approximations, not live quotes.</P>
+            <P>Enter a ticker, number of contracts, and expiry. The app suggests three strikes (conservative, moderate, aggressive) with estimated premium ranges. For any ticker in the 69-ticker scan universe (or already fetched once) it uses that ticker's own measured 20-day historical volatility — labelled <strong style={{color:"#22d3ee"}}>IV … (measured)</strong> in the strike table; otherwise it falls back to a sector-vs-VIX estimate, labelled <strong>Est. IV</strong>, until real data loads. Always verify with your broker — these are approximations, not live quotes.</P>
+            <H3>🗓 Earnings guard</H3>
+            <P>Every Monday the app pulls upcoming earnings dates for the scan universe. Any Spread Scanner trade ticket or CC/CSP pick whose expiry window overlaps a known earnings date gets a yellow <strong style={{color:"#fbbf24"}}>🗓 Earnings</strong> badge and a warning — selling premium into an earnings report risks a sharp IV crush or gap that price technicals alone can't see. This is a heads-up, not a hard block: the scanner's score isn't adjusted, so use your own judgment on whether to shorten the DTE, size down, or skip the trade.</P>
             <H3>Trade log</H3>
             <P>Record every options trade and track your running P&amp;L, win rate, and total premium collected. Mark trades as Expired worthless, Assigned, Closed for profit, or Closed for loss.</P>
-            <Tip>Covered calls and CSPs are permitted in Canadian registered accounts (TFSA and RRSP) at most brokers, but rules vary. Confirm with your broker before trading inside a registered account. The Spread Scanner is a starting point — always verify signals with your broker's live options chain before placing trades.</Tip>
+            <Tip>Covered calls and CSPs are permitted in Canadian registered accounts (TFSA and RRSP) at most brokers, but rules vary. Confirm with your broker before trading inside a registered account. The Spread Scanner is a starting point — always verify signals, strikes, and earnings dates with your broker's live options chain before placing trades.</Tip>
 
             {/* ── Canadian account strategy ── */}
             <H2 icon="🍁" title="TFSA vs RRSP — which holdings go where?" />
