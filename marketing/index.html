@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Portfolio Rebalancer Pro — Built for Canadian TFSA &amp; RRSP Investors</title>
-  <meta name="description" content="The complete AI-powered portfolio tool for Canadian investors. Smart rebalancing, WHT optimization, 10 AI Advisor templates, Market Pulse, daily Vertical Spread Scanner, 95-stock fundamental screener, BNN Bloomberg picks, and Options income — $99 CAD/year. No bank connection required.">
+  <meta name="description" content="The complete AI-powered portfolio tool for Canadian investors. Smart rebalancing, WHT optimization, 10 AI Advisor templates, Market Pulse, daily Vertical Spread Scanner, 150+-stock fundamental screener, BNN Bloomberg picks, and Options income — $99 CAD/year. No bank connection required.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
@@ -359,14 +359,14 @@
       <div class="feat-card">
         <span class="feat-icon">📊</span>
         <div class="feat-title">Options Income Planner</div>
-        <div class="feat-desc">Model covered calls and cash-secured puts against any holding. Log open trades, track premium income, and get AI suggestions for the best trades on your specific portfolio — rated Low / Medium / High risk.</div>
+        <div class="feat-desc">Model covered calls and cash-secured puts against any holding. Strike tables price premiums off each ticker's own measured historical volatility (not a generic VIX guess) whenever it's available, and flag any pick whose expiry overlaps an upcoming earnings report. Log open trades, track premium income, and get AI suggestions for the best trades on your specific portfolio — rated Low / Medium / High risk.</div>
         <span class="feat-tag feat-tag-ai">AI-powered</span>
       </div>
 
       <div class="feat-card" style="border-color:rgba(34,211,238,0.18)">
         <span class="feat-icon">📈</span>
         <div class="feat-title">Vertical Spread Scanner</div>
-        <div class="feat-desc">A daily technical scan across 69 liquid optionable tickers. Each stock is scored 0–100 using Volume ratio, VWAP proximity, SMA 50/200, RSI, and MACD — then rated Bull Put Spread, Bear Call Spread, Iron Condor, or Skip. Refreshes automatically after market close (5:30 PM ET, weekdays). Run an instant manual scan anytime.</div>
+        <div class="feat-desc">A daily technical scan across 69 liquid optionable tickers. Each stock is scored 0–100 using Volume ratio, VWAP proximity, SMA 50/200, RSI, MACD, ATR%, historical volatility, and Bollinger Band position — then rated Bull Put Spread, Bear Call Spread, Iron Condor, or Skip, with a full trade ticket (strikes, credit, max loss, breakeven). A 🗓 earnings-date guard flags any trade ticket whose expiry window overlaps a scheduled earnings report. Refreshes automatically after market close (5:30 PM ET, weekdays). Run an instant manual scan anytime.</div>
         <span class="feat-tag" style="background:rgba(34,211,238,0.1);color:#22d3ee">After-close refresh · manual scan · all plans</span>
       </div>
 
@@ -512,6 +512,7 @@
         <div class="bullet"><span class="bullet-check">✓</span><span><strong>MACD histogram</strong> — directional conviction; Bull Put vs Bear Call recommendation</span></div>
         <div class="bullet"><span class="bullet-check">✓</span><span><strong>SMA 50 &amp; SMA 200</strong> — trend context with golden cross / death cross detection</span></div>
         <div class="bullet"><span class="bullet-check">✓</span><span><strong>20-day VWAP</strong> — price stability indicator; near-VWAP = safer defined-risk entry</span></div>
+        <div class="bullet"><span class="bullet-check">✓</span><span><strong>🗓 Earnings guard</strong> — every trade ticket is checked against a weekly-refreshed earnings calendar; a warning appears if the expiry window overlaps a scheduled report</span></div>
         <div style="margin-top:16px;font-size:13px;color:var(--dim)">Included in every plan · no setup required</div>
       </div>
       <div>
@@ -878,7 +879,7 @@
           How often does the Spread Scanner refresh? Do I need to trigger it manually?
           <span class="faq-chevron">›</span>
         </div>
-        <div class="faq-a">The scheduled cron fires automatically every weekday at 5:30 PM ET (after NYSE and TSX close) — so signals always reflect the complete trading session, not stale mid-day data. Weekends are skipped because options markets are closed and Yahoo Finance serves unchanged Friday data. When you open the Spread Scanner, the latest cron snapshot loads automatically. You can also hit <strong>🔍 Scan Now</strong> at any time to run a fresh analysis instantly — no waiting for the cron. This runs directly in your browser, fetching 1 year of OHLCV data and computing all five signals live.</div>
+        <div class="faq-a">The scheduled cron fires automatically every weekday at 5:30 PM ET (after NYSE and TSX close) — so signals always reflect the complete trading session, not stale mid-day data. Weekends are skipped because options markets are closed and Yahoo Finance serves unchanged Friday data. When you open the Spread Scanner, the latest cron snapshot loads automatically. You can also hit <strong>🔍 Scan Now</strong> at any time to run a fresh analysis instantly — no waiting for the cron. This runs directly in your browser, fetching 1 year of OHLCV data and computing all eight signals live.</div>
       </div>
 
       <div class="faq-item">

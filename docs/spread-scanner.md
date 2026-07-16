@@ -1,6 +1,6 @@
 # Vertical Spread Scanner
 
-The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 69 liquid optionable tickers every morning at **5:30 PM ET (after close)**, scores each one for vertical spread suitability using five technical signals, and surfaces a clear recommendation — so you spend your time evaluating setups, not hunting for them.
+The Spread Scanner is a daily automated technical analysis tool inside the Options tab. It scans 69 liquid optionable tickers every morning at **5:30 PM ET (after close)**, scores each one for vertical spread suitability using eight technical signals, and surfaces a clear recommendation with a full trade ticket — so you spend your time evaluating setups, not hunting for them or working out strikes by hand.
 
 ---
 
@@ -36,7 +36,7 @@ These tickers were chosen for **options liquidity** — tight bid/ask spreads, h
 
 ---
 
-## The five signals
+## The eight signals
 
 Each ticker is analysed using one year of daily OHLCV data fetched from Yahoo Finance.
 
@@ -102,11 +102,46 @@ The scanner flags Golden Cross and Death Cross on each card.
 | ±1.5% – ±4% | Some momentum, directional trades possible |
 | > ±4% | Extended — trend may continue or mean-revert sharply |
 
+### 6. ATR% (14-period Average True Range)
+
+**What it measures:** The 14-period Average True Range as a percentage of the current price — how wide the stock's typical daily range is.
+
+**Why it matters for spreads:** Tighter daily ranges mean the underlying is less likely to gap through a short strike between now and expiry, which favours defined-risk premium selling. Very wide ranges increase the odds of a fast move blowing through both legs.
+
+| ATR% | Signal |
+|---|---|
+| < 1.5% | Tight range — favourable for premium selling |
+| 1.5% – 3.5% | Normal |
+| > 5.0% | Wide — size down or avoid |
+
+### 7. HV20 (20-day historical volatility)
+
+**What it measures:** Annualised historical volatility computed from the last 20 days of log returns — the scanner's proxy for implied volatility, since it doesn't have access to a live options chain.
+
+**Why it matters for spreads:** This is also what drives the trade ticket's credit estimate (`IV ≈ HV20 × 1.25`, see below). A moderate HV20 means enough premium to make a spread worthwhile without being priced for wild, unpredictable moves.
+
+| HV20 (annualised) | Signal |
+|---|---|
+| 18% – 45% | Sweet spot — meaningful premium, not chaotic |
+| > 55% | Elevated — verify against live IV before sizing |
+
+### 8. Bollinger Band position (20-period, 2σ)
+
+**What it measures:** Where the current price sits within its 20-day Bollinger Bands, from 0 (lower band) to 1 (upper band).
+
+**Why it matters for spreads:** Mid-range readings suggest a range-bound stock — good Iron Condor territory. Readings near either extreme suggest the stock is stretched and more likely to continue or snap back, which favours a directional put or call spread over a neutral condor.
+
+| BB position | Signal |
+|---|---|
+| 0.25 – 0.75 | Mid-range — Iron Condor territory |
+| < 0.20 | Near lower band — bullish mean-reversion bias |
+| > 0.80 | Near upper band — bearish mean-reversion bias |
+
 ---
 
 ## The spread score (0–100)
 
-All five signals are combined into a single **Spread Score**:
+All eight signals are combined into a single **Spread Score**:
 
 | Score | Recommendation | Meaning |
 |---|---|---|
@@ -118,6 +153,34 @@ All five signals are combined into a single **Spread Score**:
 
 **Direction** is determined by comparing bull signals (RSI > 50, positive MACD, price above SMA 50, price above VWAP) versus bear signals. A 3-signal margin in either direction calls it directional; otherwise the ticker is rated Neutral.
 
+### Strategy style toggle
+
+A **Strategy style** control at the top of the scanner switches what each score turns into:
+
+| Style | Bullish score ≥ 65 | Bearish score ≥ 65 | Neutral score ≥ 65 |
+|---|---|---|---|
+| **Premium Selling** (default) | Bull Put Spread | Bear Call Spread | Iron Condor |
+| **Directional / Vol** | Long Call | Short Call ⚠ (undefined risk) | Long Straddle / Long Strangle when HV20 is unusually low |
+
+Premium Selling recommends defined-risk credit spreads. Directional / Vol recommends debit trades instead — a straight long call or put on strong directional conviction, or a straddle/strangle when the setup is neutral but historical volatility is low (cheap options, coiled for a breakout). The Short Call recommendation carries an explicit undefined-risk warning since it's a naked short position, not a spread.
+
+### Trade ticket
+
+Every ticker scoring high enough for a recommendation (not Caution or Skip) gets a full trade ticket, not just a label:
+
+- **Legs** — exact strikes to sell/buy, rounded to realistic increments for the stock's price
+- **Credit / debit estimate** — a simplified Black-Scholes calculation using `IV ≈ HV20 × 1.25` as the volatility input (HV20 is the ticker's own measured 20-day historical volatility, not a market-wide guess)
+- **Max loss / max gain**, per share and per contract
+- **Breakeven price(s)**
+- **Payoff diagram** — an SVG P&L-at-expiry chart with the breakeven and current price marked
+- **Target expiry** (~35 DTE) and a one-line rationale (e.g. "Short put anchored near support")
+
+These are estimates, not live quotes — always verify strikes and pricing in your broker's options chain before placing a trade.
+
+### 🗓 Earnings guard
+
+A weekly cron (`api/refresh-earnings-calendar`) pulls upcoming earnings dates for the scan universe from Financial Modeling Prep. If a ticker's next earnings date falls inside its trade ticket's ~35 DTE expiry window, the card shows a 🗓 badge and an inline warning — selling premium into an earnings report risks a sharp IV crush or a gap that jumps straight through your short strike, and price technicals alone can't see that coming. This is a heads-up, not a score adjustment: the Spread Score itself is unchanged, so use your own judgment on shortening the DTE, sizing down, or skipping the trade entirely.
+
 ---
 
 ## Reading a scanner card
@@ -125,31 +188,41 @@ All five signals are combined into a single **Spread Score**:
 Each ticker card shows:
 
 ```
-NVDA  ▲  [Bull Put Spread]  [Golden ✕]
+NVDA  ▲  [Bull Put Spread]  [Golden ✕]  [🗓 Earnings Jul 24]
 $897.40  +1.2%
 
 SPREAD SCORE  ──────────────── 82
 
-VOLUME RATIO   VWAP (20d)       RSI (14)
-1.8×           $851.20          54.2
-vs 20d avg     +5.4% vs VWAP   Neutral zone
+VOLUME RATIO   VWAP (20d)     RSI (14)      SMA 50
+1.8×           $851.20        54.2          $821.40
+vs 20d avg     +5.4% vs VWAP  Neutral zone  ↑ 9.3% above
 
-SMA 50         SMA 200          MACD
-$821.40        $718.90          ▲ +0.840
-↑ 9.3% above   ↑ 25.0% above   Bullish momentum
+SMA 200        MACD           ATR%          HV20
+$718.90        ▲ +0.840       1.4%          32.1%
+↑ 25.0% above  Bullish        Tight range   Sweet spot
+
+P&L AT EXPIRY (per share)
+[payoff diagram]
+
+SELL $870 Put   BUY $865 Put
+WIDTH $5   CREDIT $1.80   MAX LOSS $3.20   BREAK-EVEN $868.20
+
+📅 ~35 DTE · target Aug 18          Short put anchored near support (SMA50 $821.40)
+⚠ Earnings Jul 24 (12d away) — inside this trade's expiry window.
+Expect an IV crush / gap risk; consider a shorter DTE or skip.
 
 52w: $415.40 – $974.00
-Bias: sell put spreads below support
 ```
 
 - **Direction indicator** (▲ bullish / ▼ bearish / ◈ neutral)
-- **Recommendation badge** in matching colour
+- **Recommendation badge** in matching colour, plus a 🗓 earnings badge when applicable
 - **Golden Cross / Death Cross** badge when SMA 50/200 relationship is significant
 - **Price change** since prior close
 - **Score bar** colour-coded: green ≥ 65 · amber 48–65 · red < 48
-- **Six signal cells** — each shows the computed value plus a one-line context label
+- **Eight signal cells** — each shows the computed value plus a one-line context label
+- **Payoff diagram** with the trade's legs, credit/debit, max loss/gain, and breakeven
+- **Expiry + rationale** line, and an earnings warning line when the trade's window overlaps a report
 - **52-week range** for strike selection context
-- **Bias line** — plain-English suggestion on which side to sell
 
 ---
 
@@ -196,6 +269,19 @@ curl -X GET https://your-domain.vercel.app/api/refresh-options-signals \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
+The 🗓 earnings guard is powered by a separate, weekly Vercel Cron Job (`/api/refresh-earnings-calendar`) that runs **Mondays at 11:00 UTC**:
+
+```json
+{ "path": "/api/refresh-earnings-calendar", "schedule": "0 11 * * 1" }
+```
+
+Earnings dates rarely change day to day, so a weekly refresh is enough. To manually trigger it (admin / self-hosting, e.g. right after first deploying so badges appear immediately instead of waiting for the next Monday):
+
+```bash
+curl -X GET https://your-domain.vercel.app/api/refresh-earnings-calendar \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
 ---
 
 ## Customizing the ticker list
@@ -221,8 +307,9 @@ To add or remove tickers, edit this array and redeploy to Vercel. No other chang
 ## Limitations and important caveats
 
 - **Signals are computed on daily closing data** — intraday price action is not reflected until the next day's close
-- **Premium estimates are not provided** — use your broker's live options chain to check bid/ask and IV
-- **The score does not account for upcoming earnings** — never sell short-premium spreads into a scheduled earnings release; the IV crush or beat/miss can blow through your short strike
+- **Trade ticket premiums are estimates, not live quotes** — the credit/debit, max loss, and breakeven figures come from a simplified Black-Scholes model using measured HV20 as an IV proxy (`IV ≈ HV20 × 1.25`), not a real options chain. There is no live bid/ask, open interest, or actual implied volatility skew behind these numbers — always check your broker's live chain before sizing or placing a trade
+- **The earnings guard is a warning, not a filter** — the 🗓 badge flags trades whose expiry window overlaps a known earnings date, but the Spread Score itself is not adjusted for it. A high-scoring ticker can still show the earnings warning; read it and decide for yourself whether to shorten the DTE, size down, or skip
+- **Earnings dates depend on a weekly refresh** — the earnings calendar cron runs Mondays; a date change or newly announced report mid-week won't appear until the next refresh. Always double-check the actual earnings date with your broker or the company's investor relations page before relying on the absence of a badge
 - **MACD and SMA require sufficient history** — tickers with less than 30 days of trading history are excluded from the scan
 - **Not financial advice** — the scanner identifies technical conditions that historically favour defined-risk spread trades. Market conditions change; always size positions appropriately and verify in your broker's platform before trading.
 
@@ -236,6 +323,7 @@ To add or remove tickers, edit this array and redeploy to Vercel. No other chang
 | Ticker missing from results | It may have been excluded due to insufficient data or a Yahoo Finance fetch error |
 | Score seems wrong | The scheduled cron reflects today's complete closing data. The manual Scan Now fetches live — if run mid-session, the most recent bar is partial |
 | Refresh button returns an error | The Vercel Blob hasn't been populated yet. Trigger the cron manually (admin only) |
+| No 🗓 earnings badges ever appear | The earnings-calendar cron hasn't run yet (fires Mondays). Trigger `/api/refresh-earnings-calendar` manually (admin only), or verify `FMP_API_KEY` is set — badges fail silently open (no warning shown) rather than blocking the scanner |
 
 ---
 

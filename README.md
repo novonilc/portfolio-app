@@ -2,7 +2,7 @@
 
 **The AI-powered portfolio tool built for Canadian TFSA & RRSP investors.**
 
-Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, a daily Vertical Spread Scanner, BNN Bloomberg expert picks, a 95-stock fundamental screener, and Claude AI with 10 expert analysis templates — all in your browser, no bank connection ever.
+Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar-cost averaging schedules, withholding-tax optimization, live Market Pulse, a daily Vertical Spread Scanner, BNN Bloomberg expert picks, a 150+-stock fundamental screener, and Claude AI with 10 expert analysis templates — all in your browser, no bank connection ever.
 
 ### Subscription plans
 
@@ -13,7 +13,7 @@ Manage your TFSA, RRSP, and custom accounts with intelligent rebalancing, dollar
 | Ideas & curated recommendations | ✓ | ✓ |
 | Options Calculator (CC + CSP) | ✓ | ✓ |
 | 📊 Spread Scanner (daily auto-refresh, 5:30 PM ET (after close)) | ✓ | ✓ |
-| 🔎 Stock Scanner (95 stocks, 9 presets, Ideas integration, daily refresh) | ✓ | ✓ |
+| 🔎 Stock Scanner (150+ stocks, 9 presets, Ideas integration, daily refresh) | ✓ | ✓ |
 | 📰 BNN Bloomberg Market Call Picks (last 5 days) | ✓ | ✓ |
 | Investor Profile | ✓ | ✓ |
 | ☁️ Automatic cloud sync (multi-device) | ✓ | ✓ |
@@ -75,9 +75,12 @@ In-depth guides for specific features live in the [`docs/`](docs/) folder:
 > **AI Advisor quick reference:** The 🧠 AI Advisor tab (Pro plan) provides 10 expert prompt templates — Market Analysis, Portfolio Diversification, Risk Management, Technical Analysis, Economic Indicators, Value Investing, Market Sentiment, Earnings Report Analysis, Growth vs Dividend Stocks, and Geopolitical/World Events. Each template auto-injects your portfolio context so you never need to paste holdings manually.
 
 > **Recent changes:**
+> - **Expanded mid & small-cap coverage (Stock Scanner)** — added 20 new tickers (13 mid-cap, 7 small-cap, including 2 Canadian small-caps) diversified across Healthcare, Industrials, Financials, Materials, Consumer, and Real Estate — sectors that were thin or absent in the prior mid-cap set, which skewed heavily toward Cyber Security, Aerospace/Space, and Robotics. Small-cap was previously an empty bucket despite the **Mid & Small** preset advertising it. New tickers populate with live fundamentals on the next scheduled GitHub Actions refresh (daily, 6AM Vancouver) or via a manual `npm run refresh-scanner` / workflow dispatch.
+> - **🗓 Earnings guard (Options tab)** — a weekly Vercel Cron (`api/refresh-earnings-calendar`) pulls upcoming earnings dates for the Spread Scanner's 69-ticker universe from Financial Modeling Prep. Any Spread Scanner trade ticket or CC/CSP pick whose expiry window overlaps a known earnings date now shows a 🗓 badge and an explicit warning — selling premium into earnings risks an IV crush or gap that price technicals alone can't see. Presentation-only; it doesn't change the underlying score.
+> - **Measured IV in the CC/CSP strike calculator** — the Covered Call and Cash-Secured Put strike tables now prefer each ticker's own measured 20-day historical volatility (pulled from the Spread Scanner's cached results, or fetched on demand for tickers outside the 69-ticker universe) over the old static sector×VIX estimate. Strike tables label each card `measured` or `estimated` so you know which premiums are grounded in real price history.
 > - **🧠 AI Advisor** — a new tab (Pro plan) with 10 expert prompt templates that auto-inject your full portfolio context into every Claude call. Templates cover: Market Analysis, Portfolio Diversification, Risk Management, Technical Analysis, Economic Indicators, Value Investing, Market Sentiment, Earnings Report Analysis, Growth vs Dividend Stocks, and Geopolitical/World Events. A two-column layout shows the template library on the left and the builder/response panel on the right. Results can be copied or regenerated, and the 10 most recent analyses are saved in a persistent history panel.
 > - **📰 BNN Bloomberg 5-day history** — the BNN Bloomberg Market Call section in the Ideas tab now shows the last 5 broadcast days. Older days collapse behind a toggle so the latest session loads fast.
-> - **🔎 Stock Scanner + Ideas Integration** — a tab covering 95 stocks (US large/mega-cap, US mid/small-cap, and Canadian TSX) with 9 preset screens (Buffett Zone, GARP, Income Quality, Deep Value, Compounders, Mid & Small, Ideas Picks, Canadian Value, Show All), 7 custom filter sliders, a Value Score (0–100), and Market Cap badges. The **Ideas Picks** preset shows only stocks curated in the Ideas tab; clicking any Ideas-linked row expands an inline thesis panel with the full investment thesis, risk factors, tags, and CAGR estimate. Data refreshes daily at 6AM Vancouver via GitHub Actions — no API key or manual update required.
+> - **🔎 Stock Scanner + Ideas Integration** — a tab covering 150+ stocks (US large/mega-cap, US mid/small-cap, and Canadian TSX) with 9 preset screens (Buffett Zone, GARP, Income Quality, Deep Value, Compounders, Mid & Small, Ideas Picks, Canadian Value, Show All), 7 custom filter sliders, a Value Score (0–100), and Market Cap badges. The **Ideas Picks** preset shows only stocks curated in the Ideas tab; clicking any Ideas-linked row expands an inline thesis panel with the full investment thesis, risk factors, tags, and CAGR estimate. Data refreshes daily at 6AM Vancouver via GitHub Actions — no API key or manual update required.
 > - **📊 Vertical Spread Scanner** — a new sub-tab in Options that scores 69 liquid tickers daily for vertical spread suitability. Computes RSI (14), MACD (12/26/9), SMA 50 & 200, 20-day VWAP, and volume ratio from 1 year of daily data. Each ticker gets a 0–100 spread score and a recommendation: Bull Put Spread, Bear Call Spread, Iron Condor, Caution, or Skip. Refreshes automatically every day at 5:30 PM ET (after close) via Vercel Cron. Included in both Basic and Pro.
 > - **📰 BNN Bloomberg Market Call Picks** — expert analyst buy/hold/sell calls from BNN Bloomberg's daily Market Call segment, parsed and structured by Claude AI each weekday morning. Organised into Canadian stocks, US stocks, and ETFs. Included in both plans.
 > - **📖 Help tab & onboarding gate** — a full in-app guide covering every tab, TFSA/RRSP strategy, Basic vs Pro features, and 7 best practices. New users land on the Help tab automatically and cannot access other tabs until they click "Start using the app →". Returning users go straight to Dashboard.
@@ -267,9 +270,9 @@ Look up any ticker symbol against the curated database.
 
 A covered-call and cash-secured-put planning tool for generating premium income on existing holdings. Four sub-tabs:
 
-**Covered Calls (CC):** Enter ticker, current price, strike, DTE, and contracts. The calculator shows estimated premium, monthly yield, annualised yield, and assignment risk (in-the-money flag).
+**Covered Calls (CC):** Enter ticker, current price, strike, DTE, and contracts. The calculator shows estimated premium, monthly yield, annualised yield, and assignment risk (in-the-money flag). Premiums use each ticker's own measured 20-day historical volatility when available (from the Spread Scanner's cached scan, or fetched on demand for tickers outside its 69-ticker universe) — labelled `measured` vs the fallback sector×VIX `estimated` IV. Picks whose expiry window overlaps a known earnings date show a 🗓 warning badge (see **Earnings guard** below).
 
-**Cash-Secured Puts (CSP):** Same fields. Shows cash required to secure the put, estimated premium, and effective purchase cost if assigned.
+**Cash-Secured Puts (CSP):** Same fields. Shows cash required to secure the put, estimated premium, and effective purchase cost if assigned. Same measured/estimated IV labelling and 🗓 earnings-date warning as Covered Calls.
 
 **Open Trades:** A log of active option positions with strike, DTE remaining, premium received, and a countdown to expiry. Positions expiring within 14 days trigger the **Expiring Options** Morning Radar cell.
 
@@ -281,6 +284,10 @@ A covered-call and cash-secured-put planning tool for generating premium income 
 - **Pre-fill** button — auto-populates the CC or CSP calculator tab with the suggested parameters
 
 AI Analysis is included with the **Pro subscription** — no API key needed. If an Investor Profile is set, the AI Analysis weights suggestions by risk tolerance (Conservative profiles see Low-risk trades only; Aggressive profiles see all levels). Basic plan users see an upgrade prompt instead of the AI button.
+
+#### 🗓 Earnings guard
+
+A weekly Vercel Cron (`api/refresh-earnings-calendar`, Mondays 11:00 UTC) pulls upcoming earnings dates for the Spread Scanner's 69-ticker universe from Financial Modeling Prep and caches them in Vercel Blob. Any CC/CSP pick or Spread Scanner trade ticket whose expiry window overlaps a known earnings date shows a 🗓 badge and an inline warning — selling premium into an earnings report risks a sharp IV crush or gap that price-technicals-based scoring can't see on its own. This is a heads-up, not a hard block: the underlying score is unchanged, so use your own judgment on shortening the DTE, sizing down, or skipping the trade.
 
 ---
 
@@ -335,7 +342,7 @@ Each horizon has three scenario cards — Bull, Base, Bear — each showing prob
 
 ### Stock Scanner Tab
 
-A fundamental screener covering **95 stocks** (US large/mega-cap, US mid/small-cap, and Canadian TSX names) designed to surface quality businesses at the right price.
+A fundamental screener covering **150+ stocks** (US large/mega-cap, US mid/small-cap, and Canadian TSX names) designed to surface quality businesses at the right price.
 
 **9 one-click preset screens:**
 
@@ -377,7 +384,7 @@ Score ≥ 75 = green, 50–74 = yellow, < 50 = red. Bank stocks receive a neutra
 
 Click the same row again to collapse the panel.
 
-**Daily data refresh:** A GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) runs every day at 6AM Vancouver time (13:00 UTC). It fetches live P/E, forward P/E, EPS growth, ROE, D/E, dividend yield, FCF yield, and gross margin from Yahoo Finance for all 95 tickers and commits the updated `src/data/stockUniverse.json`. This triggers a Vercel auto-deploy, so the scanner always shows yesterday's closing fundamentals. No API key or manual update required.
+**Daily data refresh:** A GitHub Actions workflow (`.github/workflows/refresh-scanner.yml`) runs every day at 6AM Vancouver time (13:00 UTC). It fetches live P/E, forward P/E, EPS growth, ROE, D/E, dividend yield, FCF yield, and gross margin from Yahoo Finance for all 150+ tickers and commits the updated `src/data/stockUniverse.json`. This triggers a Vercel auto-deploy, so the scanner always shows yesterday's closing fundamentals. No API key or manual update required.
 
 **Manual refresh:**
 

@@ -27,9 +27,11 @@ async function getYahooCrumb() {
   return { crumb, cookies };
 }
 
-// ── Curated universe — 103 US + 25 CA = 128 tickers ─────────────────────────
-// Only mega, large, and select mid-cap names. Intentionally < 100 tickers so
-// the full scan finishes in ~35 s and the git push window stays tiny.
+// ── Curated universe — mega/large/mid/small cap across US + CA ──────────────
+// Mid and small cap were historically thin (13 mid, 0 small) despite the
+// scanner's "Mid & Small" preset advertising both — this batch fills that out
+// with diversified, profitable, quality names (not speculative story stocks)
+// across sectors underrepresented in the existing mid-cap set.
 const US_STOCKS = [
   // Technology (20)
   { ticker:'AAPL',  name:'Apple',                  sector:'Technology',            mktCap:'mega'  },
@@ -157,6 +159,34 @@ const US_STOCKS = [
   { ticker:'UBER',  name:'Uber Technologies',       sector:'Mobility & Delivery',   mktCap:'large' },
   { ticker:'LYFT',  name:'Lyft',                    sector:'Mobility & Delivery',   mktCap:'mid'   },
   { ticker:'DASH',  name:'DoorDash',                sector:'Mobility & Delivery',   mktCap:'large' },
+  // ── Mid & small cap expansion — diversified away from the existing
+  // cyber/aerospace/robotics-heavy mid-cap set into Healthcare, Industrials,
+  // Financials, Materials, Consumer, and Real Estate ──────────────────────
+  // Healthcare (3 mid, 1 small)
+  { ticker:'ENSG',  name:'Ensign Group',            sector:'Healthcare',            mktCap:'mid'   },
+  { ticker:'DOCS',  name:'Doximity',                sector:'Healthcare',            mktCap:'mid'   },
+  { ticker:'ICUI',  name:'ICU Medical',             sector:'Healthcare',            mktCap:'mid'   },
+  { ticker:'UFPT',  name:'UFP Technologies',        sector:'Healthcare',            mktCap:'small' },
+  // Industrials (2 mid, 1 small)
+  { ticker:'MLI',   name:'Mueller Industries',      sector:'Industrials',           mktCap:'mid'   },
+  { ticker:'AIT',   name:'Applied Industrial Technologies', sector:'Industrials',   mktCap:'mid'   },
+  { ticker:'HAYW',  name:'Hayward Holdings',        sector:'Industrials',           mktCap:'small' },
+  // Financials (3 mid)
+  { ticker:'WTM',   name:'White Mountains Insurance', sector:'Financials',          mktCap:'mid'   },
+  { ticker:'RNR',   name:'RenaissanceRe Holdings',  sector:'Financials',            mktCap:'mid'   },
+  { ticker:'FFIN',  name:'First Financial Bankshares', sector:'Financials',         mktCap:'mid'   },
+  // Materials (1 mid)
+  { ticker:'ATI',   name:'ATI Inc',                 sector:'Materials',             mktCap:'mid'   },
+  // Consumer Staples (2 mid, 1 small)
+  { ticker:'BJ',    name:"BJ's Wholesale Club",     sector:'Consumer Staples',      mktCap:'mid'   },
+  { ticker:'FIZZ',  name:'National Beverage Corp',  sector:'Consumer Staples',      mktCap:'small' },
+  // Consumer Discretionary (2 mid, 2 small)
+  { ticker:'WING',  name:'Wingstop',                sector:'Consumer Discretionary', mktCap:'mid'  },
+  { ticker:'FIVE',  name:'Five Below',              sector:'Consumer Discretionary', mktCap:'mid'  },
+  { ticker:'CVCO',  name:'Cavco Industries',        sector:'Consumer Discretionary', mktCap:'small' },
+  { ticker:'MLKN',  name:'MillerKnoll',             sector:'Consumer Discretionary', mktCap:'small' },
+  // Real Estate (1 mid)
+  { ticker:'CUBE',  name:'CubeSmart',               sector:'Real Estate',           mktCap:'mid'   },
 ];
 
 const CA_STOCKS = [
@@ -185,6 +215,9 @@ const CA_STOCKS = [
   { ticker:'TFII',   name:'TFI International',            sector:'Industrials',     market:'CA', mktCap:'mid'   },
   { ticker:'WSP.TO', name:'WSP Global',                   sector:'Industrials',     market:'CA', mktCap:'mid'   },
   { ticker:'USCC.TO', name:'Global X S&P 500 Covered Call ETF', sector:'ETF',       market:'CA', mktCap:'large' },
+  // Small cap additions
+  { ticker:'GOOS',   name:'Canada Goose Holdings',        sector:'Consumer Discretionary', market:'CA', mktCap:'small' },
+  { ticker:'LSPD',   name:'Lightspeed Commerce',          sector:'Technology',      market:'CA', mktCap:'small' },
 ];
 
 // ── Manually curated moat descriptions ───────────────────────────────────────
@@ -263,12 +296,24 @@ const CURATED_MOATS = {
   TFII:'Trucking + Last Mile Scale',    'WSP.TO':'Global Engineering Consulting',
   'USCC.TO':'Covered Call Premium Income on S&P 500',
   SPCX:'Reusable Rocket + Starlink Constellation Dominance',
+  ENSG:'Post-Acute Care Operating Model',      DOCS:'Physician Network Platform Lock-in',
+  ICUI:'IV Therapy & Infusion Systems Niche',  UFPT:'Medical Device Contract Manufacturing Niche',
+  MLI:'Copper Tube & Fittings Manufacturing Scale',
+  AIT:'Industrial MRO Distribution Density',   HAYW:'Pool Equipment Aftermarket Replacement Cycle',
+  WTM:'Disciplined Insurance Capital Allocation', RNR:'Reinsurance Underwriting Scale',
+  FFIN:'Texas Regional Banking Franchise',     ATI:'Aerospace-Grade Specialty Metals',
+  BJ:'Membership Warehouse Value Model',       FIZZ:'Regional Beverage Brand + DSD Network',
+  WING:'Franchise Unit Economics + Delivery Growth', FIVE:'Extreme Value Discount Retail Format',
+  CVCO:'Manufactured Housing Scale + Distribution',  MLKN:'Commercial Furniture Design Brand Portfolio',
+  CUBE:'Self-Storage REIT Density',
+  GOOS:'Luxury Outerwear Brand',               LSPD:'Unified Commerce Platform for SMB Retail/Hospitality',
 };
 
 // ── Banks / insurers — D/E excluded from scoring ─────────────────────────────
 const BANK_TICKERS = new Set([
   'JPM','BAC','GS','WFC','C','SCHW','AXP','BLK','KKR',
   'TD','RY','BNS','BMO','CM','MFC','SLF','BAM',
+  'FFIN','WTM','RNR',
 ]);
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
