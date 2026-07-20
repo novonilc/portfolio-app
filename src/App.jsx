@@ -1386,6 +1386,7 @@ const SCAN_PRESET_FILTERS = {
   canadian:   { maxPe:18,  maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:3, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"CA",  sector:"all", mktCap:"all",       ideasOnly:false },
   retire:     { maxPe:120, maxPeg:2.5, minRoe:15, maxDe:5,   minDivY:0, minFcfY:0, minEpsG:12,minGrossMargin:30, minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
   insider:    { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
+  bigmoney:   { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
   basebuild:  { maxPe:120, maxPeg:5,   minRoe:0,  maxDe:5,   minDivY:0, minFcfY:0, minEpsG:0, minGrossMargin:0,  minR40:0,  market:"all", sector:"all", mktCap:"all",       ideasOnly:false },
 };
 const SCAN_PRESETS = [
@@ -1401,6 +1402,7 @@ const SCAN_PRESETS = [
   { key:"canadian",   icon:"🍁", label:"Canadian Value", desc:"TSX stocks for TFSA / RRSP"          },
   { key:"retire",     icon:"🏖️", label:"Retire in 10-15yr", desc:"High-growth compounders for a 45yr wealth plan" },
   { key:"insider",    icon:"🕵️", label:"Insider Buying",  desc:"Stocks where insiders are net buyers of their own shares (Form 4)" },
+  { key:"bigmoney",   icon:"🐋", label:"Big Money Flow",  desc:"Stocks where institutions made a large 13F dollar move buying or selling" },
   { key:"basebuild",  icon:"🎯", label:"Base Building",   desc:"Fell hard, stopped making new lows, volume drying up — accumulation zone" },
 ];
 function computeScanScore(s) {
@@ -1705,6 +1707,7 @@ export default function App() {
   const [scanSigFilter,     setScanSigFilter]     = useState("all");
   const [scanMornStarMin,   setScanMornStarMin]   = useState(0); // 0 = off, 1-5 = min stars required
   const [scanInsiderFilter, setScanInsiderFilter] = useState("all"); // "all" | "buying" | "distributing"
+  const [scanInstFilter,    setScanInstFilter]    = useState("all"); // "all" | "buying" | "distributing"
   const [scanBaseFilter,    setScanBaseFilter]    = useState("all"); // "all" | "basing" | "falling"
   const [stockScanResults,  setStockScanResults]  = useState(null);
   const [stockScanProgress, setStockScanProgress] = useState(null);
@@ -1836,6 +1839,7 @@ export default function App() {
   const [bnnDayIndex,         setBnnDayIndex]         = useState(0);
   const [analystRatings,      setAnalystRatings]      = useState(null);
   const [insiderSignals,      setInsiderSignals]      = useState(null);
+  const [institutionalFlow,   setInstitutionalFlow]   = useState(null);
   const [aiOptionsLoading,    setAiOptionsLoading]    = useState(false);
   const [aiOptionsError,      setAiOptionsError]      = useState(null);
   const [aiOptionsAnalysis,   setAiOptionsAnalysis]   = useState(() => {
@@ -2126,6 +2130,18 @@ export default function App() {
         const data = await res.json();
         if (data.signals) setInsiderSignals(data);
       } catch { /* silently skip — insider badges stay hidden */ }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load institutional (13F) big-money flow signals on startup
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/public-data?key=institutional-flow");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.signals) setInstitutionalFlow(data);
+      } catch { /* silently skip — institutional badges stay hidden */ }
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -12894,6 +12910,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
 
         // Lookup maps needed inside the scan .map() callback — must be declared before scanned
         const insiderMap  = insiderSignals?.signals  || {};
+        const instMap     = institutionalFlow?.signals || {};
 
         // ── Main scan pass (uses committed filters) ──────────────────────────
         const scanned = STOCKS.filter(s => {
@@ -12932,8 +12949,10 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           const morningStarScore = morningStarMap[s.ticker] ?? 0;
           const insiderData      = insiderMap[s.ticker];
           const insiderScore     = insiderData?.score ?? 50;
+          const instData         = instMap[s.ticker];
+          const instScore        = instData?.score ?? 50;
           const fwdPFcf          = computeFwdPFcf(s);
-          return { ...s, score, fairPrice, upside, trendScore, baseScore, baseSignal, signal, holdPct, retireScore, estCagr, r40, moatScore, morningStarScore, insiderScore, insiderData, fwdPFcf };
+          return { ...s, score, fairPrice, upside, trendScore, baseScore, baseSignal, signal, holdPct, retireScore, estCagr, r40, moatScore, morningStarScore, insiderScore, insiderData, instScore, instData, fwdPFcf };
         });
 
         // ── Sector rank (computed across full universe, not just filtered) ────
@@ -12988,6 +13007,8 @@ Required schema (fill every field; scenario probabilities within each outlook mu
           if (scanMornStarMin > 0 && (s.morningStarScore ?? 0) < scanMornStarMin) return false;
           if (scanInsiderFilter === "buying"      && (s.insiderScore ?? 50) < 65)  return false;
           if (scanInsiderFilter === "distributing" && (s.insiderScore ?? 50) > 35) return false;
+          if (scanInstFilter === "buying"      && (s.instScore ?? 50) < 65)  return false;
+          if (scanInstFilter === "distributing" && (s.instScore ?? 50) > 35) return false;
           if (scanBaseFilter === "basing"  && s.baseSignal !== "Base Building") return false;
           if (scanBaseFilter === "falling" && s.baseSignal !== "Falling Knife") return false;
           return true;
@@ -13296,6 +13317,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                       setScanCommitted(pf);
                       setScanDirty(false);
                       setScanInsiderFilter(key === "insider" ? "buying" : "all");
+                      setScanInstFilter(key === "bigmoney" ? "buying" : "all");
                       setScanBaseFilter(key === "basebuild" ? "basing" : "all");
                     }}
                     style={{ fontSize:12, padding:"7px 14px", display:"flex", alignItems:"center", gap:6 }}>
@@ -13324,6 +13346,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     setScanCommitted(def);
                     setScanDirty(false);
                     setScanInsiderFilter("all");
+                    setScanInstFilter("all");
                     setScanBaseFilter("all");
                   }}
                   style={{ marginLeft:"auto", fontSize:11, color:"#64748b", background:"none",
@@ -13488,6 +13511,33 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                     return (
                       <button key={v}
                         onClick={() => setScanInsiderFilter(v)}
+                        style={{ padding:"4px 10px", borderRadius:6, cursor:"pointer",
+                          fontFamily:"inherit", fontSize:11, fontWeight:700, whiteSpace:"nowrap",
+                          border:`1px solid ${active ? `${color}80` : "rgba(255,255,255,0.1)"}`,
+                          background: active ? `${color}18` : "rgba(255,255,255,0.04)",
+                          color: active ? color : "#94a3b8" }}>
+                        {label}{count !== null ? ` (${count})` : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* Institutional (13F) big-money flow filter — only shown when data is loaded */}
+              {Object.keys(instMap).length > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:7 }}>
+                  <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)" }}>🐋 Big Money</span>
+                  {[
+                    { v:"all",          label:"All",            color:"#94a3b8" },
+                    { v:"buying",       label:"▲ Accumulating", color:"#22c55e" },
+                    { v:"distributing", label:"▼ Distributing", color:"#ef4444" },
+                  ].map(({ v, label, color }) => {
+                    const active = scanInstFilter === v;
+                    const count  = v === "all" ? null
+                      : v === "buying" ? Object.values(instMap).filter(x => x.score >= 65).length
+                      : Object.values(instMap).filter(x => x.score <= 35).length;
+                    return (
+                      <button key={v}
+                        onClick={() => setScanInstFilter(v)}
                         style={{ padding:"4px 10px", borderRadius:6, cursor:"pointer",
                           fontFamily:"inherit", fontSize:11, fontWeight:700, whiteSpace:"nowrap",
                           border:`1px solid ${active ? `${color}80` : "rgba(255,255,255,0.1)"}`,
@@ -13671,6 +13721,16 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                     border: `1px solid ${s.insiderData.signal === "Accumulating" ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
                                     color: s.insiderData.signal === "Accumulating" ? "#22c55e" : "#ef4444" }}>
                                   {s.insiderData.signal === "Accumulating" ? "▲ INS" : "▼ INS"}
+                                </span>
+                              )}
+                              {s.instData && s.instData.signal !== "Neutral" && (
+                                <span title={`Institutional ${s.instData.signal}${s.instData.bigMove ? " (big move)" : ""} — score ${s.instScore}/100 · 13F $ flow ${s.instData.dollarChangeM >= 0 ? "+" : ""}$${s.instData.dollarChangeM}M (${s.instData.pctDollarChange >= 0 ? "+" : ""}${s.instData.pctDollarChange}%) · suggests ${s.instData.optionsPlay?.strategy}`}
+                                  style={{ fontSize:9, fontWeight:800, padding:"0 5px", borderRadius:4, marginLeft:3,
+                                    verticalAlign:"middle", display:"inline-block",
+                                    background: s.instData.signal === "Accumulating" ? "rgba(34,197,94,0.13)" : "rgba(239,68,68,0.12)",
+                                    border: `1px solid ${s.instData.signal === "Accumulating" ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.35)"}`,
+                                    color: s.instData.signal === "Accumulating" ? "#22c55e" : "#ef4444" }}>
+                                  🐋{s.instData.signal === "Accumulating" ? "▲" : "▼"}{s.instData.bigMove ? "!" : ""}
                                 </span>
                               )}
                               {s.trendScore != null && (s.trendScore >= 70 || s.trendScore <= 30) && (
@@ -13967,7 +14027,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                             return (
                               <tr style={{ background:"rgba(15,23,42,0.6)", borderLeft: panelBorder }}>
                                 <td colSpan={19} style={{ padding:"14px 20px 18px" }}>
-                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:16, alignItems:"start" }}>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:16, alignItems:"start" }}>
 
                                     {/* ── Sector peers ── */}
                                     <div>
@@ -14226,6 +14286,68 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                                 No open-market transactions in 90d.
                                               </div>
                                             )}
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+
+                                    {/* ── Institutional (13F) Big Money Flow + Options Play ── */}
+                                    <div>
+                                      <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)",
+                                        marginBottom:8, textTransform:"uppercase", letterSpacing:"0.06em" }}>
+                                        🐋 Big Money Flow
+                                      </div>
+                                      {(() => {
+                                        const inst = instMap[s.ticker];
+                                        if (!inst) {
+                                          return (
+                                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
+                                              No institutional data yet.
+                                              {!institutionalFlow && <span> Trigger /api/refresh-institutional-flow to populate.</span>}
+                                            </div>
+                                          );
+                                        }
+                                        const sc = inst.signal === "Accumulating" ? "#22c55e"
+                                          : inst.signal === "Distributing" ? "#ef4444" : "#64748b";
+                                        const play = inst.optionsPlay || {};
+                                        return (
+                                          <div>
+                                            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8, flexWrap:"wrap" }}>
+                                              <span style={{ fontSize:11, fontWeight:800, color:sc }}>{inst.signal}</span>
+                                              <span style={{ fontSize:9, color:"rgba(255,255,255,0.3)" }}>
+                                                score {inst.score}/100 · 13F
+                                              </span>
+                                              {inst.bigMove && (
+                                                <span style={{ fontSize:9, fontWeight:700, padding:"1px 5px", borderRadius:3,
+                                                  background:"rgba(251,191,36,0.12)", color:"#fbbf24",
+                                                  border:"1px solid rgba(251,191,36,0.3)" }}>
+                                                  Big Move
+                                                </span>
+                                              )}
+                                            </div>
+                                            <div style={{ display:"flex", gap:8, fontSize:9, color:"rgba(255,255,255,0.3)", flexWrap:"wrap", marginBottom:10 }}>
+                                              <span style={{ color: inst.dollarChangeM >= 0 ? "#22c55e" : "#ef4444" }}>
+                                                {inst.dollarChangeM >= 0 ? "▲ +" : "▼ "}${inst.dollarChangeM}M
+                                              </span>
+                                              <span>({inst.pctDollarChange >= 0 ? "+" : ""}{inst.pctDollarChange}% QoQ)</span>
+                                              <span>${inst.totalInvestedM}M total invested</span>
+                                            </div>
+                                            <div style={{ display:"flex", gap:10, fontSize:9, color:"rgba(255,255,255,0.35)", marginBottom:10 }}>
+                                              <span>New {inst.newPositions ?? 0}</span>
+                                              <span>Closed {inst.closedPositions ?? 0}</span>
+                                              <span>↑ {inst.increasedPositions ?? 0}</span>
+                                              <span>↓ {inst.reducedPositions ?? 0}</span>
+                                            </div>
+                                            <div style={{ padding:"8px 10px", borderRadius:6,
+                                              background: `${play.color || "#94a3b8"}14`,
+                                              border: `1px solid ${play.color || "#94a3b8"}40` }}>
+                                              <div style={{ fontSize:10, fontWeight:800, color: play.color || "#94a3b8", marginBottom:3 }}>
+                                                🎯 {play.strategy || "No suggestion"}
+                                              </div>
+                                              <div style={{ fontSize:9, color:"rgba(255,255,255,0.45)", lineHeight:1.5 }}>
+                                                {play.rationale}
+                                              </div>
+                                            </div>
                                           </div>
                                         );
                                       })()}

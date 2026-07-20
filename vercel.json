@@ -25,6 +25,10 @@
       "schedule": "30 13 * * 0"
     },
     {
+      "path": "/api/refresh-institutional-flow",
+      "schedule": "0 14 * * 0"
+    },
+    {
       "path": "/api/refresh-earnings-calendar",
       "schedule": "0 11 * * 1"
     }

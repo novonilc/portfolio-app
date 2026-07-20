@@ -7,6 +7,7 @@
 //   key=options-signals → latest options spread signals
 //   key=csp-cc-picks    → latest CSP / covered-call picks
 //   key=analyst-ratings → latest FMP analyst upgrades/downgrades
+//   key=institutional-flow → latest 13F institutional buy/sell $ flow + options play suggestion
 //   key=earnings-calendar → upcoming earnings dates for the options scan universe
 
 import { list } from "@vercel/blob";
@@ -19,6 +20,7 @@ const CONFIG = {
   "csp-cc-picks":           { prefix: "csp-cc-picks/latest",          maxAge: 3600  },
   "analyst-ratings":        { prefix: "analyst-ratings/latest",        maxAge: 21600 },
   "insider-signals":        { prefix: "insider-signals/latest",        maxAge: 43200 },
+  "institutional-flow":     { prefix: "institutional-flow/latest",     maxAge: 43200 },
   "recommendations-context":{ prefix: "recommendations-context/latest",maxAge: 21600 },
   "earnings-calendar":      { prefix: "earnings-calendar/latest",      maxAge: 21600 },
 };
@@ -66,7 +68,7 @@ export default async function handler(req, res) {
   try {
     if (key === "bnn")       return await handleBnn(res);
     if (CONFIG[key])         return await handleSimple(key, CONFIG[key], res);
-    return res.status(400).json({ error: `Unknown key '${key}'. Valid: bnn, pulse, options-signals, csp-cc-picks, analyst-ratings, insider-signals, recommendations-context, earnings-calendar` });
+    return res.status(400).json({ error: `Unknown key '${key}'. Valid: bnn, pulse, options-signals, csp-cc-picks, analyst-ratings, insider-signals, institutional-flow, recommendations-context, earnings-calendar` });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
