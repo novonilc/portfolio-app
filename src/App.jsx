@@ -14145,7 +14145,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                             return (
                                               <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
                                                 No analyst ratings yet.
-                                                {!analystRatings && <span> Trigger /api/refresh-analyst-ratings to populate.</span>}
+                                                {!analystRatings && <span> Trigger /api/refresh-fmp?job=analyst-ratings to populate.</span>}
                                               </div>
                                             );
                                           }
@@ -14219,7 +14219,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                           return (
                                             <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
                                               No insider data yet.
-                                              {!insiderSignals && <span> Trigger /api/refresh-insider-signals to populate.</span>}
+                                              {!insiderSignals && <span> Trigger /api/refresh-fmp?job=insider-signals to populate.</span>}
                                             </div>
                                           );
                                         }
@@ -14303,7 +14303,7 @@ Required schema (fill every field; scenario probabilities within each outlook mu
                                           return (
                                             <div style={{ fontSize:10, color:"rgba(255,255,255,0.18)" }}>
                                               No institutional data yet.
-                                              {!institutionalFlow && <span> Trigger /api/refresh-institutional-flow to populate.</span>}
+                                              {!institutionalFlow && <span> Trigger /api/refresh-fmp?job=institutional-flow to populate.</span>}
                                             </div>
                                           );
                                         }

@@ -179,7 +179,7 @@ These are estimates, not live quotes — always verify strikes and pricing in yo
 
 ### 🗓 Earnings guard
 
-A weekly cron (`api/refresh-earnings-calendar`) pulls upcoming earnings dates for the scan universe from Financial Modeling Prep. If a ticker's next earnings date falls inside its trade ticket's ~35 DTE expiry window, the card shows a 🗓 badge and an inline warning — selling premium into an earnings report risks a sharp IV crush or a gap that jumps straight through your short strike, and price technicals alone can't see that coming. This is a heads-up, not a score adjustment: the Spread Score itself is unchanged, so use your own judgment on shortening the DTE, sizing down, or skipping the trade entirely.
+A weekly cron (`api/refresh-fmp?job=earnings-calendar`) pulls upcoming earnings dates for the scan universe from Financial Modeling Prep. If a ticker's next earnings date falls inside its trade ticket's ~35 DTE expiry window, the card shows a 🗓 badge and an inline warning — selling premium into an earnings report risks a sharp IV crush or a gap that jumps straight through your short strike, and price technicals alone can't see that coming. This is a heads-up, not a score adjustment: the Spread Score itself is unchanged, so use your own judgment on shortening the DTE, sizing down, or skipping the trade entirely.
 
 ---
 
@@ -269,18 +269,20 @@ curl -X GET https://your-domain.vercel.app/api/refresh-options-signals \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
 
-The 🗓 earnings guard is powered by a separate, weekly Vercel Cron Job (`/api/refresh-earnings-calendar`) that runs **Mondays at 11:00 UTC**:
+The 🗓 earnings guard is powered by a separate, weekly Vercel Cron Job (`/api/refresh-fmp?job=earnings-calendar`) that runs **Mondays at 11:00 UTC**:
 
 ```json
-{ "path": "/api/refresh-earnings-calendar", "schedule": "0 11 * * 1" }
+{ "path": "/api/refresh-fmp?job=earnings-calendar", "schedule": "0 11 * * 1" }
 ```
 
 Earnings dates rarely change day to day, so a weekly refresh is enough. To manually trigger it (admin / self-hosting, e.g. right after first deploying so badges appear immediately instead of waiting for the next Monday):
 
 ```bash
-curl -X GET https://your-domain.vercel.app/api/refresh-earnings-calendar \
+curl -X GET "https://your-domain.vercel.app/api/refresh-fmp?job=earnings-calendar" \
   -H "Authorization: Bearer $CRON_SECRET"
 ```
+
+Note: `refresh-fmp` is a single consolidated Serverless Function shared by four weekly FMP-backed jobs (`analyst-ratings`, `insider-signals`, `institutional-flow`, `earnings-calendar`) — this keeps the project's total `/api` function count under Vercel's Hobby-plan limit of 12. Each job still runs on its own cron schedule; only the underlying file is shared.
 
 ---
 
@@ -323,7 +325,7 @@ To add or remove tickers, edit this array and redeploy to Vercel. No other chang
 | Ticker missing from results | It may have been excluded due to insufficient data or a Yahoo Finance fetch error |
 | Score seems wrong | The scheduled cron reflects today's complete closing data. The manual Scan Now fetches live — if run mid-session, the most recent bar is partial |
 | Refresh button returns an error | The Vercel Blob hasn't been populated yet. Trigger the cron manually (admin only) |
-| No 🗓 earnings badges ever appear | The earnings-calendar cron hasn't run yet (fires Mondays). Trigger `/api/refresh-earnings-calendar` manually (admin only), or verify `FMP_API_KEY` is set — badges fail silently open (no warning shown) rather than blocking the scanner |
+| No 🗓 earnings badges ever appear | The earnings-calendar cron hasn't run yet (fires Mondays). Trigger `/api/refresh-fmp?job=earnings-calendar` manually (admin only), or verify `FMP_API_KEY` is set — badges fail silently open (no warning shown) rather than blocking the scanner |
 
 ---
 
