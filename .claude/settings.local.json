@@ -37,7 +37,12 @@
       "Bash(./node_modules/.bin/esbuild src/App.jsx --loader=jsx --bundle=false --format=esm --outfile=/tmp/claude-115831/-home-nchoudhu-portfolio-app/8670a6c0-9285-4926-99d0-b269b35b217f/scratchpad/app_check.js)",
       "Bash(./node_modules/.bin/esbuild src/App.jsx --bundle=false --format=esm --outfile=/tmp/claude-115831/-home-nchoudhu-portfolio-app/8670a6c0-9285-4926-99d0-b269b35b217f/scratchpad/app_check.js)",
       "Bash(echo \"EXIT CODE: $?\")",
-      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node --check /home/nchoudhu/portfolio-app/scripts/refresh-scanner.mjs)"
+      "Bash(/home/nchoudhu/.local/share/cursor-agent/versions/2026.04.17-787b533/node --check /home/nchoudhu/portfolio-app/scripts/refresh-scanner.mjs)",
+      "Bash(node -e \"require\\('./src/data/recommendations.json'\\); console.log\\('json ok'\\)\")",
+      "Bash(node --check api/refresh-fmp.js)",
+      "Bash(node --check api/refresh-options-signals.js)",
+      "Bash(node --check api/refresh-csp-cc-picks.js)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('src/data/recommendations.json'\\)\\); print\\('recommendations.json OK'\\)\")"
     ]
   }
 }

@@ -34,8 +34,8 @@ function toFmpSymbol(ticker) {
 const UNIVERSE_TICKERS = [
   "AAPL","MSFT","NVDA","GOOGL","META","AMZN","AVGO","ORCL","AMD","MU","QCOM",
   "TSM","ARM","NOW","CRWD","PLTR","MRVL","ALAB","ANET","PANW","FICO","INTC","ADBE",
-  "CRM","ASML","JPM","BAC","GS","V","MA","AXP","BRK.B","SCHW","BLK","MSCI",
-  "PYPL","HOOD","KKR","LLY","JNJ","ABBV","UNH","ISRG","NVO","MRK","AMGN","IDXX",
+  "CRM","ASML","JPM","BAC","GS","V","MA","AXP","BRK.B","SCHW","BLK","MSCI","ICE",
+  "PYPL","HOOD","KKR","COIN","MSTR","LLY","JNJ","ABBV","UNH","ISRG","NVO","MRK","AMGN","IDXX",
   "HIMS","KO","PG","COST","WMT","MNST","HD","NFLX","TSLA","NKE","MCD","SBUX",
   "BKNG","ABNB","UBER","MAR","HLT","RCL","TJX","LOW","LVS","XOM","CVX","OXY",
   "COP","SLB","RTX","LMT","GE","HON","AXON","NOC","LHX","RKLB","ASTS","LUNR",
@@ -474,14 +474,14 @@ const EARNINGS_SCAN_TICKERS = [
   "AAPL", "MSFT", "NVDA", "AMD", "META", "GOOGL", "AMZN", "TSLA", "PLTR", "ARM",
   "SNOW", "DDOG", "CRWD", "ZS", "NET", "MDB", "TEAM",
   "AVGO", "QCOM", "MU", "SMCI", "AMAT", "LRCX",
-  "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C",
+  "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C", "ICE",
   "LLY", "JNJ", "ISRG", "NVO", "UNH", "MRNA", "ABBV",
   "XOM", "CVX", "CNQ", "OXY",
   "RTX", "AXON", "GE", "BA",
   "COST", "SHOP", "NFLX", "SBUX", "HD", "NKE",
   "SQ", "PYPL", "HOOD",
   "RIVN", "F", "GM",
-  "SOFI", "COIN", "MARA",
+  "SOFI", "COIN", "MARA", "MSTR",
   "VST", "CEG", "GEV", "PWR",
   "SPY", "QQQ", "IWM", "XLF", "XLE", "XLK", "GLD", "XBI", // ETFs — no earnings, harmlessly absent from the response
 ];

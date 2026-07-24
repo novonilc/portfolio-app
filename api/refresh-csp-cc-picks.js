@@ -15,7 +15,7 @@ const SCAN_TICKERS = [
   // Semiconductors
   "AVGO", "QCOM", "MU", "SMCI", "AMAT", "LRCX", "ALAB",
   // Financials
-  "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C",
+  "JPM", "BAC", "GS", "V", "BRK.B", "SCHW", "MS", "C", "ICE",
   // Healthcare & Pharma
   "LLY", "JNJ", "ISRG", "NVO", "UNH", "MRNA", "ABBV",
   // Energy
@@ -29,7 +29,7 @@ const SCAN_TICKERS = [
   // EV & Mobility
   "RIVN", "F", "GM",
   // High-beta / speculative
-  "SOFI", "COIN", "MARA",
+  "SOFI", "COIN", "MARA", "MSTR",
   // ETFs
   "SPY", "QQQ", "IWM", "XLF", "XLE", "XLK", "GLD", "XBI",
 ];
